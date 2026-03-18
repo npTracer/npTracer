@@ -1,0 +1,6 @@
+[submodule "NPTracerRenderer/external/glm"]
+	path = NPTracerRenderer/external/glm
+	url = https://github.com/g-truc/glm
+[submodule "NPTracerRenderer/external/glfw"]
+	path = NPTracerRenderer/external/glfw
+	url = https://github.com/glfw/glfw

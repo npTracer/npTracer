@@ -9,12 +9,11 @@ if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
     set(NPTracerRenderer_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Renderer Root Directory")
 endif()
 
-set(CURR_SOURCES
-    "${NPTracerRenderer_ROOT_DIR}/main.cpp"
-)
+find_package(Vulkan REQUIRED)
 
-set(CURR_HEADERS
-    ""
-)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 
-add_library(${PROJECT_NAME} SHARED ${CURR_SOURCES} ${CURR_HEADERS})
+add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glfw)
+add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glm)
+
+add_subdirectory(${NPTracerRenderer_ROOT_DIR}/src)

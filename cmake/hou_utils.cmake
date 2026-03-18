@@ -32,7 +32,9 @@ function(HouUtilsEnsureVariables)
 
      # make install path and dso path into cmake cache variables
     set(HOUDINI_INSTALL_PATH "${HOUDINI_INSTALL_PATH}" CACHE PATH "Houdini Installation Path")
-    set(CUSTOM_DSO_PATH "${CUSTOM_DSO_PATH}" CACHE PATH "Custom DSO Search Path" FORCE) # mark as `FORCE` so it is not actually cached
+    set(CUSTOM_DSO_PATH "${CUSTOM_DSO_PATH}" CACHE PATH "Custom DSO Search Path (SET VIA ENV, NOT CMAKE)" FORCE) # mark as `FORCE` so it is not actually cached
+
+    message(STATUS "${CUSTOM_DSO_PATH}")
 
     # make lib path accessible outside of function
     set(HOUDINI_LIB_PATH "${HOUDINI_LIB_PATH}" PARENT_SCOPE)
@@ -40,7 +42,7 @@ endfunction()
 
 # print all useful variables to command-line
 function(HouUtilsAnnounceState)
-    message(STATUS "Successful configuration of Houdini CMake environment.")
+    message(STATUS "Successful configuration of Houdini CMake environment for '${PROJECT_NAME}'.")
     message(STATUS "HOUDINI_INSTALL_PATH: ${HOUDINI_INSTALL_PATH}")
     message(STATUS "HOUDINI_LIB_PATH: ${HOUDINI_LIB_PATH}")
     message(STATUS "CUSTOM_DSO_PATH: ${CUSTOM_DSO_PATH}")

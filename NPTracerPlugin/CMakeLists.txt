@@ -10,12 +10,11 @@ if (NOT DEFINED NPTracerPlugin_ROOT_DIR)
 endif()
 
 set(CURR_SOURCES
-    "${NPTracerPlugin_ROOT_DIR}/NPTracerPlugin.cpp"
-    "${NPTracerPlugin_ROOT_DIR}/main.cpp"
+    "${NPTracerPlugin_ROOT_DIR}/plugin.cpp"
 )
 
 set(CURR_HEADERS
-    "${NPTracerPlugin_ROOT_DIR}/NPTracerPlugin.h"
+    ""
 )
 
 add_library(${PROJECT_NAME} SHARED ${CURR_SOURCES} ${CURR_HEADERS})
@@ -34,6 +33,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 # set some useful VS settings for QOL
 if(CMAKE_GENERATOR MATCHES "Visual Studio")
-    set_target_properties(NPTracerPlugin PROPERTIES VS_DEBUGGER_COMMAND "${HOUDINI_INSTALL_PATH}/bin/houdini.exe") # set houdini executable as debug target
-    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT NPTracerPlugin) # set startup project
+    set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_COMMAND "${HOUDINI_INSTALL_PATH}/bin/houdini.exe") # set houdini executable as debug target
+    set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME}) # set as startup project (for root source directory, not current source directory)
 endif()

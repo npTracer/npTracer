@@ -10,6 +10,9 @@ void App::create()
     context.createSwapchain(window);
     context.createSwapchainImageViews();
     context.createGraphicsPipeline();
+    context.createCommandPool();
+    context.createCommandBuffer();
+    context.createSyncObjects();
 }
 
 void App::render()
@@ -17,7 +20,10 @@ void App::render()
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+        context.drawFrame();
     }
+
+    context.waitIdle();
 }
 
 void App::run()

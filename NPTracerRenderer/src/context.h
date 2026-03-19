@@ -16,16 +16,28 @@ public:
     void createSurface(GLFWwindow* window);
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
+    void createSwapchain(GLFWwindow* window);
 
     void destroy();
 
     void destroyDebugMessenger();
 
 private:
+    struct SwapchainParams
+    {
+        VkSurfaceFormatKHR format;
+        VkPresentModeKHR presentMode;
+        VkExtent2D extent;
+    };
+
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
+
+    VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+    std::vector<VkImage> swapchainImages;
+    SwapchainParams swapchainParams;
 
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsQueueFamilyIndex = 0;

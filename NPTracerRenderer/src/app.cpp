@@ -7,6 +7,7 @@ void App::create()
     context.createSurface(window);
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
+    context.createSwapchain(window);
 }
 
 void App::render()

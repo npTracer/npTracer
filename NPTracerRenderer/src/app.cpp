@@ -9,6 +9,7 @@ void App::create()
     context.createLogicalDeviceAndQueues();
     context.createSwapchain(window);
     context.createSwapchainImageViews();
+    context.createGraphicsPipeline();
 }
 
 void App::render()

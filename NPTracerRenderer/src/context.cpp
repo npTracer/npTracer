@@ -170,19 +170,26 @@ void Context::createLogicalDeviceAndQueues()
                                              .pQueuePriorities = &queuePriority };
 
     // TODO add device features
-    VkPhysicalDeviceFeatures deviceFeatures{
+    VkPhysicalDeviceVulkan13Features vulkan13Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, .dynamicRendering = VK_TRUE
+    };
 
+    VkPhysicalDeviceFeatures deviceFeatures
+    {
     };
 
     // TODO add more device extensions
     std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-    VkDeviceCreateInfo createInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                                   .queueCreateInfoCount = 1,
-                                   .pQueueCreateInfos = &queueCreateInfo,
-                                   .enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size()),
-                                   .ppEnabledExtensionNames = requiredDeviceExtensions.data(),
-                                   .pEnabledFeatures = &deviceFeatures };
+    VkDeviceCreateInfo createInfo{
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = &vulkan13Features,
+        .queueCreateInfoCount = 1,
+        .pQueueCreateInfos = &queueCreateInfo,
+        .enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size()),
+        .ppEnabledExtensionNames = requiredDeviceExtensions.data(),
+        .pEnabledFeatures = &deviceFeatures,
+    };
 
     if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
     {
@@ -305,21 +312,138 @@ void Context::createGraphicsPipeline()
     // shader creation
     VkShaderModule shaderModule = createShaderModule(readFile(NPTRACER_SHADER_PATH));
 
-    VkPipelineShaderStageCreateInfo vInfo{ .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                                           .module = shaderModule,
-                                           .pName = "vertMain" };
+    VkPipelineShaderStageCreateInfo vInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = shaderModule,
+        .pName = "vertMain"
+    };
 
-    VkPipelineShaderStageCreateInfo fInfo{ .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                                            .module = shaderModule,
-                                            .pName = "fragMain" };
+    VkPipelineShaderStageCreateInfo fInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = shaderModule,
+        .pName = "fragMain"
+    };
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vInfo, fInfo };
+
+    // viewport
+    std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT,
+                                                  VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamicInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
+        .pDynamicStates = dynamicStates.data()
+    };
+
+    VkPipelineVertexInputStateCreateInfo vertexInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = 0,
+        .pVertexBindingDescriptions = nullptr,
+        .vertexAttributeDescriptionCount = 0,
+        .pVertexAttributeDescriptions = nullptr
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo inputInfo
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+    };
+
+    VkViewport viewport{ 0.0f,
+                         0.0f,
+                         static_cast<float>(swapchainParams.extent.width),
+                         static_cast<float>(swapchainParams.extent.height),
+                         0.0f,
+                         1.0f };
+    VkRect2D rect{ VkOffset2D{ 0, 0 }, swapchainParams.extent };
+    VkPipelineViewportStateCreateInfo viewportState
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports = nullptr,
+        .scissorCount = 1,
+        .pScissors = nullptr
+    };
+
+    // rasterizer
+    VkPipelineRasterizationStateCreateInfo rasterInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasSlopeFactor = 1.0f,
+        .lineWidth = 1.0f
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisampling{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE
+    };
+
+    // color blending
+    VkPipelineColorBlendAttachmentState blendInfo{ .blendEnable = VK_FALSE,
+                                                   .colorWriteMask = VK_COLOR_COMPONENT_R_BIT
+                                                                     | VK_COLOR_COMPONENT_G_BIT
+                                                                     | VK_COLOR_COMPONENT_B_BIT
+                                                                     | VK_COLOR_COMPONENT_A_BIT };
+    VkPipelineColorBlendStateCreateInfo blendStateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments = &blendInfo
+    };
+
+    // pipeline layout
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 0,
+        .pushConstantRangeCount = 0
+    };
+    vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+
+    VkPipelineRenderingCreateInfo renderingInfo 
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &swapchainParams.format.format
+    };
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &renderingInfo,
+        .stageCount = 2,
+        .pStages = shaderStages,
+        .pVertexInputState = &vertexInfo,
+        .pInputAssemblyState = &inputInfo,
+        .pViewportState = &viewportState,
+        .pRasterizationState = &rasterInfo,
+        .pMultisampleState = &multisampling,
+        .pColorBlendState = &blendStateInfo,
+        .pDynamicState = &dynamicInfo,
+        .layout = pipelineLayout,
+        .renderPass = nullptr
+    };
+
+    if (vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create pipeline");
+    }
+
+    vkDestroyShaderModule(device, shaderModule, nullptr);
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const 
 {
     VkShaderModuleCreateInfo sci
     {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = code.size() * sizeof(char),
         .pCode = reinterpret_cast<const uint32_t*>(code.data())
     };
@@ -331,6 +455,16 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 
 void Context::destroy()
 {
+    if (pipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(device, pipeline, nullptr);
+    }
+
+    if (pipelineLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    }
+
     if (swapchain != VK_NULL_HANDLE)
     {
         vkDestroySwapchainKHR(device, swapchain, nullptr);

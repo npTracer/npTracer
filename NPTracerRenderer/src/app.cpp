@@ -8,6 +8,7 @@ void App::create()
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
     context.createSwapchain(window);
+    context.createSwapchainImageViews();
 }
 
 void App::render()

@@ -8,6 +8,9 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include "utils.h"
+#include "config.h"
+
 class Context
 {
 public:
@@ -17,6 +20,10 @@ public:
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
     void createSwapchain(GLFWwindow* window);
+    void createSwapchainImageViews();
+    void createGraphicsPipeline();
+
+    VkShaderModule createShaderModule(const std::vector<char>& code) const;
 
     void destroy();
 
@@ -36,8 +43,9 @@ private:
     VkDevice device = VK_NULL_HANDLE;
 
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    std::vector<VkImage> swapchainImages;
     SwapchainParams swapchainParams;
+    std::vector<VkImage> swapchainImages;
+    std::vector<VkImageView> swapchainImageViews;
 
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsQueueFamilyIndex = 0;

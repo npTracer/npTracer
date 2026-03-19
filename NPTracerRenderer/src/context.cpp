@@ -283,6 +283,52 @@ void Context::createSwapchain(GLFWwindow* window)
     swapchainParams = { .format = format, .presentMode = presentMode, .extent = extent };
 }
 
+void Context::createSwapchainImageViews() 
+{
+    VkImageViewCreateInfo imageViewCreateInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                                               .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                                               .format = swapchainParams.format.format,
+                                               .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0,
+                                                                     1, 0, 1 } };
+
+    for (auto& image : swapchainImages)
+    {
+        imageViewCreateInfo.image = image;
+        VkImageView view;
+        vkCreateImageView(device, &imageViewCreateInfo, nullptr, &view);
+        swapchainImageViews.emplace_back(view);
+    }
+}
+
+void Context::createGraphicsPipeline() 
+{
+    // shader creation
+    VkShaderModule shaderModule = createShaderModule(readFile(NPTRACER_SHADER_PATH));
+
+    VkPipelineShaderStageCreateInfo vInfo{ .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                                           .module = shaderModule,
+                                           .pName = "vertMain" };
+
+    VkPipelineShaderStageCreateInfo fInfo{ .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                                            .module = shaderModule,
+                                            .pName = "fragMain" };
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = { vInfo, fInfo };
+}
+
+VkShaderModule Context::createShaderModule(const std::vector<char>& code) const 
+{
+    VkShaderModuleCreateInfo sci
+    {
+        .codeSize = code.size() * sizeof(char),
+        .pCode = reinterpret_cast<const uint32_t*>(code.data())
+    };
+
+    VkShaderModule sm;
+    vkCreateShaderModule(device, &sci, nullptr, &sm);
+    return sm;
+}
+
 void Context::destroy()
 {
     if (swapchain != VK_NULL_HANDLE)

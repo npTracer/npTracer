@@ -23,8 +23,8 @@ public:
     void createSwapchainImageViews();
     void createGraphicsPipeline();
     void createCommandPool();
-    void createCommandBuffer();
-    void createSyncObjects();
+    void createCommandBuffer(VkCommandBuffer& commandBuffer);
+    void createSyncAndFrameObjects();
 
     void beginCommandBuffer(VkCommandBuffer commandBuffer);
     void recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
@@ -49,6 +49,9 @@ private:
         VkExtent2D extent;
     };
 
+    static constexpr int FRAME_COUNT = 2;
+    uint32_t currentFrame = 0;
+
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -59,15 +62,18 @@ private:
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
 
+    // per image
+    std::vector<VkSemaphore> doneRenderingSemaphores;
+
+    // per frame
+    std::vector<VkSemaphore> donePresentingSemaphores;
+    std::vector<VkFence> doneExecutingFences;
+    std::vector<VkCommandBuffer> commandBuffers;
+
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
 
     VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-
-    VkSemaphore presentCompleteSemaphore = VK_NULL_HANDLE;
-    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
-    VkFence drawFence = VK_NULL_HANDLE;
 
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsQueueFamilyIndex = 0;

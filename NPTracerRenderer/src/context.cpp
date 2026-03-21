@@ -454,7 +454,7 @@ void Context::createCommandPool()
     }
 }
 
-void Context::createCommandBuffer()
+void Context::createCommandBuffer(VkCommandBuffer& commandBuffer)
 {
     VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                                            .commandPool = commandPool,
@@ -467,15 +467,33 @@ void Context::createCommandBuffer()
     }
 }
 
-void Context::createSyncObjects() 
+void Context::createSyncAndFrameObjects() 
 {
     VkSemaphoreCreateInfo semInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                  .flags = VK_FENCE_CREATE_SIGNALED_BIT };
 
-    vkCreateSemaphore(device, &semInfo, nullptr, &presentCompleteSemaphore);
-    vkCreateSemaphore(device, &semInfo, nullptr, &renderFinishedSemaphore);
-    vkCreateFence(device, &fenceInfo, nullptr, &drawFence);
+    for (size_t i = 0; i < swapchainImages.size(); i++)
+    {
+        VkSemaphore doneRenderingSemaphore;
+        vkCreateSemaphore(device, &semInfo, nullptr, &doneRenderingSemaphore);
+        doneRenderingSemaphores.emplace_back(doneRenderingSemaphore);
+    }
+
+    for (int i = 0; i < FRAME_COUNT; i++)
+    {
+        VkSemaphore donePresentingSemaphore;
+        VkFence doneExecutingFence;
+        VkCommandBuffer commandBuffer;
+
+        vkCreateSemaphore(device, &semInfo, nullptr, &donePresentingSemaphore);
+        vkCreateFence(device, &fenceInfo, nullptr, &doneExecutingFence);
+        createCommandBuffer(commandBuffer);
+
+        donePresentingSemaphores.emplace_back(donePresentingSemaphore);
+        doneExecutingFences.emplace_back(doneExecutingFence);
+        commandBuffers.emplace_back(commandBuffer);
+    }
 }
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer) 
@@ -577,32 +595,35 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
 
 void Context::drawFrame() 
 {
-    // wait until previous frame is done processing
-    vkWaitForFences(device, 1, &drawFence, VK_TRUE, UINT64_MAX);
+    // grab a frame
+    currentFrame = (currentFrame + 1) % FRAME_COUNT;
 
-    // acquire image when it is done being presented from previous frames
+    // wait until this frame has finished executing its commands
+    vkWaitForFences(device, 1, &doneExecutingFences[currentFrame], VK_TRUE, UINT64_MAX);
+
+    // acquire image when it is done being presented
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, presentCompleteSemaphore, nullptr,
+    vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, donePresentingSemaphores[currentFrame], nullptr,
                           &imageIndex);
 
-    recordRenderingCommands(commandBuffer, imageIndex);
-    vkResetFences(device, 1, &drawFence);
-
+    recordRenderingCommands(commandBuffers[currentFrame], imageIndex); // record commands into frame's command buffer 
+    vkResetFences(device, 1, &doneExecutingFences[currentFrame]); // signal that fence is ready to be associated with a new queue submission
+    
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                              .waitSemaphoreCount = 1,
-                             .pWaitSemaphores = &presentCompleteSemaphore,
+                             .pWaitSemaphores = &donePresentingSemaphores[currentFrame], // wait to submit work until image is done being presented
                              .pWaitDstStageMask = &waitDestinationStageMask,
                              .commandBufferCount = 1,
-                             .pCommandBuffers = &commandBuffer,
+                             .pCommandBuffers = &commandBuffers[currentFrame],
                              .signalSemaphoreCount = 1,
-                             .pSignalSemaphores = &renderFinishedSemaphore };
+                             .pSignalSemaphores = &doneRenderingSemaphores[imageIndex] }; // signal that rendering is finished once execution is finished
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFence);
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, doneExecutingFences[currentFrame]); // signal that execution has been completed on frame once it is done
 
     VkPresentInfoKHR presentInfo{ .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                                   .waitSemaphoreCount = 1,
-                                  .pWaitSemaphores = &renderFinishedSemaphore,
+                                  .pWaitSemaphores = &doneRenderingSemaphores[imageIndex], // submit for presentation once rendering is finished
                                   .swapchainCount = 1,
                                   .pSwapchains = &swapchain,
                                   .pImageIndices = &imageIndex };
@@ -631,9 +652,16 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 
 void Context::destroy()
 {
-    vkDestroyFence(device, drawFence, nullptr);
-    vkDestroySemaphore(device, presentCompleteSemaphore, nullptr);
-    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+    for (size_t i = 0; i < swapchainImages.size(); i++)
+    {
+        vkDestroySemaphore(device, doneRenderingSemaphores[i], nullptr);
+    }
+
+    for (int i = 0; i < FRAME_COUNT; i++)
+    {
+        vkDestroyFence(device, doneExecutingFences[i], nullptr);
+        vkDestroySemaphore(device, donePresentingSemaphores[i], nullptr);
+    }
 
     if (commandPool != VK_NULL_HANDLE)
     {

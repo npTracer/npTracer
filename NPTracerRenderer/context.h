@@ -8,8 +8,8 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-#include "utils.h"
 #include "config.h"
+#include "utils.h"
 
 class Context
 {
@@ -29,9 +29,9 @@ public:
     void beginCommandBuffer(VkCommandBuffer commandBuffer);
     void recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                               VkImageLayout oldLayout,
-                               VkImageLayout newLayout, VkAccessFlags2 srcAccessMask,
-                               VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask,
+                               VkImageLayout oldLayout, VkImageLayout newLayout,
+                               VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
+                               VkPipelineStageFlags2 srcStageMask,
                                VkPipelineStageFlags2 dstStageMask);
 
     void drawFrame();

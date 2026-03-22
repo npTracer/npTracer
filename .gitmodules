@@ -4,3 +4,6 @@
 [submodule "NPTracerRenderer/external/glfw"]
 	path = NPTracerRenderer/external/glfw
 	url = https://github.com/glfw/glfw
+[submodule "NPTracerRenderer/external/vma"]
+	path = NPTracerRenderer/external/vma
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

@@ -12,6 +12,7 @@ void App::create()
     context.createGraphicsPipeline();
     context.createCommandPool();
     context.createSyncAndFrameObjects();
+    context.createVertexBuffer();
 }
 
 void App::render()

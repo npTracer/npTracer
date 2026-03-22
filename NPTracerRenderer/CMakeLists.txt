@@ -20,6 +20,7 @@ set(GLFW_INSTALL OFF)
 
 add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glfw)
 add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glm)
+add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/vma)
 
 # ensure external targets are not top-level
 set_target_properties(glfw PROPERTIES FOLDER "external/glfw")
@@ -36,6 +37,7 @@ set(CURR_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
+    "${NPTracerRenderer_ROOT_DIR}/structs.h"
 )
 
 set(CURR_SHADER_SPECS

@@ -9,6 +9,7 @@
 #include <vulkan/vulkan.h>
 
 #include "utils.h"
+#include "structs.h"
 
 class Context
 {
@@ -24,6 +25,7 @@ public:
     void createCommandPool();
     void createCommandBuffer(VkCommandBuffer& commandBuffer);
     void createSyncAndFrameObjects();
+    void createVertexBuffer();
 
     void beginCommandBuffer(VkCommandBuffer commandBuffer);
     void recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);

@@ -348,12 +348,14 @@ void Context::createGraphicsPipeline()
         .pDynamicStates = dynamicStates.data()
     };
 
+    VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
+    auto attributeDescriptions = Vertex::getAttributeDescriptions();
     VkPipelineVertexInputStateCreateInfo vertexInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = nullptr,
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = nullptr
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &bindingDescription,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()),
+        .pVertexAttributeDescriptions = attributeDescriptions.data()
     };
 
     VkPipelineInputAssemblyStateCreateInfo inputInfo{
@@ -497,6 +499,11 @@ void Context::createSyncAndFrameObjects()
     
         frames.emplace_back(frame);
     }
+}
+
+void Context::createVertexBuffer() 
+{
+
 }
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer)

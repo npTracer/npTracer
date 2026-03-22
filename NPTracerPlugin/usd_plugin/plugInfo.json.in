@@ -1,0 +1,21 @@
+{
+    "Plugins": [
+        {
+            "Info": {
+                "Types": {
+                    "NPTracerHdRendererPlugin": {
+                        "bases": [
+                            "HdRendererPlugin"
+                        ],
+                        "displayName": "NPTracer",
+                        "priority": 0
+                    }
+                }
+            },
+            "Root": ".",
+            "LibraryPath": "@PLUG_INFO_LIBRARY_PATH@",
+            "Name": "@PLUG_INFO_LIBRARY_NAME@",
+            "Type": "library"
+        }
+    ]
+}

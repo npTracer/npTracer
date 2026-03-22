@@ -1,0 +1,21 @@
+set(USD_PLUG_SOURCES
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerDebugCodes.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderPass.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderBuffer.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderParam.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerIntegrator.cpp"
+    PARENT_SCOPE
+)
+
+set(USD_PLUG_HEADERS
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerDebugCodes.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderPass.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderBuffer.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderParam.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerIntegrator.h"
+    PARENT_SCOPE
+)

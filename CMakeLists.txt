@@ -5,6 +5,8 @@ project(NPTracer)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake") # add `cmake` subdirectory to module search path
 mark_as_advanced(CMAKE_INSTALL_PREFIX) # for now, prefix has no usage
 

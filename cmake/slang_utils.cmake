@@ -1,21 +1,47 @@
-function (add_slang_shader_target TARGET)
-	cmake_parse_arguments ("SHADER" "" "" "SOURCES" ${ARGN})
-	set (SHADERS_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
-	set(SPV_OUTPUT "${SHADERS_DIR}/slang.spv")
-	set (ENTRY_POINTS -entry vertMain -entry fragMain)
-	add_custom_command (
-		OUTPUT ${SPV_OUTPUT}
-		COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADERS_DIR}"
-		COMMAND "${SLANGC_EXECUTABLE}" ${SHADER_SOURCES}
-                -target spirv
-                -profile spirv_1_4
-                -emit-spirv-directly
-                -fvk-use-entrypoint-name
-                ${ENTRY_POINTS}
-                -o "${SPV_OUTPUT}"
-		DEPENDS ${SHADER_SOURCES}
-		COMMENT "Compiling Slang Shaders"
-        VERBATIM
-	)
-	add_custom_target (${TARGET} DEPENDS "${SPV_OUTPUT}")
+function(AddSlangShaderTarget compile_target_name shader_file shader_stages output_dir other_targets)
+    set(ENTRYPOINT_SUFFIX "Main") # TODO: expose this if necessary
+    get_filename_component(SHADER_NAME "${shader_file}" NAME_WE)
+
+    foreach(stage ${shader_stages})
+        set(SPV_OUTPUT "${output_dir}/${SHADER_NAME}.${stage}.spv")
+        set(ENTRYPOINT_NAME "${stage}${ENTRYPOINT_SUFFIX}")
+        add_custom_command(
+            OUTPUT ${SPV_OUTPUT}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
+            COMMAND "${SLANGC_EXECUTABLE}" ${shader_file}
+                    -target spirv
+                    -profile spirv_1_4
+                    -emit-spirv-directly
+                    -fvk-use-entrypoint-name
+                    -entry ${ENTRYPOINT_NAME}
+                    -o "${SPV_OUTPUT}"
+            DEPENDS ${shader_file}
+            COMMENT "Compiling Slang shader file '${shader_file}' for '${stage}' stage."
+            VERBATIM
+        )
+
+        string(TOUPPER ${SHADER_NAME} SHADER_NAME_UPPER)
+        string(TOUPPER ${stage} STAGE_UPPER)
+        set(COMPILE_DEFINITION_NAME "NPTRACER_SHADER_${SHADER_NAME_UPPER}_${STAGE_UPPER}")
+        
+        foreach(tgt ${other_targets})
+            target_compile_definitions(${tgt} PUBLIC "${COMPILE_DEFINITION_NAME}=\"${SPV_OUTPUT}\"" ) # escape quotes
+        endforeach()
+
+        set_property(GLOBAL APPEND PROPERTY ALL_SPV_OUTPUTS ${SPV_OUTPUT})
+    endforeach()
+endfunction()
+
+function(ParseShaderSpec shader_spec)
+    string(REPLACE "|" ";" SPEC_PARTS ${shader_spec}) # separate using `|` character
+    
+    list(LENGTH SPEC_PARTS SPEC_LEN)
+    math(EXPR STAGE_COUNT "${SPEC_LEN} - 1") # the stage count is all after 1st item 
+
+    list(GET SPEC_PARTS 0 CURR_SHADER_FILE)
+    list(SUBLIST SPEC_PARTS 1 ${STAGE_COUNT} CURR_SHADER_STAGES)
+
+    # make available outside of function
+    set(CURR_SHADER_FILE "${CURR_SHADER_FILE}" PARENT_SCOPE)
+    set(CURR_SHADER_STAGES "${CURR_SHADER_STAGES}" PARENT_SCOPE)
 endfunction()

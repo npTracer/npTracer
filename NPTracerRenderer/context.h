@@ -8,7 +8,6 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-#include "config.h"
 #include "utils.h"
 
 class Context

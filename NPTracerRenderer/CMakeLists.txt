@@ -66,5 +66,3 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw 
     glm::glm-header-only # use header-only GLM 
 )
-
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include)

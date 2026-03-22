@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 
+set(CMAKE_CONFIGURATION_TYPES "Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE) # `Remove `Debug` from multi-config generators
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(FATAL_ERROR "`Debug` build is not supported.") # error out for single config generators
+endif()
+
 project(NPTracerPlugin)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -26,7 +32,7 @@ set(CURR_HEADERS
 
 add_library(${PROJECT_NAME} SHARED ${CURR_SOURCES} ${CURR_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} Houdini)
+target_link_libraries(${PROJECT_NAME} Houdini HoudiniThirdParty)
 # install directly to `CUSTOM_USD_DSO_PATH`
 houdini_configure_target(${PROJECT_NAME} INSTDIR "${CUSTOM_USD_DSO_PATH}")
 ConfigureFilePostBuild(${PROJECT_NAME}
@@ -52,6 +58,10 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 # include the root directory so that we can use `#include` with namespaces
 target_include_directories(${PROJECT_NAME} PRIVATE "${NPTracerPlugin_ROOT_DIR}")
+
+if( CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options( ${PROJECT_NAME} PRIVATE "/Zc:inline-" )
+endif()
 
 # set some useful VS settings for QOL
 if(CMAKE_GENERATOR MATCHES "Visual Studio")

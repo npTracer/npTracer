@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.20)
 
 project(NPTracerRenderer)
 
@@ -9,7 +9,9 @@ if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
     set(NPTracerRenderer_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Renderer Root Directory")
 endif()
 
-set(SHADER_TARGET CompileShaders) # create a variable for name of shader target
+set(COMPILE_SHADERS_TARGET CompileShaders) # create a variable for name of shader target
+set(SHADER_SOURCE_DIR "${NPTracerRenderer_ROOT_DIR}/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/shaders")
 
 find_package(Vulkan REQUIRED)
 
@@ -36,28 +38,28 @@ set(CURR_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
 )
 
-include(slang_utils)
-
-set(SHADER_SOURCES
-    "${NPTracerRenderer_ROOT_DIR}/shaders/shader.slang"
-)
-
-find_program(SLANGC_EXECUTABLE slangc REQUIRED)
-add_slang_shader_target(${SHADER_TARGET} SOURCES ${SHADER_SOURCES})
-# organize into a separate folder
-set_target_properties(${SHADER_TARGET} PROPERTIES FOLDER "utility")
-
-# set shader path
-set(NPTRACER_SHADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shaders/slang.spv")
-configure_file(
-    ${CMAKE_MODULE_PATH}/config.h.in
-    ${CMAKE_CURRENT_BiNARY_DIR}/include/config.h
+set(CURR_SHADER_SPECS
+    "${SHADER_SOURCE_DIR}/core.slang|vert|frag"
 )
 
 # make it an executable for now for setting up the basic renderer
 add_executable(${PROJECT_NAME} ${CURR_SOURCES} ${CURR_HEADERS})
 
-add_dependencies(${PROJECT_NAME} ${SHADER_TARGET})
+include(slang_utils)
+
+find_program(SLANGC_EXECUTABLE slangc REQUIRED)
+foreach(shader_spec ${CURR_SHADER_SPECS})
+    ParseShaderSpec("${shader_spec}")
+    AddSlangShaderTarget(${COMPILE_SHADERS_TARGET} "${CURR_SHADER_FILE}" "${CURR_SHADER_STAGES}" "${SHADER_OUTPUT_DIR}" ${PROJECT_NAME})
+endforeach()
+
+get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
+add_custom_target(${COMPILE_SHADERS_TARGET} DEPENDS ${ALL_SPV_OUTPUTS})
+
+# organize into a separate folder
+set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
+
+add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     Vulkan::Vulkan 

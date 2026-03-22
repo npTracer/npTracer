@@ -31,6 +31,7 @@ struct Buffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
+    VmaAllocationInfo allocInfo;
 
     void destroy(VmaAllocator allocator)
     {

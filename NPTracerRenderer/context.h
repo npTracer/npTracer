@@ -27,9 +27,8 @@ public:
     void createGraphicsPipeline();
     void createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily);
     void createSyncAndFrameObjects();
-    void createVertexBuffer();
 
-    void beginCommandBuffer(VkCommandBuffer commandBuffer);
+    void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
     void recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                VkImageLayout oldLayout, VkImageLayout newLayout,
@@ -42,9 +41,13 @@ public:
     void recreateSwapchain(GLFWwindow* window);
     void cleanupSwapchain();
 
-    // vma stuff
+    // resources
+    void createRenderingResources(); // placeholder function for testing rendering functionality
     void createAllocator();
-
+    void createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
+                      VmaAllocationCreateFlags allocationFlags);
+    void createVertexBuffer(Buffer& handle, VkDeviceSize size);
+    void copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size);
 
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
     void destroy();
@@ -76,6 +79,7 @@ private:
     VkPipeline pipeline = VK_NULL_HANDLE;
 
     std::unordered_map<QueueFamily, Queue> queues;
+    std::array<uint32_t, 2> queueFamilyIndices;
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
     VmaAllocator allocator = VK_NULL_HANDLE;

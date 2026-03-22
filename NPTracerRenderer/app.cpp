@@ -13,7 +13,7 @@ void App::create()
     context.createSwapchainImageViews();
     context.createGraphicsPipeline();
     context.createSyncAndFrameObjects();
-    context.createVertexBuffer();
+    context.createRenderingResources();
 }
 
 void App::render()

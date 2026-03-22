@@ -257,6 +257,11 @@ void Context::createLogicalDeviceAndQueues()
         }
         queues[QueueFamily::TRANSFER] = transferQueue;
     }
+
+    queueFamilyIndices = {
+        queues[QueueFamily::GRAPHICS].index.value(),
+        queues[QueueFamily::TRANSFER].index.value(),
+    };
 }
 
 void Context::createSwapchain(GLFWwindow* window)
@@ -542,34 +547,67 @@ void Context::createSyncAndFrameObjects()
     createCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
 }
 
-void Context::createVertexBuffer() 
+void Context::createRenderingResources()
 {
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+    VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
+    createVertexBuffer(vertexBuffer, size);
+}
 
+void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags) 
+{
     VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                   .size = bufferSize,
-                                   .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                   .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
+                                   .size = size,
+                                   .usage = usage,
+                                   .sharingMode = VK_SHARING_MODE_CONCURRENT,
+                                   .queueFamilyIndexCount = 2,
+                                   .pQueueFamilyIndices = queueFamilyIndices.data() };
 
-    VmaAllocationCreateInfo allocCreateInfo{ .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                                                | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+    VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
                                        .usage = VMA_MEMORY_USAGE_AUTO };
 
-    VmaAllocationInfo allocInfo{};
-
     // allocate buffer memory (to be filled in with memcpy)
-    if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &vertexBuffer.buffer, &vertexBuffer.allocation, &allocInfo) != VK_SUCCESS)
+    if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer, &handle.allocation, &handle.allocInfo) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create vertex buffer!");
     }
-
-    std::memcpy(allocInfo.pMappedData, vertices.data(), static_cast<size_t>(bufferSize));
 }
 
-void Context::beginCommandBuffer(VkCommandBuffer commandBuffer)
+void Context::createVertexBuffer(Buffer& handle, VkDeviceSize size) 
+{
+    Buffer stagingBuffer;
+    createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                     | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    memcpy(stagingBuffer.allocInfo.pMappedData, vertices.data(), size);
+
+    createBuffer(handle, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 0);
+
+    copyBuffer(stagingBuffer, handle, size);
+
+    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+}
+
+void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size) 
+{
+    vkResetCommandBuffer(transferCommandBuffer, 0);
+    beginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VkBufferCopy bufferCopy{0, 0, size};
+    vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
+    vkEndCommandBuffer(transferCommandBuffer);
+    VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers = &transferCommandBuffer };
+
+    vkQueueSubmit(queues[QueueFamily::TRANSFER].queue, 1, &submitInfo, nullptr);
+    vkQueueWaitIdle(queues[QueueFamily::TRANSFER].queue);
+}
+
+void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
 {
     VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                        .flags = 0,
+                                        .flags = flags,
                                         .pInheritanceInfo = nullptr };
 
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)

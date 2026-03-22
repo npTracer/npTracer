@@ -59,11 +59,6 @@ const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
     return SUPPORTED_BPRIM_TYPES;
 }
 
-NPTracerIntegrator* NPTracerHdRenderDelegate::GetIntegrator() const
-{
-    return _integrator.get();
-}
-
 HdRenderParam* NPTracerHdRenderDelegate::GetRenderParam() const
 {
     return HdRenderDelegate::GetRenderParam();
@@ -92,7 +87,7 @@ void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Create Rprim type: type=%s id=%s\n",
              TF_FUNC_NAME().c_str(),
              typeId.GetText(),
@@ -107,7 +102,7 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Destroy Rprim: id=%s\n",
              TF_FUNC_NAME().c_str(),
              rprim->GetId().GetText());
@@ -116,7 +111,7 @@ void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Create Sprim: type=%s id=%s\n",
              TF_FUNC_NAME().c_str(),
              typeId.GetText(),
@@ -136,7 +131,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroySprim(HdSprim* sprim)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Destroy Sprim: id=%s\n",
              TF_FUNC_NAME().c_str(),
              sprim->GetId().GetText());
@@ -145,7 +140,7 @@ void NPTracerHdRenderDelegate::DestroySprim(HdSprim* sprim)
 
 HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Create Fallback Sprim: type=%s\n",
              TF_FUNC_NAME().c_str(),
              typeId.GetText());
@@ -164,7 +159,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
 HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfPath& bprimId)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
     .Msg("[%s] Create Bprim: type=%s id=%s\n",
          TF_FUNC_NAME().c_str(),
          typeId.GetText(),
@@ -182,7 +177,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyBprim(HdBprim* bprim)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Destroy Bprim: id=%s\n",
              TF_FUNC_NAME().c_str(),
              bprim->GetId().GetText());
@@ -192,7 +187,7 @@ void NPTracerHdRenderDelegate::DestroyBprim(HdBprim* bprim)
 
 HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
        .Msg("[%s] Create Fallback Bprim: type=%s\n",
             TF_FUNC_NAME().c_str(),
             typeId.GetText());

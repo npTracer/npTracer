@@ -6,7 +6,7 @@
 PXR_NAMESPACE_OPEN_SCOPE
 
 // a block of memory that we are rendering into
-class NPTracerHdRenderBuffer : public HdRenderBuffer
+class NPTracerHdRenderBuffer final : public HdRenderBuffer
 {
 public:
     NPTracerHdRenderBuffer(const SdfPath& bprimId);

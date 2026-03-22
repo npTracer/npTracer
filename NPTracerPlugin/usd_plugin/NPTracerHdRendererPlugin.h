@@ -8,10 +8,10 @@ PXR_NAMESPACE_OPEN_SCOPE
 class NPTracerHdRendererPlugin final : public HdRendererPlugin
 {
 public:
-    HdRenderDelegate* CreateRenderDelegate() override;
-    void DeleteRenderDelegate(HdRenderDelegate* delegate) override;
+    virtual HdRenderDelegate* CreateRenderDelegate() override;
+    virtual void DeleteRenderDelegate(HdRenderDelegate* delegate) override;
 
-    bool IsSupported(bool gpuEnabled) const override;
+    virtual bool IsSupported(bool gpuEnabled) const override;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

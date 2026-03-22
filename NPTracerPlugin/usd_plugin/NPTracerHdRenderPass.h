@@ -13,11 +13,18 @@ public:
                          NPTracerHdRenderDelegate* delegate);
 
 protected:
-    void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
+    virtual void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
                   TfTokenVector const& renderTags) override;
+    
+    virtual bool IsConverged() const override;
+    
+    // set the convergence state
+    void SetConverged(bool converged);
 
 private:
     NPTracerHdRenderDelegate* _delegate;
+    
+    std::atomic<bool> _converged{false};
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

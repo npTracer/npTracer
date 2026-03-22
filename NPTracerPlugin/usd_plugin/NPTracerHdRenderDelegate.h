@@ -1,6 +1,5 @@
 #pragma once
 
-#include "usd_plugin/NPTracerIntegrator.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
 
 #include <pxr/imaging/hd/renderDelegate.h>
@@ -25,8 +24,6 @@ public:
     const TfTokenVector& GetSupportedRprimTypes() const override;
     const TfTokenVector& GetSupportedSprimTypes() const override;
     const TfTokenVector& GetSupportedBprimTypes() const override;
-
-    NPTracerIntegrator* GetIntegrator() const;
 
     // return this delegate's render param, which provides top-level scene state
     virtual HdRenderParam* GetRenderParam() const override;
@@ -71,11 +68,8 @@ private:
     static const TfTokenVector SUPPORTED_BPRIM_TYPES;
 
     HdRenderSettingDescriptorList _settingDescriptors;
-
     std::unique_ptr<NPTracerHdRenderParam> _renderParam;
     HdResourceRegistrySharedPtr _resourceRegistry;
-
-    std::unique_ptr<NPTracerIntegrator> _integrator;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

@@ -12,7 +12,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions,
                                  HdFormat format,
                                  bool multiSampled)
 {
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Allocate render buffer: id=%s, dimensions=(%i, %i, %i), "
              "format=%i\n",
              TF_FUNC_NAME().c_str(),
@@ -32,7 +32,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions,
     _buffer.resize(_dimensions[0] * _dimensions[1] * _dimensions[2] *
                    HdDataSizeOfFormat(format));
 
-    TF_DEBUG(NPTRACER_GENERAL)
+    TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Render buffer: id=%s, size=%llu\n",
              TF_FUNC_NAME().c_str(),
              GetId().GetText(),
@@ -94,7 +94,7 @@ void NPTracerHdRenderBuffer::SetConverged(bool converged)
 
 void NPTracerHdRenderBuffer::Resolve()
 {
-    // nothing to do, there is only a single internal buffer for read/write
+    // TODO
     return;
 }
 

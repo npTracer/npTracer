@@ -11,6 +11,8 @@ project(NPTracerPlugin)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(NPTracerPlugin_USD_PLUG_DEBUG "Enable messages written to debugger output via USD's `TfDebug` class." ON)
+
 if(NOT DEFINED NPTracerPlugin_ROOT_DIR)
     set(NPTracerPlugin_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Plugin Root Directory")
 endif()
@@ -59,9 +61,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 # include the root directory so that we can use `#include` with namespaces
 target_include_directories(${PROJECT_NAME} PRIVATE "${NPTracerPlugin_ROOT_DIR}")
 
-if( CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options( ${PROJECT_NAME} PRIVATE "/Zc:inline-" )
-endif()
+# set a compile definition for whether debugging is enabled
+target_compile_definitions(${PROJECT_NAME} PUBLIC "NPTRACER_DEBUG=$<BOOL:${NPTracerPlugin_USD_PLUG_DEBUG}>")
 
 # set some useful VS settings for QOL
 if(CMAKE_GENERATOR MATCHES "Visual Studio")

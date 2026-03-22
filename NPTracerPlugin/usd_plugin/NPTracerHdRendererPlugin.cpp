@@ -1,5 +1,6 @@
 #include "usd_plugin/NPTracerHdRendererPlugin.h"
 
+#include "usd_plugin/NPTracerDebugCodes.h"
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
 #include <pxr/imaging/hd/rendererPluginRegistry.h>
@@ -13,12 +14,18 @@ TF_REGISTRY_FUNCTION(TfType)
 
 HdRenderDelegate* NPTracerHdRendererPlugin::CreateRenderDelegate()
 {
+#if NPTRACER_DEBUG
+    TfDebug::Enable(NPTRACER_RENDER); // enable debugging at entrypoint
+#endif    
     return new NPTracerHdRenderDelegate();
 }
 
 void NPTracerHdRendererPlugin::DeleteRenderDelegate(HdRenderDelegate* delegate)
 {
     delete delegate;
+#if NPTRACER_DEBUG
+    TfDebug::Disable(NPTRACER_RENDER);
+#endif
 }
 
 bool NPTracerHdRendererPlugin::IsSupported(bool gpuEnabled) const

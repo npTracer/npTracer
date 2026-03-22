@@ -1,19 +1,40 @@
-cmake_minimum_required(VERSION 3.18)
+set(CURR_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/context.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app.cpp"
+)
 
-project(NPTracerRenderer)
+set(CURR_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/context.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils.h"
+)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(slang_utils)
 
-if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
-    set(NPTracerRenderer_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Renderer Root Directory")
-endif()
+set(SHADER_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.slang"
+)
 
-find_package(Vulkan REQUIRED)
+find_program(SLANGC_EXECUTABLE slangc REQUIRED)
+add_slang_shader_target(CompileShaders SOURCES ${SHADER_SOURCES})
 
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+# set shader path
+set(NPTRACER_SHADER_PATH "${CMAKE_CURRENT_BINARY_DIR}/shaders/slang.spv")
+configure_file(
+    ${CMAKE_MODULE_PATH}/config.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/config.h
+)
 
-add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glfw)
-add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glm)
+# make it an executable for now for setting up the basic renderer
+add_executable(${PROJECT_NAME} ${CURR_SOURCES} ${CURR_HEADERS})
 
-add_subdirectory(${NPTracerRenderer_ROOT_DIR}/src)
+add_dependencies(${PROJECT_NAME} CompileShaders)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    Vulkan::Vulkan 
+    glfw 
+    glm::glm
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

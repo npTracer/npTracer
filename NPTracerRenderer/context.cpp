@@ -446,6 +446,7 @@ void Context::createGraphicsPipeline()
     }
 
     vkDestroyShaderModule(device, coreVertModule, nullptr);
+    vkDestroyShaderModule(device, coreFragModule, nullptr);
 }
 
 void Context::createCommandPool()
@@ -473,7 +474,7 @@ void Context::createCommandBuffer(VkCommandBuffer& commandBuffer)
     }
 }
 
-void Context::createSyncObjects()
+void Context::createSyncAndFrameObjects()
 {
     VkSemaphoreCreateInfo semInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -647,6 +648,37 @@ void Context::drawFrame(GLFWwindow* window)
 void Context::waitIdle()
 {
     vkDeviceWaitIdle(device);
+}
+
+void Context::recreateSwapchain(GLFWwindow* window) 
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(device);
+    cleanupSwapchain();
+    createSwapchain(window);
+    createSwapchainImageViews();
+}
+
+void Context::cleanupSwapchain() 
+{
+    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
+    {
+        vkDestroyImageView(device, swapchainImageViews[i], nullptr);
+    }
+    swapchainImageViews.clear();
+
+    if (swapchain != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
+        swapchain = VK_NULL_HANDLE;
+    }
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const

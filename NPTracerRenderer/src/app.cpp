@@ -19,7 +19,7 @@ void App::render()
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-        context.drawFrame();
+        context.drawFrame(window);
     }
 
     context.waitIdle();

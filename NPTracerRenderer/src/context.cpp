@@ -40,6 +40,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Context::debugCallback(
     return VK_FALSE;
 }
 
+void Context::framebufferResizeCallback(GLFWwindow* window, int width, int height) 
+{
+    auto* context = reinterpret_cast<Context*>(glfwGetWindowUserPointer(window));
+    context->framebufferResized = true;
+}
+
 void Context::destroyDebugMessenger()
 {
     if (debugMessenger == VK_NULL_HANDLE)
@@ -62,6 +68,9 @@ void Context::createWindow(GLFWwindow*& window, int width, int height)
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     window = glfwCreateWindow(width, height, "Engine", nullptr, nullptr);
+
+    glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 }
 
 void Context::createInstance(bool enableDebug)
@@ -482,17 +491,13 @@ void Context::createSyncAndFrameObjects()
 
     for (int i = 0; i < FRAME_COUNT; i++)
     {
-        VkSemaphore donePresentingSemaphore;
-        VkFence doneExecutingFence;
-        VkCommandBuffer commandBuffer;
+        Frame frame;
 
-        vkCreateSemaphore(device, &semInfo, nullptr, &donePresentingSemaphore);
-        vkCreateFence(device, &fenceInfo, nullptr, &doneExecutingFence);
-        createCommandBuffer(commandBuffer);
-
-        donePresentingSemaphores.emplace_back(donePresentingSemaphore);
-        doneExecutingFences.emplace_back(doneExecutingFence);
-        commandBuffers.emplace_back(commandBuffer);
+        vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
+        vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
+        createCommandBuffer(frame.commandBuffer);
+    
+        frames.emplace_back(frame);
     }
 }
 
@@ -593,33 +598,37 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
-void Context::drawFrame() 
+void Context::drawFrame(GLFWwindow* window)
 {
     // grab a frame
-    currentFrame = (currentFrame + 1) % FRAME_COUNT;
+    Frame& frame = frames[currentFrame];
 
     // wait until this frame has finished executing its commands
-    vkWaitForFences(device, 1, &doneExecutingFences[currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
     // acquire image when it is done being presented
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, donePresentingSemaphores[currentFrame], nullptr,
-                          &imageIndex);
+    if (vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, frame.donePresentingSemaphore, nullptr,
+        &imageIndex) == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        recreateSwapchain(window);
+        return;
+    }
 
-    recordRenderingCommands(commandBuffers[currentFrame], imageIndex); // record commands into frame's command buffer 
-    vkResetFences(device, 1, &doneExecutingFences[currentFrame]); // signal that fence is ready to be associated with a new queue submission
+    recordRenderingCommands(frame.commandBuffer, imageIndex); // record commands into frame's command buffer 
+    vkResetFences(device, 1, &frame.doneExecutingFence); // signal that fence is ready to be associated with a new queue submission
     
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                              .waitSemaphoreCount = 1,
-                             .pWaitSemaphores = &donePresentingSemaphores[currentFrame], // wait to submit work until image is done being presented
+                             .pWaitSemaphores = &frame.donePresentingSemaphore, // wait to submit work until image is done being presented
                              .pWaitDstStageMask = &waitDestinationStageMask,
                              .commandBufferCount = 1,
-                             .pCommandBuffers = &commandBuffers[currentFrame],
+                             .pCommandBuffers = &frame.commandBuffer,
                              .signalSemaphoreCount = 1,
                              .pSignalSemaphores = &doneRenderingSemaphores[imageIndex] }; // signal that rendering is finished once execution is finished
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, doneExecutingFences[currentFrame]); // signal that execution has been completed on frame once it is done
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, frame.doneExecutingFence); // signal that execution has been completed on frame once it is done
 
     VkPresentInfoKHR presentInfo{ .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                                   .waitSemaphoreCount = 1,
@@ -628,12 +637,52 @@ void Context::drawFrame()
                                   .pSwapchains = &swapchain,
                                   .pImageIndices = &imageIndex };
 
-    vkQueuePresentKHR(graphicsQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(graphicsQueue, &presentInfo);
+    if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR) || framebufferResized)
+    {
+        framebufferResized = false;
+        recreateSwapchain(window);
+    }
+
+    // increment frame (within ring)
+    currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
 void Context::waitIdle() 
 {
     vkDeviceWaitIdle(device);
+}
+
+void Context::recreateSwapchain(GLFWwindow* window)
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(device);
+    cleanupSwapchain();
+    createSwapchain(window);
+    createSwapchainImageViews();
+
+}
+
+void Context::cleanupSwapchain() 
+{
+    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
+    {
+        vkDestroyImageView(device, swapchainImageViews[i], nullptr);
+    }
+    swapchainImageViews.clear();
+
+    if (swapchain != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
+        swapchain = VK_NULL_HANDLE;
+    }
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const 
@@ -659,8 +708,8 @@ void Context::destroy()
 
     for (int i = 0; i < FRAME_COUNT; i++)
     {
-        vkDestroyFence(device, doneExecutingFences[i], nullptr);
-        vkDestroySemaphore(device, donePresentingSemaphores[i], nullptr);
+        vkDestroyFence(device, frames[i].doneExecutingFence, nullptr);
+        vkDestroySemaphore(device, frames[i].donePresentingSemaphore, nullptr);
     }
 
     if (commandPool != VK_NULL_HANDLE)
@@ -678,15 +727,7 @@ void Context::destroy()
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     }
 
-    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
-    {
-        vkDestroyImageView(device, swapchainImageViews[i], nullptr);
-    }
-
-    if (swapchain != VK_NULL_HANDLE)
-    {
-        vkDestroySwapchainKHR(device, swapchain, nullptr);
-    }
+    cleanupSwapchain();
 
     if (device != VK_NULL_HANDLE)
     {

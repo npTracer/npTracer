@@ -34,8 +34,10 @@ public:
                                VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask,
                                VkPipelineStageFlags2 dstStageMask);
 
-    void drawFrame();
+    void drawFrame(GLFWwindow* window);
     void waitIdle();
+    void recreateSwapchain(GLFWwindow* window);
+    void cleanupSwapchain();
 
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
     void destroy();
@@ -49,8 +51,16 @@ private:
         VkExtent2D extent;
     };
 
+    struct Frame
+    {
+        VkSemaphore donePresentingSemaphore;
+        VkFence doneExecutingFence;
+        VkCommandBuffer commandBuffer;
+    };
+
     static constexpr int FRAME_COUNT = 2;
     uint32_t currentFrame = 0;
+    bool framebufferResized = false;
 
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -61,14 +71,9 @@ private:
     SwapchainParams swapchainParams;
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
-
-    // per image
     std::vector<VkSemaphore> doneRenderingSemaphores;
 
-    // per frame
-    std::vector<VkSemaphore> donePresentingSemaphores;
-    std::vector<VkFence> doneExecutingFences;
-    std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<Frame> frames;
 
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
@@ -84,6 +89,8 @@ private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     void createDebugMessenger(bool enableDebug);
 };

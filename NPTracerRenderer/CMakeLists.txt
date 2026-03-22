@@ -20,7 +20,6 @@ set(GLFW_INSTALL OFF)
 
 add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glfw)
 add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/glm)
-add_subdirectory(${NPTracerRenderer_ROOT_DIR}/external/vma)
 
 # ensure external targets are not top-level
 set_target_properties(glfw PROPERTIES FOLDER "external/glfw")
@@ -68,3 +67,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw 
     glm::glm-header-only # use header-only GLM 
 )
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${NPTracerRenderer_ROOT_DIR}/external/vma/include)

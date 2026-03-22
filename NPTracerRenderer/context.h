@@ -10,6 +10,8 @@
 
 #include "utils.h"
 #include "structs.h"
+#include "vk_mem_alloc.h"
+
 
 class Context
 {
@@ -40,11 +42,19 @@ public:
     void recreateSwapchain(GLFWwindow* window);
     void cleanupSwapchain();
 
+    // vma stuff
+    void createAllocator();
+
+
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
     void destroy();
     void destroyDebugMessenger();
 
 private:
+    const std::vector<Vertex> vertices = { { { 0.0f, -0.5f }, { 1.0f, 1.0f, 1.0f } },
+                                           { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
+                                           { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } };
+
     struct SwapchainParams
     {
         VkSurfaceFormatKHR format;
@@ -57,6 +67,20 @@ private:
         VkSemaphore donePresentingSemaphore;
         VkFence doneExecutingFence;
         VkCommandBuffer commandBuffer;
+    };
+
+    struct Buffer
+    {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VmaAllocation allocation = VK_NULL_HANDLE;
+
+        void destroy(VmaAllocator allocator)
+        {
+            if (buffer != VK_NULL_HANDLE)
+            {
+                vmaDestroyBuffer(allocator, buffer, allocation);
+            }
+        }
     };
 
     static constexpr int FRAME_COUNT = 2;
@@ -83,6 +107,9 @@ private:
 
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsQueueFamilyIndex = 0;
+
+    VmaAllocator allocator = VK_NULL_HANDLE;
+    Buffer vertexBuffer;
 
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;

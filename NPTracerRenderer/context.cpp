@@ -1,6 +1,9 @@
+#define VMA_IMPLEMENTATION
+
 #include "context.h"
 #include <algorithm>
 #include <optional>
+#include <cstring>
 
 void Context::createDebugMessenger(bool enableDebug)
 {
@@ -503,7 +506,26 @@ void Context::createSyncAndFrameObjects()
 
 void Context::createVertexBuffer() 
 {
+    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
+    VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                   .size = bufferSize,
+                                   .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                   .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
+
+    VmaAllocationCreateInfo allocCreateInfo{ .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                                                | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+                                       .usage = VMA_MEMORY_USAGE_AUTO };
+
+    VmaAllocationInfo allocInfo{};
+
+    // allocate buffer memory (to be filled in with memcpy)
+    if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &vertexBuffer.buffer, &vertexBuffer.allocation, &allocInfo) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create vertex buffer!");
+    }
+
+    std::memcpy(allocInfo.pMappedData, vertices.data(), static_cast<size_t>(bufferSize));
 }
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer)
@@ -560,7 +582,10 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.buffer, offsets);
+
+    vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
     vkCmdEndRendering(commandBuffer);
 
     transitionImageLayout(commandBuffer, swapchainImages[imageIndex],
@@ -688,6 +713,21 @@ void Context::cleanupSwapchain()
     }
 }
 
+void Context::createAllocator()
+{
+    VmaAllocatorCreateInfo allocatorInfo{
+        .physicalDevice = physicalDevice,
+        .device = device,
+        .instance = instance,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+    };
+
+    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create vma allocator!");
+    }
+}
+
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 {
     VkShaderModuleCreateInfo sci{ .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -728,6 +768,10 @@ void Context::destroy()
     }
 
     cleanupSwapchain();
+
+    vertexBuffer.destroy(allocator);
+
+    vmaDestroyAllocator(allocator);
 
     if (device != VK_NULL_HANDLE)
     {

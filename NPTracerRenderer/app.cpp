@@ -7,6 +7,8 @@ void App::create()
     context.createSurface(window);
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
+    context.createAllocator();
+
     context.createSwapchain(window);
     context.createSwapchainImageViews();
     context.createGraphicsPipeline();

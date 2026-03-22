@@ -549,8 +549,13 @@ void Context::createSyncAndFrameObjects()
 
 void Context::createRenderingResources()
 {
-    VkDeviceSize size = sizeof(vertices[0]) * vertices.size();
-    createVertexBuffer(vertexBuffer, size);
+    VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
+    createDeviceLocalBuffer(vertexBuffer, (void*)vertices.data(), vertexBufferSize,
+                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+    VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+    createDeviceLocalBuffer(indexBuffer, (void*)indices.data(), indexBufferSize,
+                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
 void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags) 
@@ -572,16 +577,17 @@ void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags
     }
 }
 
-void Context::createVertexBuffer(Buffer& handle, VkDeviceSize size) 
+void Context::createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize size,
+                                      VkBufferUsageFlags usage)
 {
     Buffer stagingBuffer;
     createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                      | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    memcpy(stagingBuffer.allocInfo.pMappedData, vertices.data(), size);
+    memcpy(stagingBuffer.allocInfo.pMappedData, data, size);
 
-    createBuffer(handle, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                  0);
 
     copyBuffer(stagingBuffer, handle, size);
@@ -660,8 +666,10 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
 
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.buffer, offsets);
+    vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16);
 
-    vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
+
     vkCmdEndRendering(commandBuffer);
 
     transitionImageLayout(commandBuffer, swapchainImages[imageIndex],
@@ -848,6 +856,7 @@ void Context::destroy()
     cleanupSwapchain();
 
     vertexBuffer.destroy(allocator);
+    indexBuffer.destroy(allocator);
 
     vmaDestroyAllocator(allocator);
 

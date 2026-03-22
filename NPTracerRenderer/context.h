@@ -46,7 +46,9 @@ public:
     void createAllocator();
     void createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                       VmaAllocationCreateFlags allocationFlags);
-    void createVertexBuffer(Buffer& handle, VkDeviceSize size);
+
+    void createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize size,
+                                 VkBufferUsageFlags usage);
     void copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size);
 
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
@@ -54,9 +56,12 @@ public:
     void destroyDebugMessenger();
 
 private:
-    const std::vector<Vertex> vertices = { { { 0.0f, -0.5f }, { 1.0f, 1.0f, 1.0f } },
-                                           { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
-                                           { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } };
+    const std::vector<Vertex> vertices = { { { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
+                                           { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f } },
+                                           { { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } },
+                                           { { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f } } };
+
+    const std::vector<uint16_t> indices = { 0, 1, 2, 2, 3, 0 };
 
     static constexpr int FRAME_COUNT = 2;
     uint32_t currentFrame = 0;
@@ -84,6 +89,7 @@ private:
 
     VmaAllocator allocator = VK_NULL_HANDLE;
     Buffer vertexBuffer;
+    Buffer indexBuffer;
 
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;

@@ -1,6 +1,6 @@
 #include "context.h"
-#include <optional>
 #include <algorithm>
+#include <optional>
 
 void Context::createDebugMessenger(bool enableDebug)
 {
@@ -180,14 +180,12 @@ void Context::createLogicalDeviceAndQueues()
 
     // TODO add device features
     VkPhysicalDeviceVulkan13Features vulkan13Features{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, 
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
         .synchronization2 = VK_TRUE,
-        .dynamicRendering = VK_TRUE, 
+        .dynamicRendering = VK_TRUE,
     };
 
-    VkPhysicalDeviceFeatures deviceFeatures
-    {
-    };
+    VkPhysicalDeviceFeatures deviceFeatures{};
 
     // TODO add more device extensions
     std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -302,7 +300,7 @@ void Context::createSwapchain(GLFWwindow* window)
     swapchainParams = { .format = format, .presentMode = presentMode, .extent = extent };
 }
 
-void Context::createSwapchainImageViews() 
+void Context::createSwapchainImageViews()
 {
     VkImageViewCreateInfo imageViewCreateInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                                                .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -319,22 +317,23 @@ void Context::createSwapchainImageViews()
     }
 }
 
-void Context::createGraphicsPipeline() 
+void Context::createGraphicsPipeline()
 {
     // shader creation
-    VkShaderModule shaderModule = createShaderModule(readFile(NPTRACER_SHADER_PATH));
+    VkShaderModule coreVertModule = createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
+    VkShaderModule coreFragModule = createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
 
     VkPipelineShaderStageCreateInfo vInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = shaderModule,
+        .module = coreVertModule,
         .pName = "vertMain"
     };
 
     VkPipelineShaderStageCreateInfo fInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = shaderModule,
+        .module = coreFragModule,
         .pName = "fragMain"
     };
 
@@ -357,8 +356,7 @@ void Context::createGraphicsPipeline()
         .pVertexAttributeDescriptions = nullptr
     };
 
-    VkPipelineInputAssemblyStateCreateInfo inputInfo
-    {
+    VkPipelineInputAssemblyStateCreateInfo inputInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
     };
@@ -370,8 +368,7 @@ void Context::createGraphicsPipeline()
                          0.0f,
                          1.0f };
     VkRect2D rect{ VkOffset2D{ 0, 0 }, swapchainParams.extent };
-    VkPipelineViewportStateCreateInfo viewportState
-    {
+    VkPipelineViewportStateCreateInfo viewportState{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1,
         .pViewports = nullptr,
@@ -420,8 +417,7 @@ void Context::createGraphicsPipeline()
     };
     vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
 
-    VkPipelineRenderingCreateInfo renderingInfo 
-    {
+    VkPipelineRenderingCreateInfo renderingInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .colorAttachmentCount = 1,
         .pColorAttachmentFormats = &swapchainParams.format.format
@@ -443,12 +439,13 @@ void Context::createGraphicsPipeline()
         .renderPass = nullptr
     };
 
-    if (vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &pipeline)
+        != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create pipeline");
     }
 
-    vkDestroyShaderModule(device, shaderModule, nullptr);
+    vkDestroyShaderModule(device, coreVertModule, nullptr);
 }
 
 void Context::createCommandPool()
@@ -456,7 +453,7 @@ void Context::createCommandPool()
     VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
                                       .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
                                       .queueFamilyIndex = graphicsQueueFamilyIndex };
-    
+
     if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create command pool");
@@ -476,7 +473,7 @@ void Context::createCommandBuffer(VkCommandBuffer& commandBuffer)
     }
 }
 
-void Context::createSyncAndFrameObjects() 
+void Context::createSyncObjects()
 {
     VkSemaphoreCreateInfo semInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -501,7 +498,7 @@ void Context::createSyncAndFrameObjects()
     }
 }
 
-void Context::beginCommandBuffer(VkCommandBuffer commandBuffer) 
+void Context::beginCommandBuffer(VkCommandBuffer commandBuffer)
 {
     VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                         .flags = 0,
@@ -557,7 +554,7 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
 
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
     vkCmdEndRendering(commandBuffer);
-    
+
     transitionImageLayout(commandBuffer, swapchainImages[imageIndex],
                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                           VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
@@ -568,9 +565,8 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
 }
 
 void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                    VkImageLayout oldLayout,
-                                    VkImageLayout newLayout, VkAccessFlags2 srcAccessMask,
-                                    VkAccessFlags2 dstAccessMask,
+                                    VkImageLayout oldLayout, VkImageLayout newLayout,
+                                    VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                                     VkPipelineStageFlags2 srcStageMask,
                                     VkPipelineStageFlags2 dstStageMask)
 {
@@ -648,51 +644,16 @@ void Context::drawFrame(GLFWwindow* window)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void Context::waitIdle() 
+void Context::waitIdle()
 {
     vkDeviceWaitIdle(device);
 }
 
-void Context::recreateSwapchain(GLFWwindow* window)
+VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 {
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-    while (width == 0 || height == 0)
-    {
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
-    }
-
-    vkDeviceWaitIdle(device);
-    cleanupSwapchain();
-    createSwapchain(window);
-    createSwapchainImageViews();
-
-}
-
-void Context::cleanupSwapchain() 
-{
-    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
-    {
-        vkDestroyImageView(device, swapchainImageViews[i], nullptr);
-    }
-    swapchainImageViews.clear();
-
-    if (swapchain != VK_NULL_HANDLE)
-    {
-        vkDestroySwapchainKHR(device, swapchain, nullptr);
-        swapchain = VK_NULL_HANDLE;
-    }
-}
-
-VkShaderModule Context::createShaderModule(const std::vector<char>& code) const 
-{
-    VkShaderModuleCreateInfo sci
-    {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = code.size() * sizeof(char),
-        .pCode = reinterpret_cast<const uint32_t*>(code.data())
-    };
+    VkShaderModuleCreateInfo sci{ .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                                  .codeSize = code.size() * sizeof(char),
+                                  .pCode = reinterpret_cast<const uint32_t*>(code.data()) };
 
     VkShaderModule sm;
     vkCreateShaderModule(device, &sci, nullptr, &sm);

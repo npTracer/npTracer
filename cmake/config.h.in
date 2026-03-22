@@ -1,3 +1,0 @@
-#pragma once
-
-#define NPTRACER_SHADER_PATH "@NPTRACER_SHADER_PATH@"

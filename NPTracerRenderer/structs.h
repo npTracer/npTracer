@@ -1,10 +1,19 @@
 #pragma once
 
+#define GLM_ENABLE_EXPERIMENTAL
+
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
 #include <array>
 #include <optional>
+#include <vector>
+
+#include <glm/gtx/compatibility.hpp>
+
+using FLOAT2 = glm::f32vec2;
+using FLOAT3 = glm::f32vec3;
+using FLOAT4X4 = glm::f32mat4;
 
 struct Vertex
 {
@@ -54,6 +63,16 @@ struct Frame
     VkSemaphore donePresentingSemaphore;
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
+
+    Buffer uboBuffer;
+    VkDescriptorSet descriptorSet;
+
+    void destroy(VkDevice device, VmaAllocator allocator)
+    {
+        vkDestroyFence(device, doneExecutingFence, nullptr);
+        vkDestroySemaphore(device, donePresentingSemaphore, nullptr);
+        uboBuffer.destroy(allocator);
+    }
 };
 
 enum class QueueFamily
@@ -81,4 +100,12 @@ struct Queue
             vkDestroyCommandPool(device, commandPool, nullptr);
         }
     }
+};
+
+// shared structs
+struct UniformBufferObject
+{
+    FLOAT4X4 model;
+    FLOAT4X4 view;
+    FLOAT4X4 proj;
 };

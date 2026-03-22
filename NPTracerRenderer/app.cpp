@@ -11,9 +11,15 @@ void App::create()
 
     context.createSwapchain(window);
     context.createSwapchainImageViews();
+
+    context.createDescriptorSetLayout();
     context.createGraphicsPipeline();
     context.createSyncAndFrameObjects();
     context.createRenderingResources();
+
+
+    context.createDescriptorPool();
+    context.createDescriptorSets();
 }
 
 void App::render()
@@ -22,6 +28,7 @@ void App::render()
     {
         glfwPollEvents();
         context.drawFrame(window);
+        context.updateUniformBuffer();
     }
 
     context.waitIdle();

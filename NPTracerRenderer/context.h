@@ -37,11 +37,14 @@ public:
                                VkPipelineStageFlags2 dstStageMask);
 
     void drawFrame(GLFWwindow* window);
-    void waitIdle();
     void recreateSwapchain(GLFWwindow* window);
     void cleanupSwapchain();
 
     // resources
+    void createDescriptorSetLayout();
+    void createDescriptorPool();
+    void createDescriptorSets();
+
     void createRenderingResources(); // placeholder function for testing rendering functionality
     void createAllocator();
     void createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
@@ -50,8 +53,11 @@ public:
     void createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size);
+    void updateUniformBuffer();
 
+    // utility
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
+    void waitIdle();
     void destroy();
     void destroyDebugMessenger();
 
@@ -80,6 +86,8 @@ private:
 
     std::vector<Frame> frames;
 
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
 

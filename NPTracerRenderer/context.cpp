@@ -4,6 +4,10 @@
 #include <algorithm>
 #include <optional>
 #include <cstring>
+#include <chrono>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 void Context::createDebugMessenger(bool enableDebug)
 {
@@ -440,7 +444,7 @@ void Context::createGraphicsPipeline()
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasSlopeFactor = 1.0f,
         .lineWidth = 1.0f
@@ -469,7 +473,8 @@ void Context::createGraphicsPipeline()
     // pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 0,
+        .setLayoutCount = 1,
+        .pSetLayouts = &descriptorSetLayout,
         .pushConstantRangeCount = 0
     };
     vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
@@ -539,12 +544,87 @@ void Context::createSyncAndFrameObjects()
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
         createCommandBuffer(frame.commandBuffer, QueueFamily::GRAPHICS);
-    
+
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        createBuffer(frame.uboBuffer, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                         | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
         frames.emplace_back(frame);
     }
 
     // create transfer command buffer as well
     createCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
+}
+
+void Context::createDescriptorSetLayout() 
+{
+    VkDescriptorSetLayoutBinding uboLayoutBinding{
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
+        .pImmutableSamplers = nullptr
+    };
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = &uboLayoutBinding,
+    };
+    vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout);
+}
+
+void Context::createDescriptorPool() 
+{
+    VkDescriptorPoolSize poolSize{
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = FRAME_COUNT
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                                         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+                                         .maxSets = FRAME_COUNT,
+                                         .poolSizeCount = 1,
+                                         .pPoolSizes = &poolSize };
+
+    vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool);
+}
+
+void Context::createDescriptorSets()
+{
+    std::vector<VkDescriptorSetLayout> layouts(FRAME_COUNT, descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                           .descriptorPool = descriptorPool,
+                                           .descriptorSetCount = static_cast<uint32_t>(
+                                               layouts.size()),
+                                           .pSetLayouts = layouts.data() };
+
+    std::vector<VkDescriptorSet> sets(FRAME_COUNT);
+    vkAllocateDescriptorSets(device, &allocInfo, sets.data());
+
+
+    std::vector<VkDescriptorBufferInfo> bufferInfos(FRAME_COUNT);
+    std::vector<VkWriteDescriptorSet> descriptorWrites(FRAME_COUNT);
+    for (uint32_t i = 0; i < FRAME_COUNT; i++)
+    {
+        frames[i].descriptorSet = sets[i];
+
+        bufferInfos[i] = { .buffer = frames[i].uboBuffer.buffer,
+                           .offset = 0,
+                           .range = sizeof(UniformBufferObject) };
+
+        descriptorWrites[i] = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                .dstSet = frames[i].descriptorSet,
+                                .dstBinding = 0,
+                                .dstArrayElement = 0,
+                                .descriptorCount = 1,
+                                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                .pBufferInfo = &bufferInfos[i] };
+    }
+
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
+                           descriptorWrites.data(), 0, nullptr);
 }
 
 void Context::createRenderingResources()
@@ -610,6 +690,28 @@ void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size)
     vkQueueWaitIdle(queues[QueueFamily::TRANSFER].queue);
 }
 
+void Context::updateUniformBuffer() 
+{
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
+                     .count();
+
+    UniformBufferObject ubo{
+        .model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        .view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+                       glm::vec3(0.0f, 0.0f, 1.0f)),
+        .proj = glm::perspective(glm::radians(45.0f),
+                                 static_cast<float>(swapchainParams.extent.width)
+                                     / static_cast<float>(swapchainParams.extent.height),
+                                 0.1f, 10.0f)
+    };
+    ubo.proj[1][1] *= -1;
+
+    memcpy(frames[currentFrame].uboBuffer.allocInfo.pMappedData, &ubo, sizeof(UniformBufferObject));
+}
+
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
 {
     VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -667,6 +769,8 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.buffer, offsets);
     vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                            &frames[currentFrame].descriptorSet, 0, nullptr);
 
     vkCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
 
@@ -834,9 +938,11 @@ void Context::destroy()
 
     for (int i = 0; i < FRAME_COUNT; i++)
     {
-        vkDestroyFence(device, frames[i].doneExecutingFence, nullptr);
-        vkDestroySemaphore(device, frames[i].donePresentingSemaphore, nullptr);
+        frames[i].destroy(device, allocator);
     }
+
+    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
     for (auto& queue : queues)
     {

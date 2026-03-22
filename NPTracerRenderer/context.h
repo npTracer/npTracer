@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan.h>
+#include <unordered_map>
 
 #include "utils.h"
 #include "structs.h"
@@ -24,8 +25,7 @@ public:
     void createSwapchain(GLFWwindow* window);
     void createSwapchainImageViews();
     void createGraphicsPipeline();
-    void createCommandPool();
-    void createCommandBuffer(VkCommandBuffer& commandBuffer);
+    void createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily);
     void createSyncAndFrameObjects();
     void createVertexBuffer();
 
@@ -55,34 +55,6 @@ private:
                                            { { 0.5f, 0.5f }, { 0.0f, 1.0f, 0.0f } },
                                            { { -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } } };
 
-    struct SwapchainParams
-    {
-        VkSurfaceFormatKHR format;
-        VkPresentModeKHR presentMode;
-        VkExtent2D extent;
-    };
-
-    struct Frame
-    {
-        VkSemaphore donePresentingSemaphore;
-        VkFence doneExecutingFence;
-        VkCommandBuffer commandBuffer;
-    };
-
-    struct Buffer
-    {
-        VkBuffer buffer = VK_NULL_HANDLE;
-        VmaAllocation allocation = VK_NULL_HANDLE;
-
-        void destroy(VmaAllocator allocator)
-        {
-            if (buffer != VK_NULL_HANDLE)
-            {
-                vmaDestroyBuffer(allocator, buffer, allocation);
-            }
-        }
-    };
-
     static constexpr int FRAME_COUNT = 2;
     uint32_t currentFrame = 0;
     bool framebufferResized = false;
@@ -103,10 +75,8 @@ private:
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
 
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-
-    VkQueue graphicsQueue = VK_NULL_HANDLE;
-    uint32_t graphicsQueueFamilyIndex = 0;
+    std::unordered_map<QueueFamily, Queue> queues;
+    VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
     VmaAllocator allocator = VK_NULL_HANDLE;
     Buffer vertexBuffer;

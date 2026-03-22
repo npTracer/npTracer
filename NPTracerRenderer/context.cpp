@@ -160,7 +160,10 @@ void Context::createLogicalDeviceAndQueues()
     std::vector<VkQueueFamilyProperties> properties(propertyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &propertyCount, properties.data());
 
-    std::optional<uint32_t> graphicsIndex;
+    Queue graphicsQueue;
+    Queue transferQueue;
+
+    // queue selection
     for (uint32_t i = 0; i < properties.size(); i++)
     {
         const auto& family = properties[i];
@@ -170,16 +173,34 @@ void Context::createLogicalDeviceAndQueues()
 
         if ((family.queueFlags & VK_QUEUE_GRAPHICS_BIT) && presentSupport)
         {
-            graphicsIndex = i;
-            break;
+            graphicsQueue.index = i;
+        }
+        else if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
+        {
+            transferQueue.index = i;
         }
     }
 
     float queuePriority = 1.0f;
-    VkDeviceQueueCreateInfo queueCreateInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                                             .queueFamilyIndex = graphicsIndex.value(),
-                                             .queueCount = 1,
-                                             .pQueuePriorities = &queuePriority };
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+
+    if (graphicsQueue)
+    {
+        VkDeviceQueueCreateInfo queueCreateInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                                 .queueFamilyIndex = graphicsQueue.index.value(),
+                                                 .queueCount = 1,
+                                                 .pQueuePriorities = &queuePriority };
+        queueCreateInfos.emplace_back(queueCreateInfo);
+    }
+
+    if (transferQueue)
+    {
+        VkDeviceQueueCreateInfo queueCreateInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                                 .queueFamilyIndex = transferQueue.index.value(),
+                                                 .queueCount = 1,
+                                                 .pQueuePriorities = &queuePriority };
+        queueCreateInfos.emplace_back(queueCreateInfo);
+    }
 
     // TODO add device features
     VkPhysicalDeviceVulkan13Features vulkan13Features{
@@ -196,8 +217,8 @@ void Context::createLogicalDeviceAndQueues()
     VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = &vulkan13Features,
-        .queueCreateInfoCount = 1,
-        .pQueueCreateInfos = &queueCreateInfo,
+        .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+        .pQueueCreateInfos = queueCreateInfos.data(),
         .enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size()),
         .ppEnabledExtensionNames = requiredDeviceExtensions.data(),
         .pEnabledFeatures = &deviceFeatures,
@@ -208,8 +229,34 @@ void Context::createLogicalDeviceAndQueues()
         throw std::runtime_error("failed to create logical device");
     }
 
-    graphicsQueueFamilyIndex = graphicsIndex.value();
-    vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, &graphicsQueue);
+    if (graphicsQueue)
+    {
+        vkGetDeviceQueue(device, graphicsQueue.index.value(), 0, &graphicsQueue.queue);
+        VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                                          .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                                          .queueFamilyIndex = graphicsQueue.index.value() };
+
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create command pool");
+        }
+        queues[QueueFamily::GRAPHICS] = graphicsQueue;
+    }
+
+    if (transferQueue)
+    {
+        vkGetDeviceQueue(device, transferQueue.index.value(), 0, &transferQueue.queue);
+        VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                                          .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                                          .queueFamilyIndex = transferQueue.index.value() };
+
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &transferQueue.commandPool)
+            != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create command pool");
+        }
+        queues[QueueFamily::TRANSFER] = transferQueue;
+    }
 }
 
 void Context::createSwapchain(GLFWwindow* window)
@@ -454,22 +501,10 @@ void Context::createGraphicsPipeline()
     vkDestroyShaderModule(device, coreFragModule, nullptr);
 }
 
-void Context::createCommandPool()
-{
-    VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                                      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                                      .queueFamilyIndex = graphicsQueueFamilyIndex };
-
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create command pool");
-    }
-}
-
-void Context::createCommandBuffer(VkCommandBuffer& commandBuffer)
+void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily)
 {
     VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                           .commandPool = commandPool,
+                                           .commandPool = queues[queueFamily].commandPool,
                                            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                                            .commandBufferCount = 1 };
 
@@ -498,10 +533,13 @@ void Context::createSyncAndFrameObjects()
 
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
-        createCommandBuffer(frame.commandBuffer);
+        createCommandBuffer(frame.commandBuffer, QueueFamily::GRAPHICS);
     
         frames.emplace_back(frame);
     }
+
+    // create transfer command buffer as well
+    createCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
 }
 
 void Context::createVertexBuffer() 
@@ -657,7 +695,9 @@ void Context::drawFrame(GLFWwindow* window)
                              .signalSemaphoreCount = 1,
                              .pSignalSemaphores = &doneRenderingSemaphores[imageIndex] }; // signal that rendering is finished once execution is finished
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, frame.doneExecutingFence); // signal that execution has been completed on frame once it is done
+    vkQueueSubmit(queues[QueueFamily::GRAPHICS].queue, 1, &submitInfo,
+                  frame.doneExecutingFence);  // signal that execution has been completed on frame
+                                              // once it is done
 
     VkPresentInfoKHR presentInfo{ .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                                   .waitSemaphoreCount = 1,
@@ -666,7 +706,7 @@ void Context::drawFrame(GLFWwindow* window)
                                   .pSwapchains = &swapchain,
                                   .pImageIndices = &imageIndex };
 
-    VkResult result = vkQueuePresentKHR(graphicsQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(queues[QueueFamily::GRAPHICS].queue, &presentInfo);
     if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR) || framebufferResized)
     {
         framebufferResized = false;
@@ -752,9 +792,9 @@ void Context::destroy()
         vkDestroySemaphore(device, frames[i].donePresentingSemaphore, nullptr);
     }
 
-    if (commandPool != VK_NULL_HANDLE)
+    for (auto& queue : queues)
     {
-        vkDestroyCommandPool(device, commandPool, nullptr);
+        queue.second.destroy(device);
     }
 
     if (pipeline != VK_NULL_HANDLE)

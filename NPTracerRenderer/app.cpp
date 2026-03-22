@@ -12,7 +12,6 @@ void App::create()
     context.createSwapchain(window);
     context.createSwapchainImageViews();
     context.createGraphicsPipeline();
-    context.createCommandPool();
     context.createSyncAndFrameObjects();
     context.createVertexBuffer();
 }

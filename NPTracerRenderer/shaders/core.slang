@@ -2,12 +2,14 @@ struct VertexInput
 {
     float2 pos;
     float3 color;
+    float2 uv;
 }
 
 struct VertexOutput 
 {
+    float4 pos : SV_Position;
 	float3 color;
-	float4 pos : SV_Position;
+    float2 uv;
 }
 
 struct UniformBuffer
@@ -23,12 +25,15 @@ VertexOutput vertMain(VertexInput vertex)
 {
 	VertexOutput output;
 	output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(vertex.pos, 0.0, 1.0))));
-	output.color = vertex.color;
+    output.color = vertex.color;
+    output.uv = vertex.uv;
 	return output;
 }
+
+Sampler2D texture;
 
 [shader("fragment")]
 float4 fragMain(VertexOutput vertex) : SV_Target
 {
-	return float4(vertex.color, 1.0);
+    return texture.Sample(vertex.uv);
 }

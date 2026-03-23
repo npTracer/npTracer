@@ -17,7 +17,6 @@ void App::create()
     context.createSyncAndFrameObjects();
     context.createRenderingResources();
 
-
     context.createDescriptorPool();
     context.createDescriptorSets();
 }

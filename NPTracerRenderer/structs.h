@@ -18,8 +18,9 @@ using FLOAT4X4 = glm::f32mat4;
 
 struct Vertex
 {
-    glm::vec2 pos;
-    glm::vec3 color;
+    FLOAT2 pos;
+    FLOAT3 color;
+    FLOAT2 uv;
 
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
@@ -28,12 +29,14 @@ struct Vertex
     }
 
     // tell vulkan what attributes exist within each vertex and how big they are
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
-        return { VkVertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT,
-                                                   offsetof(Vertex, pos)),
-                 VkVertexInputAttributeDescription(1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                                   offsetof(Vertex, color)) };
+        return {
+            VkVertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, pos)),
+            VkVertexInputAttributeDescription(1, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                                              offsetof(Vertex, color)),
+            VkVertexInputAttributeDescription(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)),
+        };
     }
 };
 
@@ -48,6 +51,27 @@ struct Buffer
         if (buffer != VK_NULL_HANDLE)
         {
             vmaDestroyBuffer(allocator, buffer, allocation);
+        }
+    }
+};
+
+struct Image
+{
+    VkImage image = VK_NULL_HANDLE;
+    VkImageView view = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
+    VmaAllocationInfo allocInfo;
+
+    void destroy(VkDevice device, VmaAllocator allocator)
+    {
+        if (image != VK_NULL_HANDLE)
+        {
+            vmaDestroyImage(allocator, image, allocation);
+        }
+
+        if (view != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(device, view, nullptr);
         }
     }
 };

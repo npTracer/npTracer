@@ -29,6 +29,7 @@ public:
     void createSyncAndFrameObjects();
 
     void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
+    void endCommandBuffer(VkCommandBuffer commandBuffer, QueueFamily queueFamily);
     void recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                VkImageLayout oldLayout, VkImageLayout newLayout,
@@ -52,7 +53,15 @@ public:
 
     void createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
+    void createTextureImage();
+    void createTextureSampler();
+    void createImage(Image& handle, VkDeviceSize size, VkImageType type, VkFormat format,
+                     uint32_t width, uint32_t height, VkImageUsageFlags usage,
+                     VmaAllocationCreateFlags allocationFlags);
+
     void copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size);
+    void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst, uint32_t width,
+                           uint32_t height);
     void updateUniformBuffer();
 
     // utility
@@ -62,10 +71,12 @@ public:
     void destroyDebugMessenger();
 
 private:
-    const std::vector<Vertex> vertices = { { { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
-                                           { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f } },
-                                           { { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f } },
-                                           { { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f } } };
+    const std::vector<Vertex> vertices = {
+        { { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+        { { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+        { { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
+    };
 
     const std::vector<uint16_t> indices = { 0, 1, 2, 2, 3, 0 };
 
@@ -98,6 +109,9 @@ private:
     VmaAllocator allocator = VK_NULL_HANDLE;
     Buffer vertexBuffer;
     Buffer indexBuffer;
+
+    Image textureImage;
+    VkSampler textureSampler;
 
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;

@@ -69,3 +69,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${NPTracerRenderer_ROOT_DIR}/external/vma/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${NPTracerRenderer_ROOT_DIR}/external/stb)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")

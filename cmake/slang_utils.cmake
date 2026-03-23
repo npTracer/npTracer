@@ -1,3 +1,5 @@
+include_guard(GLOBAL)
+
 function(AddSlangShaderTarget compile_target_name shader_file shader_stages output_dir other_targets)
     set(ENTRYPOINT_SUFFIX "Main") # TODO: expose this if necessary
     get_filename_component(SHADER_NAME "${shader_file}" NAME_WE)

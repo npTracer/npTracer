@@ -40,7 +40,7 @@ struct Vertex
     }
 };
 
-struct Buffer
+struct NPBuffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -78,6 +78,37 @@ struct Image
     }
 };
 
+struct NPPipeline
+{
+    VkPipelineLayout layout;
+    VkPipeline pipeline;
+
+    void destroy(VkDevice device)
+    {
+        if (pipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device, pipeline, nullptr);
+        }
+
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device, layout, nullptr);
+        }
+    }
+};
+
+struct NPDescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+
+    void destroy(VkDevice device)
+    {
+        vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        vkDestroyDescriptorPool(device, pool, nullptr);
+    }
+};
+
 struct SwapchainParams
 {
     VkSurfaceFormatKHR format;
@@ -92,7 +123,7 @@ struct Frame
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
 
-    Buffer uboBuffer;
+    NPBuffer uboBuffer;
     VkDescriptorSet descriptorSet;
 
     void destroy(VkDevice device, VmaAllocator allocator)

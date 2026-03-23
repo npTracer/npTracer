@@ -12,15 +12,31 @@ However, after they are set as environment variables, they will be automatically
 
 #### `CUSTOM_DSO_PATH`
 
-- Set this variable to any directory you want the built `.dso` plugin to be installed into.
+Set this variable to any directory you want the built `.dso` plugin to be installed into.
 
-For example: `%USERPROFILE%\HoudiniDevelopment\21`
+For example: `E:\HoudiniDevelopment\21`
 
 #### `HOUDINI_DSO_PATH`
 
-- This is the variable that Houdini uses to locate plugins.
+This is the variable that Houdini uses to locate plugins.
 
-You should add `CUSTOM_DSO_PATH` to it, so something like this: `%CUSTOM_DSO_PATH%;&`
+You should add `CUSTOM_DSO_PATH` to it.
+
+- On Windows, it would look something like this: `%CUSTOM_DSO_PATH%;&`.
+- On MacOS and Linux (Bash-based shells), it would look something like this: `$CUSTOM_DSO_PATH%;&`
+
+#### `CUSTOM_USD_DSO_PATH`
+
+- This variable is the directory that Houdini will look for `plugInfo.json`, which is how the NPTracer Hydra Renderer Plugin will be registered with the USD ecosystem. This process is automated through CMake, so long as the correct environment variables are set.
+
+The standard location of `CUSTOM_USD_DSO_PATH` is: `<CUSTOM_DSO_PATH>/usd_plugins`
+
+#### `HOUDINI_USD_DSO_PATH`
+
+This holds the same principles as `HOUDINI_DSO_PATH`.
+
+- On Windows, it would look something like this: `%CUSTOM_USD_DSO_PATH%;&`.
+- On MacOS and Linux (Bash-based shells), it would look something like this: `$CUSTOM_USD_DSO_PATH%;&`
 
 If you are curious, Houdini has custom behavior to parse the `&` and add the value to the existing environment variable value, if set. It is not platform-specific, rather Houdini-specific.
 

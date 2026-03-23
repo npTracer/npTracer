@@ -36,6 +36,7 @@ set(CURR_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
+    "${NPTracerRenderer_ROOT_DIR}/structs.h"
 )
 
 set(CURR_SHADER_SPECS
@@ -66,3 +67,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw 
     glm::glm-header-only # use header-only GLM 
 )
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${NPTracerRenderer_ROOT_DIR}/external/vma/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${NPTracerRenderer_ROOT_DIR}/external/stb)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")

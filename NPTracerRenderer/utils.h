@@ -1,6 +1,9 @@
 #pragma once
 
 #include <fstream>
+#include <filesystem>
+
+#define TEXTURE(name) (std::filesystem::path(TEXTURE_PATH) / name)
 
 static std::vector<char> readFile(const std::string& filename)
 {

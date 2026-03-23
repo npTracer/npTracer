@@ -2,17 +2,26 @@
 
 void App::create()
 {
+    // create vulkan basics
     context.createWindow(window, WIDTH, HEIGHT);
     context.createInstance(enableDebug);
     context.createSurface(window);
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
+    context.createAllocator();
     context.createSwapchain(window);
     context.createSwapchainImageViews();
+
+    // create resources for rendering
+    context.createDescriptorSetLayout();
+    context.createDepthImage();
     context.createGraphicsPipeline();
-    context.createCommandPool();
-    context.createCommandBuffer();
-    context.createSyncObjects();
+    context.createSyncAndFrameObjects();
+    context.createRenderingResources();
+
+    // create descriptors
+    context.createDescriptorPool();
+    context.createDescriptorSets();
 }
 
 void App::render()
@@ -20,7 +29,8 @@ void App::render()
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-        context.drawFrame();
+        context.executeDrawCall(window);
+        context.updateUniformBuffer();
     }
 
     context.waitIdle();

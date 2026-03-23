@@ -34,7 +34,7 @@ set(CURR_HEADERS
 
 add_library(${PROJECT_NAME} SHARED ${CURR_SOURCES} ${CURR_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} Houdini HoudiniThirdParty)
+target_link_libraries(${PROJECT_NAME} Houdini HoudiniThirdParty ${RENDERER_TARGET_NAME})
 # install directly to `CUSTOM_USD_DSO_PATH`
 houdini_configure_target(${PROJECT_NAME} INSTDIR "${CUSTOM_USD_DSO_PATH}")
 ConfigureFilePostBuild(${PROJECT_NAME}

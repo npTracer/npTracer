@@ -2,6 +2,8 @@ include_guard(GLOBAL)
 
 # ensures all variables are set either through CMake or environment
 function(HouUtilsEnsureVariables)
+    include(core_utils)
+    
     EnsureVariable("HOUDINI_INSTALL_PATH" FALSE)
 
     # normalize path before checking if it exists

@@ -1,11 +1,10 @@
 #include "usd_plugin/NPTracerHdRenderPass.h"
+#include "usd_plugin/NPTracerDebugCodes.h"
 
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
 #include <pxr/imaging/hd/renderPassState.h>
 #include <pxr/imaging/hd/renderBuffer.h>
-
-#include <cstdint>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -90,6 +89,8 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     this->SetConverged(false);
     
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
+    
+    RendererPayload payload = _BuildRendererPayload(renderPassState);
 
     for (HdRenderPassAovBinding const& aov : aovBindings)
     {
@@ -120,5 +121,14 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
     _converged.store(converged);
 }
 
+RendererPayload NPTracerHdRenderPass::_BuildRendererPayload(HdRenderPassStateSharedPtr const& state)
+{
+    return {};
+}
+
+VkRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr const& state)
+{
+    return {};
+}
 
 PXR_NAMESPACE_CLOSE_SCOPE

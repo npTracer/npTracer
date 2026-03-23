@@ -46,3 +46,55 @@ function(ConfigureFilePostBuild target_name)
             -P "${args_GENERATOR_MODULE_PATH}"
     )
 endfunction()
+
+function(ExportHeaders target_name base_src_dir base_dest_dir) # input headers list as `ARGN`
+    foreach(header ${ARGN})
+        # compute relative path to base directory
+        file(RELATIVE_PATH REL_PATH "${base_src_dir}" "${header}")
+
+        # destination path is the relative path joined to destination directory
+        set(DEST_PATH "${base_dest_dir}/${REL_PATH}")
+
+        # file-specific destination directory
+        get_filename_component(DEST_DIR "${DEST_PATH}" DIRECTORY)
+
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${header}"
+                "${DEST_PATH}"
+            COMMENT "Copied '${header}' to '${DEST_PATH}'."
+        )
+    endforeach()
+endfunction()
+
+# copy headers to an explicit directory layout within the binary directory so that includes can use a prefix path
+function(AddPrefixToTargetIncludes target_name)
+    set(EXPORTED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
+    set(EXPORTED_HEADER_DIR "${EXPORTED_INCLUDE_DIR}/${target_name}")
+
+    ExportHeaders(${target_name} "${CMAKE_CURRENT_SOURCE_DIR}" "${EXPORTED_HEADER_DIR}" ${ARGN})
+
+    target_include_directories(${target_name} PUBLIC "${EXPORTED_INCLUDE_DIR}")
+endfunction()
+
+function(FilterInstallableTargets out_variable_name)
+    set(${out_variable_name} "")
+
+    foreach(tgt ${ARGN})
+        get_target_property(TGT_TYPE ${tgt} TYPE)
+
+        message(STATUS "${tgt}: ${TGT_TYPE}")
+
+        if(TGT_TYPE STREQUAL "EXECUTABLE" OR
+            TGT_TYPE STREQUAL "STATIC_LIBRARY" OR
+            TGT_TYPE STREQUAL "SHARED_LIBRARY" OR
+            TGT_TYPE STREQUAL "MODULE_LIBRARY" OR
+            TGT_TYPE STREQUAL "INTERFACE_LIBRARY")
+                
+            list(APPEND INSTALLABLE_EXTERNAL_TARGETS ${tgt})
+        endif()
+    endforeach()
+
+    set(${out_variable_name} ${${out_variable_name}} PARENT_SCOPE)
+endfunction()

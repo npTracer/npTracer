@@ -2,6 +2,8 @@
 
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
+#include <NPTracerRenderer/structs.h>
+
 #include <pxr/imaging/hd/renderPass.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -25,6 +27,9 @@ private:
     NPTracerHdRenderDelegate* _delegate;
     
     std::atomic<bool> _converged{false};
+
+    RendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
+    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

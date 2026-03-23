@@ -4,6 +4,8 @@
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
 #include <pxr/imaging/hd/rendererPluginRegistry.h>
+#include <pxr/imaging/hgi/hgi.h>
+#include <pxr/imaging/hgi/tokens.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -30,7 +32,9 @@ void NPTracerHdRendererPlugin::DeleteRenderDelegate(HdRenderDelegate* delegate)
 
 bool NPTracerHdRendererPlugin::IsSupported(bool gpuEnabled) const
 {
-    return true;
+    bool test = Hgi::IsSupported(HgiTokens->Vulkan);
+    TF_DEBUG(NPTRACER_RENDER).Msg("%b", test);
+    return test;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

@@ -35,9 +35,7 @@ function(HouUtilsEnsureVariables)
     set(HOUDINI_INSTALL_PATH "${HOUDINI_INSTALL_PATH}" CACHE PATH "Houdini Installation Path")
     set(CUSTOM_DSO_PATH "${CUSTOM_DSO_PATH}" CACHE PATH "Custom DSO Search Path (SET VIA ENV, NOT CMAKE)" FORCE) # mark as `FORCE` so it is not actually cached
     set(CUSTOM_USD_DSO_PATH "${CUSTOM_USD_DSO_PATH}" CACHE PATH "Custom USD DSO Search Path (SET VIA ENV, NOT CMAKE)" FORCE)
-
-    # make lib path accessible outside of function
-    set(HOUDINI_LIB_PATH "${HOUDINI_LIB_PATH}" PARENT_SCOPE)
+    set(HOUDINI_LIB_PATH "${HOUDINI_LIB_PATH}"  CACHE INTERNAL "Houdini DSO Lib Path")
 endfunction()
 
 # print all useful variables to command-line

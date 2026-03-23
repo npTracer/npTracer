@@ -8,6 +8,7 @@
 #include <pxr/imaging/hd/sprim.h>
 #include <pxr/imaging/hd/bprim.h>
 #include <pxr/imaging/hd/camera.h>
+#include <pxr/imaging/hgi/tokens.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -167,7 +168,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
-        return new NPTracerHdRenderBuffer(bprimId);
+        return new NPTracerHdRenderBuffer(bprimId, _hgi.get());
     } else
     {
         TF_CODING_ERROR("Unknown Bprim: type=%s id=%s", typeId.GetText(), bprimId.GetText());
@@ -194,7 +195,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
     
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
-        return new NPTracerHdRenderBuffer(SdfPath::EmptyPath());
+        return new NPTracerHdRenderBuffer(SdfPath::EmptyPath(), _hgi.get());
     } else
     {
         TF_CODING_ERROR("Unknown Bprim: type=%s", typeId.GetText());
@@ -231,6 +232,7 @@ void NPTracerHdRenderDelegate::_Initialize()
 {
     _renderParam = std::unique_ptr<NPTracerHdRenderParam>(new NPTracerHdRenderParam());
     _resourceRegistry = std::make_shared<HdResourceRegistry>();
+    _hgi = Hgi::CreateNamedHgi(HgiTokens->Vulkan);
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

@@ -5,6 +5,7 @@
 #include <pxr/imaging/hd/renderDelegate.h>
 
 #include <memory>
+#include <pxr/imaging/hgi/hgi.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -70,6 +71,7 @@ private:
     HdRenderSettingDescriptorList _settingDescriptors;
     std::unique_ptr<NPTracerHdRenderParam> _renderParam;
     HdResourceRegistrySharedPtr _resourceRegistry;
+    HgiUniquePtr _hgi;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

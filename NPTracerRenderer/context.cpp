@@ -1,5 +1,6 @@
 #define VMA_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "context.h"
 #include <stb_image.h>
@@ -479,6 +480,16 @@ void Context::createGraphicsPipeline()
         .pAttachments = &blendInfo
     };
 
+    // depth testing
+    VkPipelineDepthStencilStateCreateInfo depthInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE
+    };
+
     // pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -491,7 +502,8 @@ void Context::createGraphicsPipeline()
     VkPipelineRenderingCreateInfo renderingInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &swapchainParams.format.format
+        .pColorAttachmentFormats = &swapchainParams.format.format,
+        .depthAttachmentFormat = swapchainParams.depthFormat
     };
 
     VkGraphicsPipelineCreateInfo pipelineInfo{
@@ -504,6 +516,7 @@ void Context::createGraphicsPipeline()
         .pViewportState = &viewportState,
         .pRasterizationState = &rasterInfo,
         .pMultisampleState = &multisampling,
+        .pDepthStencilState = &depthInfo,
         .pColorBlendState = &blendStateInfo,
         .pDynamicState = &dynamicInfo,
         .layout = pipelineLayout,
@@ -728,7 +741,7 @@ void Context::createTextureImage()
 
     stbi_image_free(pixels);
 
-    createImage(textureImage, size, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
+    createImage(textureImage, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 
     VkCommandBuffer commandBuffer;
@@ -760,6 +773,58 @@ void Context::createTextureImage()
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
+void Context::createDepthImage()
+{
+    std::vector<VkFormat> candidates{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
+                                      VK_FORMAT_D24_UNORM_S8_UINT };
+
+    swapchainParams.depthFormat = VK_FORMAT_UNDEFINED;
+    for (VkFormat candidate : candidates)
+    {
+        VkFormatProperties properties{};
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, candidate, &properties);
+
+        if (properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        {
+            swapchainParams.depthFormat = candidate;
+            break;
+        }
+    }
+
+    if (swapchainParams.depthFormat == VK_FORMAT_UNDEFINED)
+    {
+        throw std::runtime_error("failed to find supported depth format");
+    }
+
+    createImage(depthImage, VK_IMAGE_TYPE_2D, swapchainParams.depthFormat,
+                swapchainParams.extent.width,
+                swapchainParams.extent.height, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0);
+
+    VkCommandBuffer commandBuffer;
+    createCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
+    beginCommandBuffer(commandBuffer);
+    transitionImageLayout(commandBuffer, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                          VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                          VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                          VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
+                              | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                          VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
+                              | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                          VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    endCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
+
+    VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                                    .image = depthImage.image,
+                                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                                    .format = swapchainParams.depthFormat,
+                                    .subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 } };
+
+    vkCreateImageView(device, &viewInfo, nullptr, &depthImage.view);
+
+}
+
 void Context::createTextureSampler() 
 {
     VkPhysicalDeviceProperties properties;
@@ -784,7 +849,7 @@ void Context::createTextureSampler()
     vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler);
 }
 
-void Context::createImage(Image& handle, VkDeviceSize size, VkImageType type, VkFormat format,
+void Context::createImage(Image& handle, VkImageType type, VkFormat format,
                           uint32_t width, uint32_t height, VkImageUsageFlags usage,
                           VmaAllocationCreateFlags allocationFlags)
 {
@@ -899,8 +964,10 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
                           VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                           VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
-    VkClearColorValue clearColor = VkClearColorValue{ 0.0f, 0.0f, 0.0f, 1.0f };
-    VkRenderingAttachmentInfo attachmentInfo{
+    VkClearValue clearColor{ .color = { { 0.0f, 0.0f, 0.0f, 1.0f } } };
+    VkClearValue clearDepth{ .depthStencil = { 1.0f, 0 } };
+
+    VkRenderingAttachmentInfo colorAttachmentInfo{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView = swapchainImageViews[imageIndex],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -909,12 +976,22 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
         .clearValue = clearColor
     };
 
+    VkRenderingAttachmentInfo depthAttachmentInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView = depthImage.view,
+        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .clearValue = clearDepth
+    };
+
     VkRenderingInfo renderingInfo{ .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
                                    .renderArea = { .offset = { 0, 0 },
                                                    .extent = swapchainParams.extent },
                                    .layerCount = 1,
                                    .colorAttachmentCount = 1,
-                                   .pColorAttachments = &attachmentInfo };
+                                   .pColorAttachments = &colorAttachmentInfo,
+                                   .pDepthAttachment = &depthAttachmentInfo };
 
     // record commands
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
@@ -953,7 +1030,8 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
                                     VkImageLayout oldLayout, VkImageLayout newLayout,
                                     VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                                     VkPipelineStageFlags2 srcStageMask,
-                                    VkPipelineStageFlags2 dstStageMask)
+                                    VkPipelineStageFlags2 dstStageMask,
+                                    VkImageAspectFlags aspectFlags)
 {
     VkImageMemoryBarrier2 barrier = { .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                       .srcStageMask = srcStageMask,
@@ -965,7 +1043,7 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
                                       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                                       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                                       .image = image,
-                                      .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                      .subresourceRange = { .aspectMask = aspectFlags,
                                                             .baseMipLevel = 0,
                                                             .levelCount = 1,
                                                             .baseArrayLayer = 0,
@@ -1105,6 +1183,7 @@ void Context::destroy()
         frames[i].destroy(device, allocator);
     }
 
+    depthImage.destroy(device, allocator);
     textureImage.destroy(device, allocator);
     vkDestroySampler(device, textureSampler, nullptr);
 

@@ -1,6 +1,6 @@
 struct VertexInput
 {
-    float2 pos;
+    float3 pos;
     float3 color;
     float2 uv;
 }
@@ -24,7 +24,7 @@ ConstantBuffer<UniformBuffer> ubo;
 VertexOutput vertMain(VertexInput vertex)
 {
 	VertexOutput output;
-	output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(vertex.pos, 0.0, 1.0))));
+	output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(vertex.pos, 1.0))));
     output.color = vertex.color;
     output.uv = vertex.uv;
 	return output;

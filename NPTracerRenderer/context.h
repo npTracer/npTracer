@@ -35,7 +35,8 @@ public:
                                VkImageLayout oldLayout, VkImageLayout newLayout,
                                VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                                VkPipelineStageFlags2 srcStageMask,
-                               VkPipelineStageFlags2 dstStageMask);
+                               VkPipelineStageFlags2 dstStageMask,
+                               VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     void drawFrame(GLFWwindow* window);
     void recreateSwapchain(GLFWwindow* window);
@@ -54,8 +55,9 @@ public:
     void createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void createTextureImage();
+    void createDepthImage();
     void createTextureSampler();
-    void createImage(Image& handle, VkDeviceSize size, VkImageType type, VkFormat format,
+    void createImage(Image& handle, VkImageType type, VkFormat format,
                      uint32_t width, uint32_t height, VkImageUsageFlags usage,
                      VmaAllocationCreateFlags allocationFlags);
 
@@ -72,13 +74,18 @@ public:
 
 private:
     const std::vector<Vertex> vertices = {
-        { { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
-        { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-        { { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
-        { { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
+        { { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+        { { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { 0.5f, 0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+        { { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
+
+        { { -0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+        { { 0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { 0.5f, 0.5f, -0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+        { { -0.5f, 0.5f, -0.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } }
     };
 
-    const std::vector<uint16_t> indices = { 0, 1, 2, 2, 3, 0 };
+    const std::vector<uint16_t> indices = { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4 };
 
     static constexpr int FRAME_COUNT = 2;
     uint32_t currentFrame = 0;
@@ -111,6 +118,7 @@ private:
     Buffer indexBuffer;
 
     Image textureImage;
+    Image depthImage;
     VkSampler textureSampler;
 
     // debug

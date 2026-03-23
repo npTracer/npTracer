@@ -18,7 +18,7 @@ using FLOAT4X4 = glm::f32mat4;
 
 struct Vertex
 {
-    FLOAT2 pos;
+    FLOAT3 pos;
     FLOAT3 color;
     FLOAT2 uv;
 
@@ -32,7 +32,7 @@ struct Vertex
     static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
         return {
-            VkVertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, pos)),
+            VkVertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)),
             VkVertexInputAttributeDescription(1, 0, VK_FORMAT_R32G32B32_SFLOAT,
                                               offsetof(Vertex, color)),
             VkVertexInputAttributeDescription(2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)),
@@ -81,6 +81,7 @@ struct SwapchainParams
     VkSurfaceFormatKHR format;
     VkPresentModeKHR presentMode;
     VkExtent2D extent;
+    VkFormat depthFormat;
 };
 
 struct Frame

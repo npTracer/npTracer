@@ -13,6 +13,7 @@ void App::create()
     context.createSwapchainImageViews();
 
     context.createDescriptorSetLayout();
+    context.createDepthImage();
     context.createGraphicsPipeline();
     context.createSyncAndFrameObjects();
     context.createRenderingResources();

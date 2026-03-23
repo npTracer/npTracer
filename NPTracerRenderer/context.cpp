@@ -13,66 +13,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-void Context::createDebugMessenger(bool enableDebug)
-{
-    if (!enableDebug)
-    {
-        return;
-    }
-
-    VkDebugUtilsMessengerCreateInfoEXT createInfo{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = debugCallback,
-        .pUserData = nullptr
-    };
-
-    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (fn)
-    {
-        fn(instance, &createInfo, nullptr, &debugMessenger);
-    }
-    else
-    {
-        throw std::runtime_error("debug layer not function proc addr not found");
-    }
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL Context::debugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-{
-    std::cerr << "validation: " << pCallbackData->pMessage << std::endl;
-    return VK_FALSE;
-}
-
-void Context::framebufferResizeCallback(GLFWwindow* window, int width, int height) 
-{
-    auto* context = reinterpret_cast<Context*>(glfwGetWindowUserPointer(window));
-    context->framebufferResized = true;
-}
-
-void Context::destroyDebugMessenger()
-{
-    if (debugMessenger == VK_NULL_HANDLE)
-    {
-        return;
-    }
-    auto fn = (PFN_vkDestroyDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-
-    if (fn)
-    {
-        fn(instance, debugMessenger, nullptr);
-    }
-
-    debugMessenger = VK_NULL_HANDLE;
-}
+// -----------------------------------------------------------------------------
+// VULKAN
+// -----------------------------------------------------------------------------
 
 void Context::createWindow(GLFWwindow*& window, int width, int height)
 {
@@ -217,13 +160,9 @@ void Context::createLogicalDeviceAndQueues()
         .dynamicRendering = VK_TRUE,
     };
 
-    VkPhysicalDeviceFeatures2 deviceFeatures2
-    { 
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext = &vulkan13Features,
-        .features = { .samplerAnisotropy = true } 
-    };
-
+    VkPhysicalDeviceFeatures2 deviceFeatures2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+                                               .pNext = &vulkan13Features,
+                                               .features = { .samplerAnisotropy = true } };
 
     // TODO add more device extensions
     std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -250,7 +189,8 @@ void Context::createLogicalDeviceAndQueues()
                                           .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
                                           .queueFamilyIndex = graphicsQueue.index.value() };
 
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool) != VK_SUCCESS)
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool)
+            != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create command pool");
         }
@@ -276,6 +216,21 @@ void Context::createLogicalDeviceAndQueues()
         queues[QueueFamily::GRAPHICS].index.value(),
         queues[QueueFamily::TRANSFER].index.value(),
     };
+}
+
+void Context::createAllocator()
+{
+    VmaAllocatorCreateInfo allocatorInfo{
+        .physicalDevice = physicalDevice,
+        .device = device,
+        .instance = instance,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+    };
+
+    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create vma allocator!");
+    }
 }
 
 void Context::createSwapchain(GLFWwindow* window)
@@ -533,19 +488,6 @@ void Context::createGraphicsPipeline()
     vkDestroyShaderModule(device, coreFragModule, nullptr);
 }
 
-void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily)
-{
-    VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                           .commandPool = queues[queueFamily].commandPool,
-                                           .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                                           .commandBufferCount = 1 };
-
-    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate command buffer");
-    }
-}
-
 void Context::createSyncAndFrameObjects()
 {
     VkSemaphoreCreateInfo semInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -579,94 +521,6 @@ void Context::createSyncAndFrameObjects()
     createCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
 }
 
-void Context::createDescriptorSetLayout() 
-{
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings{
-        { { .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
-            .pImmutableSamplers = nullptr },
-          { .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = nullptr } }
-    };
-
-    VkDescriptorSetLayoutCreateInfo layoutInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
-        .pBindings = bindings.data(),
-    };
-    vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout);
-}
-
-void Context::createDescriptorPool() 
-{
-    std::array<VkDescriptorPoolSize, 2> poolSizes{
-        { { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = FRAME_COUNT },
-          { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = FRAME_COUNT } }
-    };
-
-    VkDescriptorPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                                         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-                                         .maxSets = FRAME_COUNT,
-                                         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
-                                         .pPoolSizes = poolSizes.data() };
-
-    vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool);
-}
-
-void Context::createDescriptorSets()
-{
-    std::vector<VkDescriptorSetLayout> layouts(FRAME_COUNT, descriptorSetLayout);
-    VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                                           .descriptorPool = descriptorPool,
-                                           .descriptorSetCount = static_cast<uint32_t>(
-                                               layouts.size()),
-                                           .pSetLayouts = layouts.data() };
-
-    std::vector<VkDescriptorSet> sets(FRAME_COUNT);
-    vkAllocateDescriptorSets(device, &allocInfo, sets.data());
-
-
-    std::vector<VkDescriptorBufferInfo> bufferInfos(FRAME_COUNT);
-    std::vector<VkDescriptorImageInfo> imageInfos(FRAME_COUNT);
-    std::vector<VkWriteDescriptorSet> descriptorWrites(FRAME_COUNT * 2);
-    for (uint32_t i = 0; i < FRAME_COUNT; i++)
-    {
-        frames[i].descriptorSet = sets[i];
-
-        bufferInfos[i] = { .buffer = frames[i].uboBuffer.buffer,
-                           .offset = 0,
-                           .range = sizeof(UniformBufferObject) };
-
-        imageInfos[i] = { .sampler = textureSampler,
-                          .imageView = textureImage.view,
-                          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-
-        descriptorWrites[2 * i + 0] = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                        .dstSet = frames[i].descriptorSet,
-                                        .dstBinding = 0,
-                                        .dstArrayElement = 0,
-                                        .descriptorCount = 1,
-                                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                        .pBufferInfo = &bufferInfos[i] };
-
-         descriptorWrites[2 * i + 1] = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                        .dstSet = frames[i].descriptorSet,
-                                        .dstBinding = 1,
-                                        .dstArrayElement = 0,
-                                        .descriptorCount = 1,
-                                        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                        .pImageInfo = &imageInfos[i] };
-    }
-
-    vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
-                           descriptorWrites.data(), 0, nullptr);
-}
-
 void Context::createRenderingResources()
 {
     VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
@@ -681,7 +535,53 @@ void Context::createRenderingResources()
     createTextureSampler();
 }
 
-void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags) 
+// -----------------------------------------------------------------------------
+// COMMAND BUFFERS
+// -----------------------------------------------------------------------------
+
+void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily)
+{
+    VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                                           .commandPool = queues[queueFamily].commandPool,
+                                           .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                                           .commandBufferCount = 1 };
+
+    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate command buffer");
+    }
+}
+
+void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
+{
+    VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                        .flags = flags,
+                                        .pInheritanceInfo = nullptr };
+
+    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to begin recording command buffer");
+    }
+}
+
+void Context::endCommandBuffer(VkCommandBuffer commandBuffer, QueueFamily queueFamily)
+{
+    vkEndCommandBuffer(commandBuffer);
+    VkSubmitInfo submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+    };
+
+    vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, nullptr);
+}
+
+// -----------------------------------------------------------------------------
+// BUFFERS
+// -----------------------------------------------------------------------------
+
+void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
+                           VmaAllocationCreateFlags allocationFlags)
 {
     VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                    .size = size,
@@ -691,10 +591,12 @@ void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags
                                    .pQueueFamilyIndices = queueFamilyIndices.data() };
 
     VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
-                                       .usage = VMA_MEMORY_USAGE_AUTO };
+                                             .usage = VMA_MEMORY_USAGE_AUTO };
 
     // allocate buffer memory (to be filled in with memcpy)
-    if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer, &handle.allocation, &handle.allocInfo) != VK_SUCCESS)
+    if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
+                        &handle.allocation, &handle.allocInfo)
+        != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create buffer!");
     }
@@ -710,8 +612,7 @@ void Context::createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize s
 
     memcpy(stagingBuffer.allocInfo.pMappedData, data, size);
 
-    createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                 0);
+    createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
 
     copyBuffer(stagingBuffer, handle, size);
 
@@ -719,12 +620,51 @@ void Context::createDeviceLocalBuffer(Buffer& handle, void* data, VkDeviceSize s
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
-void Context::createTextureImage() 
+void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size)
+{
+    vkResetCommandBuffer(transferCommandBuffer, 0);
+    beginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VkBufferCopy bufferCopy{ 0, 0, size };
+    vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
+    endCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
+}
+
+// -----------------------------------------------------------------------------
+// IMAGES
+// -----------------------------------------------------------------------------
+
+void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,
+                          uint32_t height, VkImageUsageFlags usage,
+                          VmaAllocationCreateFlags allocationFlags)
+{
+    VkImageCreateInfo imageInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                 .imageType = type,
+                                 .format = format,
+                                 .extent = { width, height, 1 },
+                                 .mipLevels = 1,
+                                 .arrayLayers = 1,
+                                 .samples = VK_SAMPLE_COUNT_1_BIT,
+                                 .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                 .usage = usage,
+                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
+
+    VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
+                                             .usage = VMA_MEMORY_USAGE_AUTO };
+
+    // allocate buffer memory (to be filled in with memcpy)
+    if (vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image, &handle.allocation,
+                       &handle.allocInfo)
+        != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create image!");
+    }
+}
+
+void Context::createTextureImage()
 {
     int width, height, channels;
     auto path = TEXTURE("coconut.jpg");
-    stbi_uc* pixels = stbi_load(path.string().c_str(), &width, &height, &channels,
-                                STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
 
     if (!pixels)
     {
@@ -797,8 +737,8 @@ void Context::createDepthImage()
     }
 
     createImage(depthImage, VK_IMAGE_TYPE_2D, swapchainParams.depthFormat,
-                swapchainParams.extent.width,
-                swapchainParams.extent.height, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0);
+                swapchainParams.extent.width, swapchainParams.extent.height,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0);
 
     VkCommandBuffer commandBuffer;
     createCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
@@ -822,70 +762,32 @@ void Context::createDepthImage()
                                     .subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 } };
 
     vkCreateImageView(device, &viewInfo, nullptr, &depthImage.view);
-
 }
 
-void Context::createTextureSampler() 
+void Context::createTextureSampler()
 {
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
-    VkSamplerCreateInfo samplerInfo{
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .anisotropyEnable = VK_TRUE,
-        .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
-        .compareEnable = VK_FALSE,
-        .compareOp = VK_COMPARE_OP_ALWAYS,
-        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-        .unnormalizedCoordinates = VK_FALSE
-    };
+    VkSamplerCreateInfo samplerInfo{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                                     .magFilter = VK_FILTER_LINEAR,
+                                     .minFilter = VK_FILTER_LINEAR,
+                                     .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                                     .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                     .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                     .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                     .anisotropyEnable = VK_TRUE,
+                                     .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
+                                     .compareEnable = VK_FALSE,
+                                     .compareOp = VK_COMPARE_OP_ALWAYS,
+                                     .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                                     .unnormalizedCoordinates = VK_FALSE };
 
     vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler);
 }
 
-void Context::createImage(Image& handle, VkImageType type, VkFormat format,
-                          uint32_t width, uint32_t height, VkImageUsageFlags usage,
-                          VmaAllocationCreateFlags allocationFlags)
-{
-    VkImageCreateInfo imageInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                  .imageType = type,
-                                  .format = format,
-                                  .extent = { width, height, 1 },
-                                  .mipLevels = 1,
-                                  .arrayLayers = 1,
-                                  .samples = VK_SAMPLE_COUNT_1_BIT,
-                                  .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                  .usage = usage,
-                                  .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
-
-    VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
-                                             .usage = VMA_MEMORY_USAGE_AUTO };
-
-    // allocate buffer memory (to be filled in with memcpy)
-    if (vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image,
-                        &handle.allocation, &handle.allocInfo)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create image!");
-    }
-}
-
-void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size) 
-{
-    vkResetCommandBuffer(transferCommandBuffer, 0);
-    beginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-    VkBufferCopy bufferCopy{0, 0, size};
-    vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
-    endCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
-}
-
-void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst, uint32_t width, uint32_t height) 
+void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst,
+                                uint32_t width, uint32_t height)
 {
     VkBufferImageCopy region
     {
@@ -907,53 +809,194 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Imag
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
 
-void Context::updateUniformBuffer() 
+void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
+                                    VkImageLayout oldLayout, VkImageLayout newLayout,
+                                    VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
+                                    VkPipelineStageFlags2 srcStageMask,
+                                    VkPipelineStageFlags2 dstStageMask,
+                                    VkImageAspectFlags aspectFlags)
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
+    VkImageMemoryBarrier2 barrier = { .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                                      .srcStageMask = srcStageMask,
+                                      .srcAccessMask = srcAccessMask,
+                                      .dstStageMask = dstStageMask,
+                                      .dstAccessMask = dstAccessMask,
+                                      .oldLayout = oldLayout,
+                                      .newLayout = newLayout,
+                                      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                      .image = image,
+                                      .subresourceRange = { .aspectMask = aspectFlags,
+                                                            .baseMipLevel = 0,
+                                                            .levelCount = 1,
+                                                            .baseArrayLayer = 0,
+                                                            .layerCount = 1 } };
 
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
-                     .count();
+    VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                     .dependencyFlags = {},
+                                     .imageMemoryBarrierCount = 1,
+                                     .pImageMemoryBarriers = &barrier };
 
-    UniformBufferObject ubo{
-        .model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        .view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-                       glm::vec3(0.0f, 0.0f, 1.0f)),
-        .proj = glm::perspective(glm::radians(45.0f),
-                                 static_cast<float>(swapchainParams.extent.width)
-                                     / static_cast<float>(swapchainParams.extent.height),
-                                 0.1f, 10.0f)
+    vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+}
+
+// -----------------------------------------------------------------------------
+// DESCRIPTORS
+// -----------------------------------------------------------------------------
+
+void Context::createDescriptorSetLayout()
+{
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings{
+        { { .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
+            .pImmutableSamplers = nullptr },
+          { .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = nullptr } }
     };
-    ubo.proj[1][1] *= -1;
 
-    memcpy(frames[currentFrame].uboBuffer.allocInfo.pMappedData, &ubo, sizeof(UniformBufferObject));
+    VkDescriptorSetLayoutCreateInfo layoutInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(bindings.size()),
+        .pBindings = bindings.data(),
+    };
+    vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout);
 }
 
-void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
+void Context::createDescriptorPool()
 {
-    VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                        .flags = flags,
-                                        .pInheritanceInfo = nullptr };
+    std::array<VkDescriptorPoolSize, 2> poolSizes{
+        { { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = FRAME_COUNT },
+          { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = FRAME_COUNT } }
+    };
 
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+    VkDescriptorPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                                         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+                                         .maxSets = FRAME_COUNT,
+                                         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+                                         .pPoolSizes = poolSizes.data() };
+
+    vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool);
+}
+
+void Context::createDescriptorSets()
+{
+    std::vector<VkDescriptorSetLayout> layouts(FRAME_COUNT, descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                           .descriptorPool = descriptorPool,
+                                           .descriptorSetCount = static_cast<uint32_t>(
+                                               layouts.size()),
+                                           .pSetLayouts = layouts.data() };
+
+    std::vector<VkDescriptorSet> sets(FRAME_COUNT);
+    vkAllocateDescriptorSets(device, &allocInfo, sets.data());
+
+    std::vector<VkDescriptorBufferInfo> bufferInfos(FRAME_COUNT);
+    std::vector<VkDescriptorImageInfo> imageInfos(FRAME_COUNT);
+    std::vector<VkWriteDescriptorSet> descriptorWrites(FRAME_COUNT * 2);
+    for (uint32_t i = 0; i < FRAME_COUNT; i++)
     {
-        throw std::runtime_error("failed to begin recording command buffer");
+        frames[i].descriptorSet = sets[i];
+
+        bufferInfos[i] = { .buffer = frames[i].uboBuffer.buffer,
+                           .offset = 0,
+                           .range = sizeof(UniformBufferObject) };
+
+        imageInfos[i] = { .sampler = textureSampler,
+                          .imageView = textureImage.view,
+                          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+
+        descriptorWrites[2 * i + 0] = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                        .dstSet = frames[i].descriptorSet,
+                                        .dstBinding = 0,
+                                        .dstArrayElement = 0,
+                                        .descriptorCount = 1,
+                                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                        .pBufferInfo = &bufferInfos[i] };
+
+        descriptorWrites[2 * i + 1] = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                        .dstSet = frames[i].descriptorSet,
+                                        .dstBinding = 1,
+                                        .dstArrayElement = 0,
+                                        .descriptorCount = 1,
+                                        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                        .pImageInfo = &imageInfos[i] };
     }
+
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
+                           descriptorWrites.data(), 0, nullptr);
 }
 
-void Context::endCommandBuffer(VkCommandBuffer commandBuffer, QueueFamily queueFamily)
+// -----------------------------------------------------------------------------
+// DRAW CALL
+// -----------------------------------------------------------------------------
+
+void Context::executeDrawCall(GLFWwindow* window)
 {
-    vkEndCommandBuffer(commandBuffer);
+    // grab a frame
+    Frame& frame = frames[currentFrame];
+
+    // wait until this frame has finished executing its commands
+    vkWaitForFences(device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
+
+    // acquire image when it is done being presented
+    uint32_t imageIndex;
+    if (vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, frame.donePresentingSemaphore, nullptr,
+                              &imageIndex)
+        == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        recreateSwapchain(window);
+        return;
+    }
+
+    populateDrawCall(frame.commandBuffer,
+                     imageIndex);  // record commands into frame's command buffer
+    vkResetFences(device, 1, &frame.doneExecutingFence);  // signal that fence is ready to be
+                                                          // associated with a new queue submission
+
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores
+        = &frame.donePresentingSemaphore,  // wait to submit work until image is done being presented
+        .pWaitDstStageMask = &waitDestinationStageMask,
         .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffer,
+        .pCommandBuffers = &frame.commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &doneRenderingSemaphores[imageIndex]
+    };  // signal that rendering is finished once execution is finished
+
+    vkQueueSubmit(queues[QueueFamily::GRAPHICS].queue, 1, &submitInfo,
+                  frame.doneExecutingFence);  // signal that execution has been completed on frame
+                                              // once it is done
+
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores
+        = &doneRenderingSemaphores[imageIndex],  // submit for presentation once rendering is finished
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain,
+        .pImageIndices = &imageIndex
     };
 
-    vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, nullptr);
+    VkResult result = vkQueuePresentKHR(queues[QueueFamily::GRAPHICS].queue, &presentInfo);
+    if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR) || framebufferResized)
+    {
+        framebufferResized = false;
+        recreateSwapchain(window);
+    }
+
+    // increment frame (within ring)
+    currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+void Context::populateDrawCall(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
     vkResetCommandBuffer(commandBuffer, 0);
     beginCommandBuffer(commandBuffer);
@@ -1026,95 +1069,33 @@ void Context::recordRenderingCommands(VkCommandBuffer commandBuffer, uint32_t im
     vkEndCommandBuffer(commandBuffer);
 }
 
-void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                    VkImageLayout oldLayout, VkImageLayout newLayout,
-                                    VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
-                                    VkPipelineStageFlags2 srcStageMask,
-                                    VkPipelineStageFlags2 dstStageMask,
-                                    VkImageAspectFlags aspectFlags)
+void Context::updateUniformBuffer()
 {
-    VkImageMemoryBarrier2 barrier = { .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                                      .srcStageMask = srcStageMask,
-                                      .srcAccessMask = srcAccessMask,
-                                      .dstStageMask = dstStageMask,
-                                      .dstAccessMask = dstAccessMask,
-                                      .oldLayout = oldLayout,
-                                      .newLayout = newLayout,
-                                      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                      .image = image,
-                                      .subresourceRange = { .aspectMask = aspectFlags,
-                                                            .baseMipLevel = 0,
-                                                            .levelCount = 1,
-                                                            .baseArrayLayer = 0,
-                                                            .layerCount = 1 } };
+    static auto startTime = std::chrono::high_resolution_clock::now();
 
-    VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                                     .dependencyFlags = {},
-                                     .imageMemoryBarrierCount = 1,
-                                     .pImageMemoryBarriers = &barrier };
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
+                     .count();
 
-    vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+    UniformBufferObject ubo{
+        .model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        .view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+                       glm::vec3(0.0f, 0.0f, 1.0f)),
+        .proj = glm::perspective(glm::radians(45.0f),
+                                 static_cast<float>(swapchainParams.extent.width)
+                                     / static_cast<float>(swapchainParams.extent.height),
+                                 0.1f, 10.0f)
+    };
+    ubo.proj[1][1] *= -1;
+
+    memcpy(frames[currentFrame].uboBuffer.allocInfo.pMappedData, &ubo, sizeof(UniformBufferObject));
 }
 
-void Context::drawFrame(GLFWwindow* window)
-{
-    // grab a frame
-    Frame& frame = frames[currentFrame];
+// -----------------------------------------------------------------------------
+// UTILITY
+// -----------------------------------------------------------------------------
 
-    // wait until this frame has finished executing its commands
-    vkWaitForFences(device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
-
-    // acquire image when it is done being presented
-    uint32_t imageIndex;
-    if (vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, frame.donePresentingSemaphore, nullptr,
-        &imageIndex) == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-        recreateSwapchain(window);
-        return;
-    }
-
-    recordRenderingCommands(frame.commandBuffer, imageIndex); // record commands into frame's command buffer 
-    vkResetFences(device, 1, &frame.doneExecutingFence); // signal that fence is ready to be associated with a new queue submission
-    
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .waitSemaphoreCount = 1,
-                             .pWaitSemaphores = &frame.donePresentingSemaphore, // wait to submit work until image is done being presented
-                             .pWaitDstStageMask = &waitDestinationStageMask,
-                             .commandBufferCount = 1,
-                             .pCommandBuffers = &frame.commandBuffer,
-                             .signalSemaphoreCount = 1,
-                             .pSignalSemaphores = &doneRenderingSemaphores[imageIndex] }; // signal that rendering is finished once execution is finished
-
-    vkQueueSubmit(queues[QueueFamily::GRAPHICS].queue, 1, &submitInfo,
-                  frame.doneExecutingFence);  // signal that execution has been completed on frame
-                                              // once it is done
-
-    VkPresentInfoKHR presentInfo{ .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-                                  .waitSemaphoreCount = 1,
-                                  .pWaitSemaphores = &doneRenderingSemaphores[imageIndex], // submit for presentation once rendering is finished
-                                  .swapchainCount = 1,
-                                  .pSwapchains = &swapchain,
-                                  .pImageIndices = &imageIndex };
-
-    VkResult result = vkQueuePresentKHR(queues[QueueFamily::GRAPHICS].queue, &presentInfo);
-    if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR) || framebufferResized)
-    {
-        framebufferResized = false;
-        recreateSwapchain(window);
-    }
-
-    // increment frame (within ring)
-    currentFrame = (currentFrame + 1) % FRAME_COUNT;
-}
-
-void Context::waitIdle()
-{
-    vkDeviceWaitIdle(device);
-}
-
-void Context::recreateSwapchain(GLFWwindow* window) 
+void Context::recreateSwapchain(GLFWwindow* window)
 {
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
@@ -1128,15 +1109,17 @@ void Context::recreateSwapchain(GLFWwindow* window)
     cleanupSwapchain();
     createSwapchain(window);
     createSwapchainImageViews();
+    createDepthImage();
 }
 
-void Context::cleanupSwapchain() 
+void Context::cleanupSwapchain()
 {
     for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
     {
         vkDestroyImageView(device, swapchainImageViews[i], nullptr);
     }
     swapchainImageViews.clear();
+    depthImage.destroy(device, allocator);
 
     if (swapchain != VK_NULL_HANDLE)
     {
@@ -1145,19 +1128,10 @@ void Context::cleanupSwapchain()
     }
 }
 
-void Context::createAllocator()
+void Context::framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
-    VmaAllocatorCreateInfo allocatorInfo{
-        .physicalDevice = physicalDevice,
-        .device = device,
-        .instance = instance,
-        .vulkanApiVersion = VK_API_VERSION_1_3,
-    };
-
-    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create vma allocator!");
-    }
+    auto* context = reinterpret_cast<Context*>(glfwGetWindowUserPointer(window));
+    context->framebufferResized = true;
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
@@ -1169,6 +1143,66 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
     VkShaderModule sm;
     vkCreateShaderModule(device, &sci, nullptr, &sm);
     return sm;
+}
+
+void Context::waitIdle()
+{
+    vkDeviceWaitIdle(device);
+}
+
+void Context::createDebugMessenger(bool enableDebug)
+{
+    if (!enableDebug)
+    {
+        return;
+    }
+
+    VkDebugUtilsMessengerCreateInfoEXT createInfo{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = debugCallback,
+        .pUserData = nullptr
+    };
+
+    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
+        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    if (fn)
+    {
+        fn(instance, &createInfo, nullptr, &debugMessenger);
+    }
+    else
+    {
+        throw std::runtime_error("debug layer not function proc addr not found");
+    }
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL Context::debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+{
+    std::cerr << "validation: " << pCallbackData->pMessage << std::endl;
+    return VK_FALSE;
+}
+
+void Context::destroyDebugMessenger()
+{
+    if (debugMessenger == VK_NULL_HANDLE)
+    {
+        return;
+    }
+    auto fn = (PFN_vkDestroyDebugUtilsMessengerEXT)
+        vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+
+    if (fn)
+    {
+        fn(instance, debugMessenger, nullptr);
+    }
+
+    debugMessenger = VK_NULL_HANDLE;
 }
 
 void Context::destroy()

@@ -67,11 +67,13 @@ struct Image
         if (image != VK_NULL_HANDLE)
         {
             vmaDestroyImage(allocator, image, allocation);
+            image = VK_NULL_HANDLE;
         }
 
         if (view != VK_NULL_HANDLE)
         {
             vkDestroyImageView(device, view, nullptr);
+            view = VK_NULL_HANDLE;
         }
     }
 };

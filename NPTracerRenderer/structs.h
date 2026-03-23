@@ -1,6 +1,7 @@
 #pragma once
 
 #define GLM_ENABLE_EXPERIMENTAL
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -105,7 +106,7 @@ struct Queue
 // shared structs
 struct UniformBufferObject
 {
-    FLOAT4X4 model;
-    FLOAT4X4 view;
-    FLOAT4X4 proj;
+    alignas(16) FLOAT4X4 model;
+    alignas(16) FLOAT4X4 view;
+    alignas(16) FLOAT4X4 proj;
 };

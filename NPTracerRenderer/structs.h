@@ -174,7 +174,7 @@ struct Queue
 };
 
 // shared structs
-struct UniformBufferObject
+struct CameraRecord
 {
     alignas(16) FLOAT4X4 model;
     alignas(16) FLOAT4X4 view;

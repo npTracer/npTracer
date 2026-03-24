@@ -370,7 +370,7 @@ void Context::createSyncAndFrameObjects()
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
         createCommandBuffer(frame.commandBuffer, QueueFamily::GRAPHICS);
 
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        VkDeviceSize bufferSize = sizeof(CameraRecord);
         createBuffer(frame.uboBuffer, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                          | VMA_ALLOCATION_CREATE_MAPPED_BIT);

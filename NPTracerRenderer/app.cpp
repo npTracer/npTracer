@@ -19,7 +19,7 @@ void App::create()
 // RESOURCE CREATION
 // -----------------------------------------------------------------------------
 
-void App::createRenderingResources(RendererPayload& payload)
+void App::createRenderingResources(RendererPayload& payload, VkRendererAovs& aovs)
 {
     this->payload = payload;
     uint32_t vbCount = 0;
@@ -34,7 +34,7 @@ void App::createRenderingResources(RendererPayload& payload)
 
         std::vector<Vertex> vertices = mesh.getVertices();
         VkDeviceSize vbSize = sizeof(vertices[0]) * vertices.size();
-        context.createDeviceLocalBuffer(vertexBuffer, mesh.getVertices().data(), vbSize,
+        context.createDeviceLocalBuffer(vertexBuffer, vertices.data(), vbSize,
                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
                                             | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         vertexBuffers.push_back(vertexBuffer);
@@ -52,9 +52,22 @@ void App::createRenderingResources(RendererPayload& payload)
     context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize,
                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    // create descriptor layotuts
-    NPDescriptorSetLayout descriptorSetLayout;
-    std::vector<VkDescriptorSetLayoutBinding> bindings{ {
+    // create camera buffer
+    VkDeviceSize cameraSize = sizeof(CameraRecord);
+    CameraRecord cameraRecord = {
+        .model = glm::mat4(1.0f),
+        .view = lookAt(payload.cam.cameraPos, payload.cam.cameraPos + payload.cam.cameraForward,
+                       payload.cam.cameraUp),
+        .proj = glm::perspective(payload.cam.fov, payload.cam.aspect, 0.1f, 10.0f)
+    };
+
+    context.createDeviceLocalBuffer(cameraRecordBuffer, &cameraRecord, cameraSize,
+                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+    // CREATE MESH DESCRIPTOR SET LAYOUT
+
+    NPDescriptorSetLayout meshDescriptorSetLayout;
+    std::vector<VkDescriptorSetLayoutBinding> meshBindings{ {
         { .binding = 0,
           .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
           .descriptorCount = 1,  // one large mesh record buffer
@@ -72,46 +85,87 @@ void App::createRenderingResources(RendererPayload& payload)
           .pImmutableSamplers = nullptr },
     } };
 
-    std::vector<VkDescriptorBindingFlags> bindingFlags{
+    std::vector<VkDescriptorBindingFlags> meshBindingFlags{
         0, 0,
         VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
             | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
     };
 
-    VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{
+    VkDescriptorSetLayoutBindingFlagsCreateInfo meshFlagsInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
-        .pBindingFlags = bindingFlags.data()
+        .bindingCount = static_cast<uint32_t>(meshBindings.size()),
+        .pBindingFlags = meshBindingFlags.data()
     };
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo{
+    VkDescriptorSetLayoutCreateInfo meshLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .pNext = &flagsInfo,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
-        .pBindings = bindings.data(),
+        .pNext = &meshFlagsInfo,
+        .bindingCount = static_cast<uint32_t>(meshBindings.size()),
+        .pBindings = meshBindings.data(),
     };
-    vkCreateDescriptorSetLayout(context.device, &layoutInfo, nullptr, &descriptorSetLayout.layout);
+    vkCreateDescriptorSetLayout(context.device, &meshLayoutInfo, nullptr,
+                                &meshDescriptorSetLayout.layout);
 
-    std::vector<VkDescriptorPoolSize> poolSizes{ {
+    std::vector<VkDescriptorPoolSize> meshPoolSizes{ {
         { .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 2 * MAX_RESOURCE_COUNT + 1 },
     } };
 
-    VkDescriptorPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    VkDescriptorPoolCreateInfo meshPoolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                                          .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
                                          .maxSets = 1,
-                                         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
-                                         .pPoolSizes = poolSizes.data() };
+                                         .poolSizeCount = static_cast<uint32_t>(meshPoolSizes.size()),
+                                         .pPoolSizes = meshPoolSizes.data() };
 
-    vkCreateDescriptorPool(context.device, &poolInfo, nullptr, &descriptorSetLayout.pool);
-    descriptorSetLayouts.emplace_back(descriptorSetLayout);
+    vkCreateDescriptorPool(context.device, &meshPoolInfo, nullptr, &meshDescriptorSetLayout.pool);
+    descriptorSetLayouts.emplace_back(meshDescriptorSetLayout);
 
-    // create actual descriptor set
-    VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                                           .descriptorPool = descriptorSetLayout.pool,
+    // CREATE CAMERA DESCRIPTOR SET LAYOUT
+
+    NPDescriptorSetLayout cameraDescriptorSetLayout;
+    std::vector<VkDescriptorSetLayoutBinding> cameraBindings{ {
+        { .binding = 0,
+          .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+          .descriptorCount = 1,  // one camera uniform
+          .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
+          .pImmutableSamplers = nullptr }
+    } };
+
+    VkDescriptorSetLayoutCreateInfo cameraLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(cameraBindings.size()),
+        .pBindings = cameraBindings.data(),
+    };
+    vkCreateDescriptorSetLayout(context.device, &cameraLayoutInfo, nullptr,
+                                &cameraDescriptorSetLayout.layout);
+
+    std::vector<VkDescriptorPoolSize> cameraPoolSizes{ {
+        { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1 },
+    } };
+
+    VkDescriptorPoolCreateInfo cameraPoolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                                         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+                                         .maxSets = 1,
+                                         .poolSizeCount = static_cast<uint32_t>(cameraPoolSizes.size()),
+                                         .pPoolSizes = cameraPoolSizes.data() };
+
+    vkCreateDescriptorPool(context.device, &cameraPoolInfo, nullptr, &cameraDescriptorSetLayout.pool);
+    descriptorSetLayouts.emplace_back(cameraDescriptorSetLayout);
+
+    // DESCRIPTOR SET CREATION
+    VkDescriptorSet meshDescriptorSet;
+    VkDescriptorSet cameraDescriptorSet;
+    VkDescriptorSetAllocateInfo meshAllocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                           .descriptorPool = meshDescriptorSetLayout.pool,
                                            .descriptorSetCount = 1,
-                                           .pSetLayouts = &descriptorSetLayout.layout };
+                                           .pSetLayouts = &meshDescriptorSetLayout.layout };
 
-    vkAllocateDescriptorSets(context.device, &allocInfo, &meshDescriptorSet);
+    VkDescriptorSetAllocateInfo cameraAllocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                           .descriptorPool = cameraDescriptorSetLayout.pool,
+                                           .descriptorSetCount = 1,
+                                           .pSetLayouts = &cameraDescriptorSetLayout.layout };
+
+    vkAllocateDescriptorSets(context.device, &meshAllocInfo, &meshDescriptorSet);
+    vkAllocateDescriptorSets(context.device, &cameraAllocInfo, &cameraDescriptorSet);
 
     // binding 0: mesh records
     VkDescriptorBufferInfo meshRecordInfo{ .buffer = meshRecordBuffer.buffer,
@@ -162,6 +216,25 @@ void App::createRenderingResources(RendererPayload& payload)
 
     vkUpdateDescriptorSets(context.device, static_cast<uint32_t>(descriptorWrites.size()),
                            descriptorWrites.data(), 0, nullptr);
+
+    // camera
+    VkDescriptorBufferInfo cameraRecordInfo{ .buffer = cameraRecordBuffer.buffer,
+                                             .offset = 0,
+                                             .range = VK_WHOLE_SIZE };
+
+    VkWriteDescriptorSet cameraWrite{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                      .dstSet = cameraDescriptorSet,
+                                      .dstBinding = 0,
+                                      .dstArrayElement = 0,
+                                      .descriptorCount = 1,
+                                      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                      .pBufferInfo = &cameraRecordInfo };
+
+    vkUpdateDescriptorSets(context.device, 1, &cameraWrite, 0, nullptr);
+
+    // store
+    descriptorSets.push_back(meshDescriptorSet);
+    descriptorSets.push_back(cameraDescriptorSet);
 }
 
 void App::createGraphicsPipeline(NPPipeline& pipeline,
@@ -326,7 +399,7 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
 
 void App::executeDrawCall(RendererPayload& payload, VkRendererAovs& aovs)
 {   
-    createRenderingResources(payload);
+    createRenderingResources(payload, aovs);
     createGraphicsPipeline(pipeline, descriptorSetLayouts, aovs);
 
     // grab a frame
@@ -412,19 +485,13 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, Image& renderTarget)
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1,
-                            &meshDescriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
+                            descriptorSets.data(), 0, nullptr);
 
-    for (size_t i = 0; i < vertexBuffers.size(); i++)
+    for (size_t i = 0; i < meshRecords.size(); i++)
     {
-        VkBuffer vb = vertexBuffers[i].buffer;
-        VkBuffer ib = indexBuffers[i].buffer;
-
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vb, &offset);
-        vkCmdBindIndexBuffer(commandBuffer, ib, 0, VK_INDEX_TYPE_UINT32);
-
         const auto& mesh = payload.meshes[i];
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+        vkCmdDraw(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, i);
     }
 
     vkCmdEndRendering(commandBuffer);

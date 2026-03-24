@@ -53,22 +53,20 @@ private:
     // rendering resources
     NPPipeline pipeline;
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
-    VkDescriptorSet meshDescriptorSet;
+
+    std::vector<VkDescriptorSet> descriptorSets;
 
     RendererPayload payload; // keep payload for now (useful for drawindexed call)
     std::vector<MeshRecord> meshRecords;
+
     NPBuffer meshRecordBuffer;
     std::vector<NPBuffer> vertexBuffers;
     std::vector<NPBuffer> indexBuffers;
 
-    NPBuffer vertexBuffer;
-    NPBuffer indexBuffer;
-
-    Image textureImage;
-    VkSampler textureSampler;
+    NPBuffer cameraRecordBuffer;
 
     // resource creation
-    void createRenderingResources(RendererPayload& payload);
+    void createRenderingResources(RendererPayload& payload, VkRendererAovs& aovs);
     void createGraphicsPipeline(NPPipeline& pipeline,
                                 std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
                                 VkRendererAovs& aovs);

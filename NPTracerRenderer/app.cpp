@@ -15,10 +15,7 @@ void App::create()
     context.createDepthImage();
 }
 
-// -----------------------------------------------------------------------------
 // RESOURCE CREATION
-// -----------------------------------------------------------------------------
-
 void App::createRenderingResources(RendererPayload& payload, VkRendererAovs& aovs)
 {
     this->payload = payload;
@@ -424,7 +421,7 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     vkDestroyShaderModule(context.device, coreFragModule, nullptr);
 }
 
-// draw call
+// DRAW CALL
 void App::executeDrawCall(RendererPayload& payload, VkRendererAovs& aovs)
 {
     createRenderingResources(payload, aovs);

@@ -40,7 +40,7 @@ struct Vertex
     }
 };
 
-struct Buffer
+struct NPBuffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -52,6 +52,18 @@ struct Buffer
         {
             vmaDestroyBuffer(allocator, buffer, allocation);
         }
+    }
+
+    static std::vector<VkBuffer> extractVkBuffers(const std::vector<NPBuffer>& buffers)
+    {
+        std::vector<VkBuffer> vkBuffers;
+        vkBuffers.reserve(buffers.size());
+        for (const auto& buffer : buffers)
+        {
+            vkBuffers.push_back(buffer.buffer);
+        }
+
+        return vkBuffers;
     }
 };
 
@@ -78,6 +90,37 @@ struct Image
     }
 };
 
+struct NPPipeline
+{
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+
+    void destroy(VkDevice device)
+    {
+        if (pipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device, pipeline, nullptr);
+        }
+
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device, layout, nullptr);
+        }
+    }
+};
+
+struct NPDescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+
+    void destroy(VkDevice device)
+    {
+        vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        vkDestroyDescriptorPool(device, pool, nullptr);
+    }
+};
+
 struct SwapchainParams
 {
     VkSurfaceFormatKHR format;
@@ -92,7 +135,7 @@ struct Frame
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
 
-    Buffer uboBuffer;
+    NPBuffer uboBuffer;
     VkDescriptorSet descriptorSet;
 
     void destroy(VkDevice device, VmaAllocator allocator)
@@ -131,11 +174,17 @@ struct Queue
 };
 
 // shared structs
-struct UniformBufferObject
+struct CameraRecord
 {
     alignas(16) FLOAT4X4 model;
     alignas(16) FLOAT4X4 view;
     alignas(16) FLOAT4X4 proj;
+};
+
+struct MeshRecord
+{
+    uint32_t vbIdx;
+    uint32_t ibIdx;
 };
 
 struct MeshData
@@ -156,6 +205,24 @@ struct MeshData
     
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
+
+    std::vector<Vertex> getVertices() const
+    {
+        size_t count = positions.size();
+
+        std::vector<Vertex> vertices;
+        vertices.reserve(count);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            Vertex v{ .pos = positions[i],
+                      .color = (i < colors.size()) ? colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f },
+                      .uv = (i < uvs.size()) ? uvs[i] : FLOAT2{ 0.0f, 0.0f } };
+            vertices.push_back(v);
+        }
+
+        return vertices;
+    }
 };
 
 enum class LightType : uint8_t

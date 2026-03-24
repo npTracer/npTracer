@@ -13,7 +13,6 @@
 #include "structs.h"
 #include "vk_mem_alloc.h"
 
-
 class Context
 {
 public:
@@ -66,7 +65,6 @@ public:
     void createDeviceLocalBuffer(NPBuffer& handle, void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size);
-
 
     // images
     void createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,

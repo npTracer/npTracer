@@ -40,7 +40,6 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
         if (aov.aovName == HdAovTokens->color)
         {
-            
         }
 
         buffer->SetConverged(true);
@@ -63,7 +62,6 @@ VkRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr con
 {
     return {};
 }
-
 
 RendererPayload NPTracerHdRenderPass::_BuildRendererPayload(HdRenderPassStateSharedPtr const& state)
 {

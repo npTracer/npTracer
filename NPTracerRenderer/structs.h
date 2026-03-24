@@ -32,10 +32,11 @@ struct Vertex
     static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
         return {
-            VkVertexInputAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
-            VkVertexInputAttributeDescription{1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                              offsetof(Vertex, color)},
-            VkVertexInputAttributeDescription{2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)},
+            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                                               offsetof(Vertex, pos) },
+            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                                               offsetof(Vertex, color) },
+            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv) },
         };
     }
 };
@@ -190,7 +191,7 @@ struct MeshRecord
 struct MeshData
 {
     uint32_t objectId;
-    
+
     std::vector<uint32_t> indices;
     std::vector<FLOAT3> positions;
 
@@ -199,10 +200,10 @@ struct MeshData
 
     std::vector<FLOAT3> colors;
     std::vector<uint32_t> materialIds;
-    
+
     FLOAT4X4 objectToWorld;
     FLOAT4X4 worldToObject;
-    
+
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
 
@@ -215,9 +216,10 @@ struct MeshData
 
         for (size_t i = 0; i < count; i++)
         {
-            Vertex v{ .pos = positions[i],
-                      .color = (i < colors.size()) ? colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f },
-                      .uv = (i < uvs.size()) ? uvs[i] : FLOAT2{ 0.0f, 0.0f } };
+            Vertex v{};
+            v.pos = positions[i];
+            v.color = (i < colors.size()) ? colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f };
+            v.uv = (i < uvs.size()) ? uvs[i] : FLOAT2{ 0.0f, 0.0f };
             vertices.push_back(v);
         }
 
@@ -257,7 +259,7 @@ struct CameraData
     FLOAT3 cameraPos;
     FLOAT3 cameraForward;
     FLOAT3 cameraUp;
-    
+
     // intrinsics
     float fov;
     float aspect;
@@ -268,25 +270,26 @@ struct RenderSettings
     // general settings
     uint32_t maxDepth;
     uint32_t samplesPerPixel;
-    
+
     // stylization-specific
     uint32_t stylizationId;
-    uint32_t flags; // firstHitOnly, etc.
+    uint32_t flags;  // firstHitOnly, etc.
 };
 
 struct RendererPayload
 {
     std::vector<MeshData> meshes;
     std::vector<LightData> lights;
-    
+
     CameraData cam;
-    
+
     RenderSettings settings;
 };
 
 struct VkRenderTarget
 {
     VkImage image;
+    VkImageView view;
     VkFormat format;
     uint32_t width;
     uint32_t height;

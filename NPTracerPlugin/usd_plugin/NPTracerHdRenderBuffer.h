@@ -37,16 +37,16 @@ public:
 
     // resolve the sample buffer into final values
     virtual void Resolve() override;
-    
+
     virtual VtValue GetResource(bool multiSampled) const override;
-    
+
     VkImage GetVkImage() const;
     VkDeviceMemory GetVkDeviceMemory() const;
 
 private:
     // release any allocated resources
     virtual void _Deallocate() override;
-    
+
     // the actual underlying buffer
     VkImage _image = VK_NULL_HANDLE;
     VkDeviceMemory _memory = VK_NULL_HANDLE;
@@ -54,7 +54,7 @@ private:
 
     // staging buffer for CPU readback
     std::vector<uint8_t> _cpuBuffer;
-    
+
     GfVec3i _dimensions = GfVec3i(-1, -1, -1);
     HdFormat _format = HdFormatInvalid;
     bool _multiSampled = false;

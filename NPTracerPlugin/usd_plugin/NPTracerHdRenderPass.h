@@ -17,19 +17,20 @@ public:
 
 protected:
     virtual void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
-                  TfTokenVector const& renderTags) override;
-    
+                          TfTokenVector const& renderTags) override;
+
     virtual bool IsConverged() const override;
-    
+
     // set the convergence state
     void SetConverged(bool converged);
 
 private:
     NPTracerHdRenderDelegate* _delegate;
-    
-    std::atomic<bool> _converged{false};
-    
-    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state, NPTracerHdRenderBuffer* renderBuffer);
+
+    std::atomic<bool> _converged{ false };
+
+    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state,
+                                NPTracerHdRenderBuffer* renderBuffer);
     RendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
 };
 

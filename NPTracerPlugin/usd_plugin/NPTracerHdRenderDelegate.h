@@ -73,4 +73,3 @@ private:
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE
-

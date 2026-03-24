@@ -42,7 +42,7 @@ private:
 
     std::vector<VkDescriptorSet> descriptorSets;
 
-    RendererPayload payload; // keep payload for now (useful for drawindexed call)
+    RendererPayload payload;  // keep payload for now (useful for drawindexed call)
     std::vector<MeshRecord> meshRecords;
 
     NPBuffer meshRecordBuffer;

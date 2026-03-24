@@ -15,8 +15,8 @@ TF_REGISTRY_FUNCTION(TfType)
 HdRenderDelegate* NPTracerHdRendererPlugin::CreateRenderDelegate()
 {
 #if NPTRACER_DEBUG
-    TfDebug::Enable(NPTRACER_RENDER); // enable debugging at entrypoint
-#endif    
+    TfDebug::Enable(NPTRACER_RENDER);  // enable debugging at entrypoint
+#endif
     return new NPTracerHdRenderDelegate();
 }
 

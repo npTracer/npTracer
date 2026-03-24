@@ -7,16 +7,10 @@
 
 #include <algorithm>
 #include <optional>
-#include <cstring>
-#include <chrono>
 
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
-// -----------------------------------------------------------------------------
 // VULKAN
-// -----------------------------------------------------------------------------
-
 void Context::createWindow(GLFWwindow*& window, int width, int height)
 {
     glfwInit();
@@ -48,19 +42,20 @@ void Context::createInstance(bool enableDebug)
 
     // TODO poll if layers/extensions are supported
 
-    constexpr VkApplicationInfo appInfo{ .pApplicationName = "Engine",
-                                         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-                                         .pEngineName = "Bum",
-                                         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-                                         .apiVersion = VK_API_VERSION_1_4 };
+    VkApplicationInfo appInfo{};
+    appInfo.pApplicationName = "Engine";
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pEngineName = "Bum";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_4;
 
-    VkInstanceCreateInfo createInfo{ .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-                                     .pApplicationInfo = &appInfo,
-                                     .enabledLayerCount = static_cast<uint32_t>(layers.size()),
-                                     .ppEnabledLayerNames = layers.data(),
-                                     .enabledExtensionCount = static_cast<uint32_t>(
-                                         extensions.size()),
-                                     .ppEnabledExtensionNames = extensions.data() };
+    VkInstanceCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    createInfo.pApplicationInfo = &appInfo;
+    createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
+    createInfo.ppEnabledLayerNames = layers.data();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+    createInfo.ppEnabledExtensionNames = extensions.data();
 
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
     {
@@ -137,53 +132,56 @@ void Context::createLogicalDeviceAndQueues()
 
     if (graphicsQueue)
     {
-        VkDeviceQueueCreateInfo queueCreateInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                                                 .queueFamilyIndex = graphicsQueue.index.value(),
-                                                 .queueCount = 1,
-                                                 .pQueuePriorities = &queuePriority };
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = graphicsQueue.index.value();
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
         queueCreateInfos.emplace_back(queueCreateInfo);
     }
 
     if (transferQueue)
     {
-        VkDeviceQueueCreateInfo queueCreateInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                                                 .queueFamilyIndex = transferQueue.index.value(),
-                                                 .queueCount = 1,
-                                                 .pQueuePriorities = &queuePriority };
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = transferQueue.index.value();
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
         queueCreateInfos.emplace_back(queueCreateInfo);
     }
 
     // TODO add device features
-    VkPhysicalDeviceVulkan13Features vulkan13Features{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-        .synchronization2 = VK_TRUE,
-        .dynamicRendering = VK_TRUE,
-    };
+    VkPhysicalDeviceVulkan13Features vulkan13Features{};
+    vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    vulkan13Features.synchronization2 = VK_TRUE;
+    vulkan13Features.dynamicRendering = VK_TRUE;
 
-    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-        .pNext = &vulkan13Features,
-        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
-        .runtimeDescriptorArray = VK_TRUE,
-    };
+    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
+    indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    indexingFeatures.pNext = &vulkan13Features;
+    indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    indexingFeatures.runtimeDescriptorArray = VK_TRUE;
 
-    VkPhysicalDeviceFeatures2 features2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-                                               .pNext = &indexingFeatures,
-                                               .features = { .samplerAnisotropy = true } };
+    VkPhysicalDeviceFeatures2 features2{};
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &indexingFeatures;
+    features2.features.samplerAnisotropy = true;
+
     // TODO add more device extensions
     std::vector<const char*> requiredDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
     };
 
-    VkDeviceCreateInfo createInfo{
-        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = &features2,
-        .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
-        .pQueueCreateInfos = queueCreateInfos.data(),
-        .enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size()),
-        .ppEnabledExtensionNames = requiredDeviceExtensions.data(),
-        .pEnabledFeatures = nullptr,
-    };
+    VkDeviceCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    createInfo.pNext = &features2;
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
+    createInfo.pEnabledFeatures = nullptr;
 
     if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
     {
@@ -193,9 +191,11 @@ void Context::createLogicalDeviceAndQueues()
     if (graphicsQueue)
     {
         vkGetDeviceQueue(device, graphicsQueue.index.value(), 0, &graphicsQueue.queue);
-        VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                                          .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                                          .queueFamilyIndex = graphicsQueue.index.value() };
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = graphicsQueue.index.value();
 
         if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool)
             != VK_SUCCESS)
@@ -208,9 +208,11 @@ void Context::createLogicalDeviceAndQueues()
     if (transferQueue)
     {
         vkGetDeviceQueue(device, transferQueue.index.value(), 0, &transferQueue.queue);
-        VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                                          .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                                          .queueFamilyIndex = transferQueue.index.value() };
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = transferQueue.index.value();
 
         if (vkCreateCommandPool(device, &poolInfo, nullptr, &transferQueue.commandPool)
             != VK_SUCCESS)
@@ -228,12 +230,11 @@ void Context::createLogicalDeviceAndQueues()
 
 void Context::createAllocator()
 {
-    VmaAllocatorCreateInfo allocatorInfo{
-        .physicalDevice = physicalDevice,
-        .device = device,
-        .instance = instance,
-        .vulkanApiVersion = VK_API_VERSION_1_3,
-    };
+    VmaAllocatorCreateInfo allocatorInfo{};
+    allocatorInfo.physicalDevice = physicalDevice;
+    allocatorInfo.device = device;
+    allocatorInfo.instance = instance;
+    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
 
     if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
     {
@@ -264,13 +265,15 @@ void Context::createSwapchain(GLFWwindow* window)
         return format.format == VK_FORMAT_B8G8R8_SRGB
                && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
     };
-    auto formatIt = std::ranges::find_if(availableFormats, is_format);
+    auto formatIt = std::find_if(availableFormats.begin(), availableFormats.end(), is_format);
 
     VkSurfaceFormatKHR format = formatIt != availableFormats.end() ? *formatIt
                                                                    : availableFormats[0];
 
     // present selection
-    auto presentIt = std::ranges::find(presentModes, VK_PRESENT_MODE_MAILBOX_KHR);
+    auto presentIt = std::find(presentModes.begin(), presentModes.end(),
+                               VK_PRESENT_MODE_MAILBOX_KHR);
+
     VkPresentModeKHR presentMode = presentIt != presentModes.end() ? *presentIt
                                                                    : VK_PRESENT_MODE_FIFO_KHR;
 
@@ -301,22 +304,21 @@ void Context::createSwapchain(GLFWwindow* window)
         minImageCount = surfaceCapabilities.maxImageCount;
     }
 
-    VkSwapchainCreateInfoKHR swapchainCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = surface,
-        .minImageCount = minImageCount,
-        .imageFormat = format.format,
-        .imageColorSpace = format.colorSpace,
-        .imageExtent = extent,
-        .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .preTransform = surfaceCapabilities.currentTransform,
-        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .presentMode = presentMode,
-        .clipped = true,
-        .oldSwapchain = nullptr
-    };
+    VkSwapchainCreateInfoKHR swapchainCreateInfo{};
+    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfo.surface = surface;
+    swapchainCreateInfo.minImageCount = minImageCount;
+    swapchainCreateInfo.imageFormat = format.format;
+    swapchainCreateInfo.imageColorSpace = format.colorSpace;
+    swapchainCreateInfo.imageExtent = extent;
+    swapchainCreateInfo.imageArrayLayers = 1;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchainCreateInfo.presentMode = presentMode;
+    swapchainCreateInfo.clipped = true;
+    swapchainCreateInfo.oldSwapchain = nullptr;
 
     if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain))
     {
@@ -331,11 +333,16 @@ void Context::createSwapchain(GLFWwindow* window)
     std::vector<VkImage> vkImages(swapchainImageCount);
     vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, vkImages.data());
 
-    VkImageViewCreateInfo imageViewCreateInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                               .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                               .format = format.format,
-                                               .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0,
-                                                                     1, 0, 1 } };
+    VkImageViewCreateInfo imageViewCreateInfo{};
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = format.format;
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = 1;
+
     for (auto& image : vkImages)
     {
         Image swapchainImage;
@@ -346,14 +353,19 @@ void Context::createSwapchain(GLFWwindow* window)
     }
 
     // save for later
-    swapchainParams = { .format = format, .presentMode = presentMode, .extent = extent };
+    swapchainParams.format = format;
+    swapchainParams.presentMode = presentMode;
+    swapchainParams.extent = extent;
 }
 
 void Context::createSyncAndFrameObjects()
 {
-    VkSemaphoreCreateInfo semInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-    VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                                 .flags = VK_FENCE_CREATE_SIGNALED_BIT };
+    VkSemaphoreCreateInfo semInfo{};
+    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     for (size_t i = 0; i < swapchainImages.size(); i++)
     {
@@ -382,16 +394,14 @@ void Context::createSyncAndFrameObjects()
     createCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
 }
 
-// -----------------------------------------------------------------------------
 // COMMAND BUFFERS
-// -----------------------------------------------------------------------------
-
 void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily)
 {
-    VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                           .commandPool = queues[queueFamily].commandPool,
-                                           .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                                           .commandBufferCount = 1 };
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = queues[queueFamily].commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
 
     if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
     {
@@ -401,9 +411,10 @@ void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily qu
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
 {
-    VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                        .flags = flags,
-                                        .pInheritanceInfo = nullptr };
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = flags;
+    beginInfo.pInheritanceInfo = nullptr;
 
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
     {
@@ -414,33 +425,31 @@ void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferU
 void Context::endCommandBuffer(VkCommandBuffer commandBuffer, QueueFamily queueFamily)
 {
     vkEndCommandBuffer(commandBuffer);
-    VkSubmitInfo submitInfo{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffer,
-    };
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
 
     vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, nullptr);
 }
 
-// -----------------------------------------------------------------------------
 // BUFFERS
-// -----------------------------------------------------------------------------
-
 void Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                            VmaAllocationCreateFlags allocationFlags)
 {
-    VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                   .size = size,
-                                   .usage = usage,
-                                   .sharingMode = VK_SHARING_MODE_CONCURRENT,
-                                   .queueFamilyIndexCount = 2,
-                                   .pQueueFamilyIndices = queueFamilyIndices.data() };
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+    bufferInfo.queueFamilyIndexCount = 2;
+    bufferInfo.pQueueFamilyIndices = queueFamilyIndices.data();
 
-    VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
-                                             .usage = VMA_MEMORY_USAGE_AUTO };
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.flags = allocationFlags;
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-    // allocate buffer memory (to be filled in with memcpy)
     if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
                         &handle.allocation, &handle.allocInfo)
         != VK_SUCCESS)
@@ -471,34 +480,34 @@ void Context::copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size)
 {
     vkResetCommandBuffer(transferCommandBuffer, 0);
     beginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
     VkBufferCopy bufferCopy{ 0, 0, size };
     vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
+
     endCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
 }
 
-// -----------------------------------------------------------------------------
 // IMAGES
-// -----------------------------------------------------------------------------
-
 void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,
                           uint32_t height, VkImageUsageFlags usage,
                           VmaAllocationCreateFlags allocationFlags)
 {
-    VkImageCreateInfo imageInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                 .imageType = type,
-                                 .format = format,
-                                 .extent = { width, height, 1 },
-                                 .mipLevels = 1,
-                                 .arrayLayers = 1,
-                                 .samples = VK_SAMPLE_COUNT_1_BIT,
-                                 .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                 .usage = usage,
-                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = type;
+    imageInfo.format = format;
+    imageInfo.extent = { width, height, 1 };
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = usage;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
-                                             .usage = VMA_MEMORY_USAGE_AUTO };
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.flags = allocationFlags;
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-    // allocate buffer memory (to be filled in with memcpy)
     if (vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image, &handle.allocation,
                        &handle.allocInfo)
         != VK_SUCCESS)
@@ -548,11 +557,16 @@ void Context::createTextureImage(Image& handle)
     endCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
 
     // view creation
-    VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                    .image = handle.image,
-                                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                    .format = VK_FORMAT_R8G8B8A8_SRGB,
-                                    .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } };
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = handle.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
 
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 
@@ -602,11 +616,16 @@ void Context::createDepthImage()
 
     endCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
 
-    VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                    .image = depthImage.image,
-                                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                    .format = swapchainParams.depthFormat,
-                                    .subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1 } };
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = depthImage.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = swapchainParams.depthFormat;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
 
     vkCreateImageView(device, &viewInfo, nullptr, &depthImage.view);
 }
@@ -616,19 +635,20 @@ void Context::createTextureSampler(VkSampler& sampler)
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
-    VkSamplerCreateInfo samplerInfo{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                                     .magFilter = VK_FILTER_LINEAR,
-                                     .minFilter = VK_FILTER_LINEAR,
-                                     .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-                                     .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                     .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                     .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-                                     .anisotropyEnable = VK_TRUE,
-                                     .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
-                                     .compareEnable = VK_FALSE,
-                                     .compareOp = VK_COMPARE_OP_ALWAYS,
-                                     .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-                                     .unnormalizedCoordinates = VK_FALSE };
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
 
     vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
 }
@@ -636,21 +656,19 @@ void Context::createTextureSampler(VkSampler& sampler)
 void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, Image& dst,
                                 uint32_t width, uint32_t height)
 {
-    VkBufferImageCopy region
-    {
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource = 
-        {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel = 0,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {width, height, 1}
-    };
+    VkBufferImageCopy region{};
+
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+
+    region.imageOffset = { 0, 0, 0 };
+    region.imageExtent = { width, height, 1 };
 
     vkCmdCopyBufferToImage(commandBuffer, src.buffer, dst.image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
@@ -663,34 +681,36 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
                                     VkPipelineStageFlags2 dstStageMask,
                                     VkImageAspectFlags aspectFlags)
 {
-    VkImageMemoryBarrier2 barrier = { .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                                      .srcStageMask = srcStageMask,
-                                      .srcAccessMask = srcAccessMask,
-                                      .dstStageMask = dstStageMask,
-                                      .dstAccessMask = dstAccessMask,
-                                      .oldLayout = oldLayout,
-                                      .newLayout = newLayout,
-                                      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                      .image = image,
-                                      .subresourceRange = { .aspectMask = aspectFlags,
-                                                            .baseMipLevel = 0,
-                                                            .levelCount = 1,
-                                                            .baseArrayLayer = 0,
-                                                            .layerCount = 1 } };
+    VkImageMemoryBarrier2 barrier{};
 
-    VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                                     .dependencyFlags = {},
-                                     .imageMemoryBarrierCount = 1,
-                                     .pImageMemoryBarriers = &barrier };
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    barrier.srcStageMask = srcStageMask;
+    barrier.srcAccessMask = srcAccessMask;
+    barrier.dstStageMask = dstStageMask;
+    barrier.dstAccessMask = dstAccessMask;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+
+    barrier.subresourceRange.aspectMask = aspectFlags;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    VkDependencyInfo dependencyInfo{};
+
+    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependencyInfo.dependencyFlags = {};
+    dependencyInfo.imageMemoryBarrierCount = 1;
+    dependencyInfo.pImageMemoryBarriers = &barrier;
 
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
-// -----------------------------------------------------------------------------
 // UTILITY
-// -----------------------------------------------------------------------------
-
 Frame& Context::getCurrentFrame(uint32_t currentFrame)
 {
     return frames[currentFrame];
@@ -742,9 +762,10 @@ void Context::framebufferResizeCallback(GLFWwindow* window, int width, int heigh
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 {
-    VkShaderModuleCreateInfo sci{ .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                                  .codeSize = code.size() * sizeof(char),
-                                  .pCode = reinterpret_cast<const uint32_t*>(code.data()) };
+    VkShaderModuleCreateInfo sci{};
+    sci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    sci.codeSize = code.size() * sizeof(char);
+    sci.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule sm;
     vkCreateShaderModule(device, &sci, nullptr, &sm);
@@ -763,16 +784,15 @@ void Context::createDebugMessenger(bool enableDebug)
         return;
     }
 
-    VkDebugUtilsMessengerCreateInfoEXT createInfo{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = debugCallback,
-        .pUserData = nullptr
-    };
+    VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.pfnUserCallback = debugCallback;
+    createInfo.pUserData = nullptr;
 
     auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
         vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");

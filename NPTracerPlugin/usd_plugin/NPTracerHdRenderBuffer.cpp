@@ -20,9 +20,7 @@ static VkFormat ConvertHdFormat(HdFormat fmt)
     }
 }
 
-NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId) : HdRenderBuffer(bprimId)
-{
-}
+NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId) : HdRenderBuffer(bprimId) {}
 
 bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled)
 {
@@ -53,7 +51,8 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     VkImageCreateInfo imgInfo{};
     imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imgInfo.imageType = VK_IMAGE_TYPE_2D;
-    imgInfo.extent = { static_cast<uint32_t>(dimensions[0]), static_cast<uint32_t>(dimensions[1]), 1 };
+    imgInfo.extent = { static_cast<uint32_t>(dimensions[0]), static_cast<uint32_t>(dimensions[1]),
+                       1 };
     imgInfo.mipLevels = 1;
     imgInfo.arrayLayers = 1;
     imgInfo.format = _vkFormat;
@@ -176,18 +175,13 @@ void* NPTracerHdRenderBuffer::Map()
     vkBeginCommandBuffer(cmd, &begin);
 
     VkBufferImageCopy region{};
-    region.imageExtent = { static_cast<uint32_t>(_dimensions[0]), static_cast<uint32_t>(_dimensions[1]), 1 };
+    region.imageExtent = { static_cast<uint32_t>(_dimensions[0]),
+                           static_cast<uint32_t>(_dimensions[1]), 1 };
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.layerCount = 1;
-    
-    vkCmdCopyImageToBuffer(
-        cmd,
-        _image,
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        stagingBuffer,
-        1,
-        &region
-    );
+
+    vkCmdCopyImageToBuffer(cmd, _image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingBuffer, 1,
+                           &region);
 
     vkEndCommandBuffer(cmd);
 
@@ -198,7 +192,7 @@ void* NPTracerHdRenderBuffer::Map()
 
     vkQueueSubmit(gQueue, 1, &submit, VK_NULL_HANDLE);
     vkQueueWaitIdle(gQueue);
-    
+
     // map memory for i/o
     void* data;
     vkMapMemory(gDevice, stagingMemory, 0, VK_WHOLE_SIZE, 0, &data);
@@ -255,12 +249,14 @@ VkDeviceMemory NPTracerHdRenderBuffer::GetVkDeviceMemory() const
 void NPTracerHdRenderBuffer::_Deallocate()
 {
     // reset to default/empty values.
-    if (_image) {
+    if (_image)
+    {
         vkDestroyImage(gDevice, _image, nullptr);
         _image = VK_NULL_HANDLE;
     }
 
-    if (_memory) {
+    if (_memory)
+    {
         vkFreeMemory(gDevice, _memory, nullptr);
         _memory = VK_NULL_HANDLE;
     }

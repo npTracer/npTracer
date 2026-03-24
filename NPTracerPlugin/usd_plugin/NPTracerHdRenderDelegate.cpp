@@ -80,8 +80,7 @@ void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Create Rprim type: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
+    NP_DBG("[%s] Create Rprim type: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
              rprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->mesh)
@@ -99,15 +98,13 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Destroy Rprim: id=%s\n", TF_FUNC_NAME().c_str(), rprim->GetId().GetText());
+    NP_DBG("[%s] Destroy Rprim: id=%s\n", TF_FUNC_NAME().c_str(), rprim->GetId().GetText());
     delete rprim;
 }
 
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Create Sprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
+    NP_DBG("[%s] Create Sprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
              sprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->camera)
@@ -124,15 +121,13 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroySprim(HdSprim* sprim)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Destroy Sprim: id=%s\n", TF_FUNC_NAME().c_str(), sprim->GetId().GetText());
+    NP_DBG("[%s] Destroy Sprim: id=%s\n", TF_FUNC_NAME().c_str(), sprim->GetId().GetText());
     delete sprim;
 }
 
 HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Create Fallback Sprim: type=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText());
+    NP_DBG("[%s] Create Fallback Sprim: type=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText());
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -148,8 +143,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
 HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfPath& bprimId)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Create Bprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
+    NP_DBG("[%s] Create Bprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
              bprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
@@ -165,16 +159,14 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyBprim(HdBprim* bprim)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Destroy Bprim: id=%s\n", TF_FUNC_NAME().c_str(), bprim->GetId().GetText());
+    NP_DBG("[%s] Destroy Bprim: id=%s\n", TF_FUNC_NAME().c_str(), bprim->GetId().GetText());
 
     delete bprim;
 }
 
 HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Create Fallback Bprim: type=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText());
+    NP_DBG("[%s] Create Fallback Bprim: type=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText());
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {

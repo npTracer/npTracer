@@ -12,8 +12,7 @@ NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* 
 
 bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Allocate render buffer: id=%s, dimensions=(%i, %i, %i), "
+    NP_DBG("[%s] Allocate render buffer: id=%s, dimensions=(%i, %i, %i), "
              "format=%i\n",
              TF_FUNC_NAME().c_str(), GetId().GetText(), dimensions[0], dimensions[1], dimensions[2],
              format);
@@ -49,8 +48,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
                           0  // device local
     );
 
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Render buffer allocated: id=%s\n", TF_FUNC_NAME().c_str(), GetId().GetText());
+    NP_DBG("[%s] Render buffer allocated: id=%s\n", TF_FUNC_NAME().c_str(), GetId().GetText());
 
     return true;
 }
@@ -102,9 +100,9 @@ void* NPTracerHdRenderBuffer::Map()
 
     // restore image layout for future passes
     _context->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                    currLayout, VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
-                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
-                                    _fmtTokens.aspect);
+                                    currLayout, VK_ACCESS_2_TRANSFER_READ_BIT,
+                                    _fmtTokens.writeAccess, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                    _fmtTokens.writeStage, _fmtTokens.aspect);
 
     _context->endCommandBuffer(cmd, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_context->queues[NPQueueType::TRANSFER].queue);

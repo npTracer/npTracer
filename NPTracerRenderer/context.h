@@ -84,14 +84,9 @@ public:
                                VkPipelineStageFlags2 dstStageMask,
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
-    // descriptors
-    void createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout,
-                                   std::vector<VkDescriptorSetLayoutBinding>& bindings,
-                                   std::vector<VkDescriptorPoolSize>& poolSizes);
-
+    // utility
     Frame& getCurrentFrame(uint32_t currentFrame);
 
-    // utility
     void recreateSwapchain(GLFWwindow* window);
     void cleanupSwapchain();
 

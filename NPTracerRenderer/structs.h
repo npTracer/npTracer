@@ -53,6 +53,18 @@ struct NPBuffer
             vmaDestroyBuffer(allocator, buffer, allocation);
         }
     }
+
+    static std::vector<VkBuffer> extractVkBuffers(const std::vector<NPBuffer>& buffers)
+    {
+        std::vector<VkBuffer> vkBuffers;
+        vkBuffers.reserve(buffers.size());
+        for (const auto& buffer : buffers)
+        {
+            vkBuffers.push_back(buffer.buffer);
+        }
+
+        return vkBuffers;
+    }
 };
 
 struct Image
@@ -80,8 +92,8 @@ struct Image
 
 struct NPPipeline
 {
-    VkPipelineLayout layout;
-    VkPipeline pipeline;
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
 
     void destroy(VkDevice device)
     {
@@ -169,6 +181,12 @@ struct UniformBufferObject
     alignas(16) FLOAT4X4 proj;
 };
 
+struct MeshRecord
+{
+    uint32_t vbIdx;
+    uint32_t ibIdx;
+};
+
 struct MeshData
 {
     uint32_t objectId;
@@ -187,6 +205,24 @@ struct MeshData
     
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
+
+    std::vector<Vertex> getVertices() const
+    {
+        size_t count = positions.size();
+
+        std::vector<Vertex> vertices;
+        vertices.reserve(count);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            Vertex v{ .pos = positions[i],
+                      .color = (i < colors.size()) ? colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f },
+                      .uv = (i < uvs.size()) ? uvs[i] : FLOAT2{ 0.0f, 0.0f } };
+            vertices.push_back(v);
+        }
+
+        return vertices;
+    }
 };
 
 enum class LightType : uint8_t

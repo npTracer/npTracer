@@ -160,16 +160,24 @@ void Context::createLogicalDeviceAndQueues()
         .dynamicRendering = VK_TRUE,
     };
 
-    VkPhysicalDeviceFeatures2 deviceFeatures2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-                                               .pNext = &vulkan13Features,
-                                               .features = { .samplerAnisotropy = true } };
+    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .pNext = &vulkan13Features,
+        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE,
+    };
 
+    VkPhysicalDeviceFeatures2 features2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+                                               .pNext = &indexingFeatures,
+                                               .features = { .samplerAnisotropy = true } };
     // TODO add more device extensions
-    std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<const char*> requiredDeviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+    };
 
     VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = &deviceFeatures2,
+        .pNext = &features2,
         .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
         .pQueueCreateInfos = queueCreateInfos.data(),
         .enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size()),
@@ -680,37 +688,13 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
 }
 
 // -----------------------------------------------------------------------------
-// DESCRIPTORS
+// UTILITY
 // -----------------------------------------------------------------------------
-
-void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout,
-                                        std::vector<VkDescriptorSetLayoutBinding>& bindings,
-                                        std::vector<VkDescriptorPoolSize>& poolSizes)
-{
-    VkDescriptorSetLayoutCreateInfo layoutInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(bindings.size()),
-        .pBindings = bindings.data(),
-    };
-    vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout);
-
-    VkDescriptorPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                                         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-                                         .maxSets = static_cast<uint32_t>(poolSizes.size()),
-                                         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
-                                         .pPoolSizes = poolSizes.data() };
-
-    vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorSetLayout.pool);
-}
 
 Frame& Context::getCurrentFrame(uint32_t currentFrame)
 {
     return frames[currentFrame];
 }
-
-// -----------------------------------------------------------------------------
-// UTILITY
-// -----------------------------------------------------------------------------
 
 void Context::recreateSwapchain(GLFWwindow* window)
 {

@@ -461,7 +461,7 @@ void Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFla
     }
 }
 
-void Context::createDeviceLocalBuffer(NPBuffer& handle, void* data, VkDeviceSize size,
+void Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
                                       VkBufferUsageFlags usage)
 {
     NPBuffer stagingBuffer;
@@ -517,6 +517,9 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     {
         throw std::runtime_error("failed to create image!");
     }
+    handle.width = width;
+    handle.height = height;
+    handle.format = format;
 }
 
 void Context::createTextureImage(NPImage& handle)
@@ -559,12 +562,16 @@ void Context::createTextureImage(NPImage& handle)
 
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
 
+    handle.width = width;
+    handle.height = height;
+    handle.format = VK_FORMAT_R8G8B8A8_SRGB;
+
     // view creation
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = handle.image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    viewInfo.format = handle.format;
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
@@ -675,6 +682,9 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NP
 
     vkCmdCopyBufferToImage(commandBuffer, src.buffer, dst.image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    dst.width = width;
+    dst.height = height;
 }
 
 void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,

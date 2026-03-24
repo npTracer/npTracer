@@ -31,7 +31,6 @@ private:
 
     NPRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state,
                                 NPTracerHdRenderBuffer* renderBuffer);
-    NPRendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

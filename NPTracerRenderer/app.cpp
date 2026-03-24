@@ -17,13 +17,12 @@ void App::create()
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(NPRendererPayload& payload, NPRendererAovs& aovs)
+void App::createRenderingResources(NPRendererAovs& aovs)
 {
-    this->payload = payload;
     uint32_t vbCount = 0;
     uint32_t ibCount = 0;
 
-    for (const auto& mesh : payload.meshes)
+    for (const NPMesh& mesh : scene.getMeshes())
     {
         NPMeshRecord meshRecord{};
         meshRecord.vbIdx = vbCount++;
@@ -32,9 +31,10 @@ void App::createRenderingResources(NPRendererPayload& payload, NPRendererAovs& a
         NPBuffer vertexBuffer;
         NPBuffer indexBuffer;
 
-        std::vector<NPVertex> vertices = mesh.getVertices();
+        const std::vector<NPVertex>& vertices = mesh.vertices;
         VkDeviceSize vbSize = sizeof(vertices[0]) * vertices.size();
-        context.createDeviceLocalBuffer(vertexBuffer, vertices.data(), vbSize,
+        context.createDeviceLocalBuffer(vertexBuffer, const_cast<NPVertex*>(vertices.data()),
+                                        vbSize,
                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
                                             | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         vertexBuffers.push_back(vertexBuffer);
@@ -54,14 +54,9 @@ void App::createRenderingResources(NPRendererPayload& payload, NPRendererAovs& a
 
     // create camera buffer
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
-    NPCameraRecord cameraRecord{};
-    cameraRecord.model = glm::mat4(1.0f);
-    cameraRecord.view = lookAt(payload.cam.cameraPos,
-                               payload.cam.cameraPos + payload.cam.cameraForward,
-                               payload.cam.cameraUp);
-    cameraRecord.proj = glm::perspective(payload.cam.fov, payload.cam.aspect, 0.1f, 10.0f);
+    const NPCameraRecord cam = scene.getCamera();
 
-    context.createDeviceLocalBuffer(cameraRecordBuffer, &cameraRecord, cameraSize,
+    context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     // CREATE MESH DESCRIPTOR SET LAYOUT
@@ -423,9 +418,9 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
 }
 
 // DRAW CALL
-void App::executeDrawCall(NPRendererPayload& payload, NPRendererAovs& aovs)
+void App::executeDrawCall(NPRendererAovs& aovs)
 {
-    createRenderingResources(payload, aovs);
+    createRenderingResources(aovs);
     createGraphicsPipeline(pipeline, descriptorSetLayouts, aovs);
 
     // grab a frame
@@ -434,9 +429,7 @@ void App::executeDrawCall(NPRendererPayload& payload, NPRendererAovs& aovs)
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    NPImage renderTarget{};
-    renderTarget.image = aovs.color.image;
-    renderTarget.view = aovs.color.view;
+    NPImage& renderTarget = aovs.color;
 
     populateDrawCall(frame.commandBuffer, renderTarget);
 
@@ -522,9 +515,10 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
                             descriptorSets.data(), 0, nullptr);
 
+    const std::vector<NPMesh>& meshes = scene.getMeshes();
     for (size_t i = 0; i < meshRecords.size(); i++)
     {
-        const auto& mesh = payload.meshes[i];
+        const NPMesh& mesh = meshes[i];
         vkCmdDraw(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, i);
     }
 

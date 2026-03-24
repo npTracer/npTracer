@@ -25,8 +25,6 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
-    NPRendererPayload payload = _BuildRendererPayload(renderPassState);
-
     for (HdRenderPassAovBinding const& aov : aovBindings)
     {
         NPTracerHdRenderBuffer* buffer = dynamic_cast<NPTracerHdRenderBuffer*>(aov.renderBuffer);
@@ -59,11 +57,6 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
 
 NPRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr const& state,
                                                   NPTracerHdRenderBuffer* buffer)
-{
-    return {};
-}
-
-NPRendererPayload NPTracerHdRenderPass::_BuildRendererPayload(HdRenderPassStateSharedPtr const& state)
 {
     return {};
 }

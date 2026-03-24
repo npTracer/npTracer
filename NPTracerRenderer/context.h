@@ -60,7 +60,7 @@ public:
     // buffers
     void createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                       VmaAllocationCreateFlags allocationFlags);
-    void createDeviceLocalBuffer(NPBuffer& handle, void* data, VkDeviceSize size,
+    void createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size);
 

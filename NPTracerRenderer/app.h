@@ -25,7 +25,7 @@ public:
     void create();
     void destroy();
 
-    void executeDrawCall(NPRendererPayload& payload, NPRendererAovs& aovs);
+    void executeDrawCall(NPRendererAovs& aovs);
 
     void run();
 
@@ -44,7 +44,6 @@ private:
     std::vector<VkDescriptorSet> descriptorSets;
 
     Scene scene;
-    NPRendererPayload payload;  // keep payload for now (useful for drawindexed call)
     std::vector<NPMeshRecord> meshRecords;
 
     NPBuffer meshRecordBuffer;
@@ -54,7 +53,7 @@ private:
     NPBuffer cameraRecordBuffer;
 
     // resource creation
-    void createRenderingResources(NPRendererPayload& payload, NPRendererAovs& aovs);
+    void createRenderingResources(NPRendererAovs& aovs);
     void createGraphicsPipeline(NPPipeline& pipeline,
                                 std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
                                 NPRendererAovs& aovs);

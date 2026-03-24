@@ -13,11 +13,21 @@ public:
     bool addInstances(const NPScenePathCollection& instances);
     bool clearInstances(const NPScenePathCollection& instances);
 
+    inline const std::vector<NPMesh>& getMeshes() const
+    {
+        return _meshes;
+    }
+
+    inline const NPCameraRecord& getCamera() const
+    {
+        return _camera;
+    }
+
 private:
-    std::vector<NPMesh> meshes;
-    std::vector<NPLight> lights;
+    std::vector<NPMesh> _meshes;
+    std::vector<NPLight> _lights;
 
-    NPCamera cam = {};
+    NPCameraRecord _camera = {};
 
-    NPRenderSettings settings = {};
+    NPRenderSettings _settings = {};
 };

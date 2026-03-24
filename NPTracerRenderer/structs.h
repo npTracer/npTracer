@@ -80,6 +80,10 @@ struct NPImage
     VmaAllocation allocation = VK_NULL_HANDLE;
     VmaAllocationInfo allocInfo;
 
+    uint32_t width = 0;
+    uint32_t height = 0;
+    VkFormat format = VK_FORMAT_UNDEFINED;
+
     void destroy(VkDevice device, VmaAllocator allocator)
     {
         if (image != VK_NULL_HANDLE)
@@ -199,37 +203,35 @@ struct NPMesh
     NPScenePath scenePath;
 
     std::vector<uint32_t> indices;
-    std::vector<FLOAT3> positions;
+    std::vector<NPVertex> vertices;
 
-    std::vector<FLOAT3> normals;
-    std::vector<FLOAT2> uvs;
-
-    std::vector<FLOAT3> colors;
-    std::vector<uint32_t> materialIds;
+    std::vector<FLOAT3> _positions;
+    std::vector<FLOAT3> _normals;
+    std::vector<FLOAT2> _uvs;
+    std::vector<FLOAT3> _colors;
+    std::vector<uint32_t> _materialIds;
 
     FLOAT4X4 objectToWorld;
-    FLOAT4X4 worldToObject;
+    FLOAT4X4 worldToObject;  // model matrix
 
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
 
-    std::vector<NPVertex> getVertices() const
+    void populateVertices()
     {
-        size_t count = positions.size();
+        size_t count = _positions.size();
 
-        std::vector<NPVertex> vertices;
-        vertices.reserve(count);
+        this->vertices.clear();
+        this->vertices.reserve(count);
 
         for (size_t i = 0; i < count; i++)
         {
             NPVertex v{};
-            v.pos = positions[i];
-            v.color = (i < colors.size()) ? colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f };
-            v.uv = (i < uvs.size()) ? uvs[i] : FLOAT2{ 0.0f, 0.0f };
+            v.pos = _positions[i];
+            v.color = (i < _colors.size()) ? _colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f };
+            v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
             vertices.push_back(v);
         }
-
-        return vertices;
     }
 };
 
@@ -258,18 +260,6 @@ struct NPLight
     uint32_t lightId;
 };
 
-struct NPCamera
-{
-    // extrinsics
-    FLOAT3 cameraPos;
-    FLOAT3 cameraForward;
-    FLOAT3 cameraUp;
-
-    // intrinsics
-    float fov;
-    float aspect;
-};
-
 enum class NPStylizationFunction : uint8_t
 {
     PASSTHROUGH
@@ -285,28 +275,9 @@ struct NPRenderSettings
     NPStylizationFunction stylizationFunction = NPStylizationFunction::PASSTHROUGH;
 };
 
-struct NPRendererPayload
-{
-    std::vector<NPMesh> meshes;
-    std::vector<NPLight> lights;
-
-    NPCamera cam;
-
-    NPRenderSettings settings = {};
-};
-
-struct NPRenderTarget
-{
-    VkImage image;
-    VkImageView view;
-    VkFormat format;
-    uint32_t width;
-    uint32_t height;
-};
-
 struct NPRendererAovs
 {
-    NPRenderTarget color;
-    NPRenderTarget depth;
+    NPImage color;
+    NPImage depth;
     // normals?
 };

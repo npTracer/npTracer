@@ -29,9 +29,9 @@ private:
 
     std::atomic<bool> _converged{ false };
 
-    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state,
+    NPRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state,
                                 NPTracerHdRenderBuffer* renderBuffer);
-    RendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
+    NPRendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

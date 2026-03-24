@@ -1,6 +1,6 @@
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
-#include "usd_plugin/NPTracerDebugCodes.h"
+#include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderPass.h"
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
@@ -11,36 +11,30 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-const TfTokenVector NPTracerHdRenderDelegate::SUPPORTED_RPRIM_TYPES = {};  // renderable primitives
-const TfTokenVector NPTracerHdRenderDelegate::SUPPORTED_SPRIM_TYPES = {
-    // state prims
-    HdPrimTypeTokens->camera
-};
-const TfTokenVector NPTracerHdRenderDelegate::SUPPORTED_BPRIM_TYPES = {
-    // buffer prims
-    HdPrimTypeTokens->renderBuffer
-};
-
 NPTracerHdRenderDelegate::NPTracerHdRenderDelegate()
 {
     _Initialize();
 }
 
 NPTracerHdRenderDelegate::NPTracerHdRenderDelegate(const HdRenderSettingsMap& settingsMap)
-    : HdRenderDelegate(settingsMap)
+    : HdRenderDelegate(settingsMap)  // TODO: use the settings map ourselves
 {
     _Initialize();
 }
 
 NPTracerHdRenderDelegate::~NPTracerHdRenderDelegate()
 {
+    _app->destroy();
     _renderParam.reset();
+    _resourceRegistry.reset();
+    _settingDescriptors.clear();
+    _settingsMap.clear();
 };
 
 HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* index,
                                                                  HdRprimCollection const& collection)
 {
-    return HdRenderPassSharedPtr(new NPTracerHdRenderPass(index, collection, this));
+    return std::make_shared<NPTracerHdRenderPass>(index, collection, this);
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedRprimTypes() const
@@ -60,7 +54,7 @@ const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
 
 HdRenderParam* NPTracerHdRenderDelegate::GetRenderParam() const
 {
-    return HdRenderDelegate::GetRenderParam();
+    return _renderParam.get();
 }
 
 HdRenderSettingDescriptorList NPTracerHdRenderDelegate::GetRenderSettingDescriptors() const
@@ -75,13 +69,13 @@ HdResourceRegistrySharedPtr NPTracerHdRenderDelegate::GetResourceRegistry() cons
 
 HdInstancer* NPTracerHdRenderDelegate::CreateInstancer(HdSceneDelegate* delegate, const SdfPath& id)
 {
-    TF_CODING_ERROR("Creating instancer not currently supported: id=%s", id.GetText());
+    NP_DBG("Creating instancer not currently supported: id=%s", id.GetText());
     return nullptr;
 }
 
 void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 {
-    TF_CODING_ERROR("Destroying instancer not currently supported.");
+    NP_DBG("Destroying instancer not currently supported.");
 }
 
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
@@ -90,9 +84,15 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
         .Msg("[%s] Create Rprim type: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
              rprimId.GetText());
 
-    if (true)
+    if (typeId == HdPrimTypeTokens->mesh)
     {
-        TF_CODING_ERROR("Unknown Rprim: type=%s id=%s", typeId.GetText(), rprimId.GetText());
+    }
+    else if (typeId == HdPrimTypeTokens->light)
+    {
+    }
+    else
+    {
+        NP_DBG("Unknown Rprim: type=%s id=%s", typeId.GetText(), rprimId.GetText());
     }
     return nullptr;
 }
@@ -154,7 +154,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
-        return new NPTracerHdRenderBuffer(bprimId);
+        return new NPTracerHdRenderBuffer(bprimId, _app->getContext());
     }
     else
     {
@@ -178,7 +178,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
-        return new NPTracerHdRenderBuffer(SdfPath::EmptyPath());
+        return new NPTracerHdRenderBuffer(SdfPath::EmptyPath(), _app->getContext());
     }
     else
     {
@@ -194,24 +194,31 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
 {
     if (aovName == HdAovTokens->color)
     {
-        return HdAovDescriptor(HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)));
+        return { HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)) };
     }
     else if (aovName == HdAovTokens->depth)
     {
-        return HdAovDescriptor(HdFormatFloat32, false, VtValue(1.0f));
+        return { HdFormatFloat32, false, VtValue(1.0f) };
+    }
+    else if (aovName == HdAovTokens->normal)
+    {
+        return { HdFormatFloat32Vec3, false, VtValue(GfVec3f(0.0f, 0.0f, 0.0f)) };
     }
     else if (aovName == HdAovTokens->primId || aovName == HdAovTokens->instanceId
              || aovName == HdAovTokens->elementId)
     {
-        return HdAovDescriptor(HdFormatInt32, false, VtValue(-1));
+        return { HdFormatInt32, false, VtValue(-1) };
     }
 
-    return HdAovDescriptor();
+    return {};
 }
 
 void NPTracerHdRenderDelegate::_Initialize()
 {
-    _renderParam = std::unique_ptr<NPTracerHdRenderParam>(new NPTracerHdRenderParam());
+    _app = std::make_unique<App>();
+    _app->create();
+
+    _renderParam = std::make_unique<NPTracerHdRenderParam>();
     _resourceRegistry = std::make_shared<HdResourceRegistry>();
 }
 

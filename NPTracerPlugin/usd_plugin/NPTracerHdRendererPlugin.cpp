@@ -1,6 +1,6 @@
 #include "usd_plugin/NPTracerHdRendererPlugin.h"
 
-#include "usd_plugin/NPTracerDebugCodes.h"
+#include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
 #include <pxr/imaging/hd/rendererPluginRegistry.h>

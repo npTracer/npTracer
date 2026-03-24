@@ -62,7 +62,7 @@ AlignConsecutiveTableGenDefinitionColons:
 AlignEscapedNewlines: Right
 AlignOperands: Align
 AlignTrailingComments:
-    Kind: Always
+    Kind: Never
     OverEmptyLines: 1
 AllowAllArgumentsOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true

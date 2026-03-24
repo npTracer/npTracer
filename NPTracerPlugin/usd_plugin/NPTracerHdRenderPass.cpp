@@ -1,6 +1,6 @@
 #include "usd_plugin/NPTracerHdRenderPass.h"
 
-#include "usd_plugin/NPTracerDebugCodes.h"
+#include "usd_plugin/debugCodes.h"
 
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/base/gf/camera.h>
@@ -25,7 +25,7 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
-    RendererPayload payload = _BuildRendererPayload(renderPassState);
+    NPRendererPayload payload = _BuildRendererPayload(renderPassState);
 
     for (HdRenderPassAovBinding const& aov : aovBindings)
     {
@@ -57,13 +57,13 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
     _converged.store(converged);
 }
 
-VkRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr const& state,
+NPRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr const& state,
                                                   NPTracerHdRenderBuffer* buffer)
 {
     return {};
 }
 
-RendererPayload NPTracerHdRenderPass::_BuildRendererPayload(HdRenderPassStateSharedPtr const& state)
+NPRendererPayload NPTracerHdRenderPass::_BuildRendererPayload(HdRenderPassStateSharedPtr const& state)
 {
     return {};
 }

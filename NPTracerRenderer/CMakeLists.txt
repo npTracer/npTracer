@@ -23,11 +23,13 @@ set(CURR_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
 set(LIB_SOURCES
     "${NPTracerRenderer_ROOT_DIR}/context.cpp"
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
+    "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
 )
 
 set(LIB_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
+    "${NPTracerRenderer_ROOT_DIR}/scene.h"
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
     "${NPTracerRenderer_ROOT_DIR}/structs.h"
 )

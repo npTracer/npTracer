@@ -3,12 +3,15 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "context.h"
+
+#include "utils.h"
+
+#include <glm/glm.hpp>
 #include <stb_image.h>
 
 #include <algorithm>
 #include <optional>
-
-#include <glm/glm.hpp>
+#include <iostream>
 
 // VULKAN
 void Context::createWindow(GLFWwindow*& window, int width, int height)
@@ -83,17 +86,17 @@ void Context::createPhysicalDevice()
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
-    for (const auto& device : devices)
+    for (const auto& dev : devices)
     {
         VkPhysicalDeviceProperties deviceProperties;
-        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        vkGetPhysicalDeviceProperties(dev, &deviceProperties);
         VkPhysicalDeviceFeatures deviceFeatures;
-        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+        vkGetPhysicalDeviceFeatures(dev, &deviceFeatures);
 
         if (deviceProperties.deviceType
             == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)  // TODO better selection criteria
         {
-            physicalDevice = device;
+            physicalDevice = dev;
             break;
         }
     }
@@ -106,8 +109,8 @@ void Context::createLogicalDeviceAndQueues()
     std::vector<VkQueueFamilyProperties> properties(propertyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &propertyCount, properties.data());
 
-    Queue graphicsQueue;
-    Queue transferQueue;
+    NPQueue graphicsQueue;
+    NPQueue transferQueue;
 
     // queue selection
     for (uint32_t i = 0; i < properties.size(); i++)
@@ -202,7 +205,7 @@ void Context::createLogicalDeviceAndQueues()
         {
             throw std::runtime_error("failed to create command pool");
         }
-        queues[QueueFamily::GRAPHICS] = graphicsQueue;
+        queues[NPQueueType::GRAPHICS] = graphicsQueue;
     }
 
     if (transferQueue)
@@ -219,12 +222,12 @@ void Context::createLogicalDeviceAndQueues()
         {
             throw std::runtime_error("failed to create command pool");
         }
-        queues[QueueFamily::TRANSFER] = transferQueue;
+        queues[NPQueueType::TRANSFER] = transferQueue;
     }
 
     queueFamilyIndices = {
-        queues[QueueFamily::GRAPHICS].index.value(),
-        queues[QueueFamily::TRANSFER].index.value(),
+        queues[NPQueueType::GRAPHICS].index.value(),
+        queues[NPQueueType::TRANSFER].index.value(),
     };
 }
 
@@ -345,7 +348,7 @@ void Context::createSwapchain(GLFWwindow* window)
 
     for (auto& image : vkImages)
     {
-        Image swapchainImage;
+        NPImage swapchainImage;
         swapchainImage.image = image;
         imageViewCreateInfo.image = image;
         vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapchainImage.view);
@@ -376,13 +379,13 @@ void Context::createSyncAndFrameObjects()
 
     for (int i = 0; i < FRAME_COUNT; i++)
     {
-        Frame frame;
+        NPFrame frame;
 
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
-        createCommandBuffer(frame.commandBuffer, QueueFamily::GRAPHICS);
+        createCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS);
 
-        VkDeviceSize bufferSize = sizeof(CameraRecord);
+        VkDeviceSize bufferSize = sizeof(NPCameraRecord);
         createBuffer(frame.uboBuffer, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                          | VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -391,11 +394,11 @@ void Context::createSyncAndFrameObjects()
     }
 
     // create transfer command buffer as well
-    createCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
+    createCommandBuffer(transferCommandBuffer, NPQueueType::TRANSFER);
 }
 
 // COMMAND BUFFERS
-void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily)
+void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType queueFamily)
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -422,7 +425,7 @@ void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferU
     }
 }
 
-void Context::endCommandBuffer(VkCommandBuffer commandBuffer, QueueFamily queueFamily)
+void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily)
 {
     vkEndCommandBuffer(commandBuffer);
 
@@ -472,7 +475,7 @@ void Context::createDeviceLocalBuffer(NPBuffer& handle, void* data, VkDeviceSize
 
     copyBuffer(stagingBuffer, handle, size);
 
-    vkQueueWaitIdle(queues[QueueFamily::TRANSFER].queue);
+    vkQueueWaitIdle(queues[NPQueueType::TRANSFER].queue);
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
@@ -484,11 +487,11 @@ void Context::copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size)
     VkBufferCopy bufferCopy{ 0, 0, size };
     vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
 
-    endCommandBuffer(transferCommandBuffer, QueueFamily::TRANSFER);
+    endCommandBuffer(transferCommandBuffer, NPQueueType::TRANSFER);
 }
 
 // IMAGES
-void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,
+void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                           uint32_t height, VkImageUsageFlags usage,
                           VmaAllocationCreateFlags allocationFlags)
 {
@@ -516,7 +519,7 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
     }
 }
 
-void Context::createTextureImage(Image& handle)
+void Context::createTextureImage(NPImage& handle)
 {
     int width, height, channels;
     auto path = TEXTURE("coconut.jpg");
@@ -541,7 +544,7 @@ void Context::createTextureImage(Image& handle)
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
+    createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     beginCommandBuffer(commandBuffer);
 
     transitionImageLayout(commandBuffer, handle.image, VK_IMAGE_LAYOUT_UNDEFINED,
@@ -554,7 +557,7 @@ void Context::createTextureImage(Image& handle)
                           VK_ACCESS_2_SHADER_SAMPLED_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                           VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
 
-    endCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
+    endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
 
     // view creation
     VkImageViewCreateInfo viewInfo{};
@@ -570,7 +573,7 @@ void Context::createTextureImage(Image& handle)
 
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 
-    vkQueueWaitIdle(queues[QueueFamily::GRAPHICS].queue);
+    vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
@@ -602,7 +605,7 @@ void Context::createDepthImage()
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0);
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
+    createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     beginCommandBuffer(commandBuffer);
     transitionImageLayout(commandBuffer, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
                           VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
@@ -614,7 +617,7 @@ void Context::createDepthImage()
                               | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                           VK_IMAGE_ASPECT_DEPTH_BIT);
 
-    endCommandBuffer(commandBuffer, QueueFamily::GRAPHICS);
+    endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
 
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -653,7 +656,7 @@ void Context::createTextureSampler(VkSampler& sampler)
     vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
 }
 
-void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, Image& dst,
+void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                                 uint32_t width, uint32_t height)
 {
     VkBufferImageCopy region{};
@@ -672,6 +675,25 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, Im
 
     vkCmdCopyBufferToImage(commandBuffer, src.buffer, dst.image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+}
+
+void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,
+                                uint32_t width, uint32_t height)
+{
+    VkBufferImageCopy region{};  // copy specifier
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+
+    region.imageExtent = { width, height, 1 };
+
+    vkCmdCopyImageToBuffer(commandBuffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           dst.buffer, 1, &region);
 }
 
 void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
@@ -711,7 +733,7 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
 }
 
 // UTILITY
-Frame& Context::getCurrentFrame(uint32_t currentFrame)
+NPFrame& Context::getCurrentFrame(uint32_t currentFrame)
 {
     return frames[currentFrame];
 }

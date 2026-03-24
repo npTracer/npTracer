@@ -1,5 +1,6 @@
 set(USD_PLUG_SOURCES
-    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerDebugCodes.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/debugCodes.cpp"
+    "${NPTracerPlugin_USD_PLUG_DIR}/npTokens.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderPass.cpp"
@@ -9,7 +10,8 @@ set(USD_PLUG_SOURCES
 )
 
 set(USD_PLUG_HEADERS
-    "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerDebugCodes.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/debugCodes.h"
+    "${NPTracerPlugin_USD_PLUG_DIR}/npTokens.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderPass.h"

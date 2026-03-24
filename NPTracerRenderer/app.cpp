@@ -1,4 +1,5 @@
 #include "app.h"
+#include "utils.h"
 
 void App::create()
 {
@@ -16,7 +17,7 @@ void App::create()
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(RendererPayload& payload, VkRendererAovs& aovs)
+void App::createRenderingResources(NPRendererPayload& payload, NPRendererAovs& aovs)
 {
     this->payload = payload;
     uint32_t vbCount = 0;
@@ -24,14 +25,14 @@ void App::createRenderingResources(RendererPayload& payload, VkRendererAovs& aov
 
     for (const auto& mesh : payload.meshes)
     {
-        MeshRecord meshRecord{};
+        NPMeshRecord meshRecord{};
         meshRecord.vbIdx = vbCount++;
         meshRecord.ibIdx = ibCount++;
 
         NPBuffer vertexBuffer;
         NPBuffer indexBuffer;
 
-        std::vector<Vertex> vertices = mesh.getVertices();
+        std::vector<NPVertex> vertices = mesh.getVertices();
         VkDeviceSize vbSize = sizeof(vertices[0]) * vertices.size();
         context.createDeviceLocalBuffer(vertexBuffer, vertices.data(), vbSize,
                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
@@ -52,8 +53,8 @@ void App::createRenderingResources(RendererPayload& payload, VkRendererAovs& aov
                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // create camera buffer
-    VkDeviceSize cameraSize = sizeof(CameraRecord);
-    CameraRecord cameraRecord{};
+    VkDeviceSize cameraSize = sizeof(NPCameraRecord);
+    NPCameraRecord cameraRecord{};
     cameraRecord.model = glm::mat4(1.0f);
     cameraRecord.view = lookAt(payload.cam.cameraPos,
                                payload.cam.cameraPos + payload.cam.cameraForward,
@@ -273,7 +274,7 @@ void App::createRenderingResources(RendererPayload& payload, VkRendererAovs& aov
 
 void App::createGraphicsPipeline(NPPipeline& pipeline,
                                  std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
-                                 VkRendererAovs& aovs)
+                                 NPRendererAovs& aovs)
 {
     // shader creation
     VkShaderModule coreVertModule = context.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
@@ -302,8 +303,8 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     dynamicInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicInfo.pDynamicStates = dynamicStates.data();
 
-    VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    VkVertexInputBindingDescription bindingDescription = NPVertex::getBindingDescription();
+    auto attributeDescriptions = NPVertex::getAttributeDescriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInfo{};
     vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -422,18 +423,18 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
 }
 
 // DRAW CALL
-void App::executeDrawCall(RendererPayload& payload, VkRendererAovs& aovs)
+void App::executeDrawCall(NPRendererPayload& payload, NPRendererAovs& aovs)
 {
     createRenderingResources(payload, aovs);
     createGraphicsPipeline(pipeline, descriptorSetLayouts, aovs);
 
     // grab a frame
-    Frame& frame = context.getCurrentFrame(currentFrame);
+    NPFrame& frame = context.getCurrentFrame(currentFrame);
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    Image renderTarget{};
+    NPImage renderTarget{};
     renderTarget.image = aovs.color.image;
     renderTarget.view = aovs.color.view;
 
@@ -452,7 +453,7 @@ void App::executeDrawCall(RendererPayload& payload, VkRendererAovs& aovs)
     submitInfo.pCommandBuffers = &frame.commandBuffer;
 
     // signal that rendering is finished once execution is finished
-    vkQueueSubmit(context.queues[QueueFamily::GRAPHICS].queue, 1, &submitInfo,
+    vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
                   frame.doneExecutingFence);  // signal that execution has been completed on frame
     // once it is done
 
@@ -460,7 +461,7 @@ void App::executeDrawCall(RendererPayload& payload, VkRendererAovs& aovs)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void App::populateDrawCall(VkCommandBuffer& commandBuffer, Image& renderTarget)
+void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget)
 {
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);

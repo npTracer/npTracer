@@ -3,15 +3,13 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <iostream>
-#include <stdexcept>
-#include <vector>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
+
+#include <vector>
 #include <unordered_map>
 
-#include "utils.h"
 #include "structs.h"
-#include "vk_mem_alloc.h"
 
 class Context
 {
@@ -28,14 +26,14 @@ public:
 
     // swapchain
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    SwapchainParams swapchainParams;
-    std::vector<Image> swapchainImages;
-    Image depthImage;
+    NPSwapchainParams swapchainParams;
+    std::vector<NPImage> swapchainImages;
+    NPImage depthImage;
     std::vector<VkSemaphore> doneRenderingSemaphores;
-    std::vector<Frame> frames;
+    std::vector<NPFrame> frames;
 
     // queues
-    std::unordered_map<QueueFamily, Queue> queues;
+    std::unordered_map<NPQueueType, NPQueue> queues;
     std::array<uint32_t, 2> queueFamilyIndices;
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
@@ -55,9 +53,9 @@ public:
     void createSyncAndFrameObjects();
 
     // command buffers
-    void createCommandBuffer(VkCommandBuffer& commandBuffer, QueueFamily queueFamily);
+    void createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType queueFamily);
     void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
-    void endCommandBuffer(VkCommandBuffer commandBuffer, QueueFamily queueFamily);
+    void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
 
     // buffers
     void createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
@@ -67,14 +65,16 @@ public:
     void copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size);
 
     // images
-    void createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,
+    void createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                      uint32_t height, VkImageUsageFlags usage,
                      VmaAllocationCreateFlags allocationFlags);
-    void createTextureImage(Image& handle);
+    void createTextureImage(NPImage& handle);
     void createDepthImage();
     void createTextureSampler(VkSampler& sampler);
-    void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, Image& dst, uint32_t width,
-                           uint32_t height);
+    void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
+                           uint32_t width, uint32_t height);
+    void copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,
+                           uint32_t width, uint32_t height);
     void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                VkImageLayout oldLayout, VkImageLayout newLayout,
                                VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
@@ -83,7 +83,7 @@ public:
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     // utility
-    Frame& getCurrentFrame(uint32_t currentFrame);
+    NPFrame& getCurrentFrame(uint32_t currentFrame);
 
     void recreateSwapchain(GLFWwindow* window);
     void cleanupSwapchain();

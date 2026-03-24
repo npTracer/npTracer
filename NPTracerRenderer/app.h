@@ -1,6 +1,7 @@
 #pragma once
 
 #include "context.h"
+#include "scene.h"
 
 class App
 {
@@ -15,16 +16,16 @@ class App
     static constexpr uint32_t HEIGHT = 1440;
 
 public:
-    Context& getContext()
+    Context* getContext()
     {
-        return context;
+        return &context;
     }
 
     // interface
     void create();
     void destroy();
 
-    void executeDrawCall(RendererPayload& payload, VkRendererAovs& aovs);
+    void executeDrawCall(NPRendererPayload& payload, NPRendererAovs& aovs);
 
     void run();
 
@@ -42,8 +43,9 @@ private:
 
     std::vector<VkDescriptorSet> descriptorSets;
 
-    RendererPayload payload;  // keep payload for now (useful for drawindexed call)
-    std::vector<MeshRecord> meshRecords;
+    Scene scene;
+    NPRendererPayload payload;  // keep payload for now (useful for drawindexed call)
+    std::vector<NPMeshRecord> meshRecords;
 
     NPBuffer meshRecordBuffer;
     std::vector<NPBuffer> vertexBuffers;
@@ -52,9 +54,9 @@ private:
     NPBuffer cameraRecordBuffer;
 
     // resource creation
-    void createRenderingResources(RendererPayload& payload, VkRendererAovs& aovs);
+    void createRenderingResources(NPRendererPayload& payload, NPRendererAovs& aovs);
     void createGraphicsPipeline(NPPipeline& pipeline,
                                 std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
-                                VkRendererAovs& aovs);
-    void populateDrawCall(VkCommandBuffer& commandBuffer, Image& renderTarget);
+                                NPRendererAovs& aovs);
+    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget);
 };

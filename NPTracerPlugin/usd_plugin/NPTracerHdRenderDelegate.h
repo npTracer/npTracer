@@ -4,6 +4,8 @@
 
 #include <pxr/imaging/hd/renderDelegate.h>
 
+#include <NPTracerRenderer/app.h>
+
 #include <memory>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -63,9 +65,13 @@ public:
 private:
     void _Initialize();
 
-    static const TfTokenVector SUPPORTED_RPRIM_TYPES;
-    static const TfTokenVector SUPPORTED_SPRIM_TYPES;
-    static const TfTokenVector SUPPORTED_BPRIM_TYPES;
+    const TfTokenVector SUPPORTED_RPRIM_TYPES = {
+        HdPrimTypeTokens->mesh, HdPrimTypeTokens->light
+    };  // renderable primitives
+    const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera };        // state prims
+    const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
+
+    std::unique_ptr<App> _app;  // `App` lasts delegate's lifetime
 
     HdRenderSettingDescriptorList _settingDescriptors;
     std::unique_ptr<NPTracerHdRenderParam> _renderParam;

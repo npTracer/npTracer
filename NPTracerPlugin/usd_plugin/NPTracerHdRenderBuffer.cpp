@@ -1,26 +1,14 @@
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
-#include "usd_plugin/NPTracerDebugCodes.h"
+#include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-extern VkDevice gDevice;
-extern VkPhysicalDevice gPhysicalDevice;
-extern VkQueue gQueue;
-extern VkCommandPool gCommandPool;
-
-static VkFormat ConvertHdFormat(HdFormat fmt)
+NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context)
+    : HdRenderBuffer(bprimId), _context(context)
 {
-    switch (fmt)
-    {
-        case HdFormatUNorm8Vec4: return VK_FORMAT_R8G8B8A8_UNORM;
-        case HdFormatFloat32: return VK_FORMAT_D32_SFLOAT;
-        default: return VK_FORMAT_UNDEFINED;
-    }
 }
-
-NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId) : HdRenderBuffer(bprimId) {}
 
 bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled)
 {
@@ -30,6 +18,16 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
              TF_FUNC_NAME().c_str(), GetId().GetText(), dimensions[0], dimensions[1], dimensions[2],
              format);
 
+    _dimensions = dimensions;
+    _format = format;
+    _multiSampled = multiSampled;
+    _fmtTokens = Np::GetFormatTokens(format);
+
+    uint32_t width = static_cast<uint32_t>(dimensions[0]);
+    uint32_t height = static_cast<uint32_t>(dimensions[1]);
+
+    VkDeviceSize size = _fmtTokens.bytesPerPixel * width * height;
+
     _Deallocate();
 
     if (format == HdFormatInvalid)
@@ -37,61 +35,22 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
         return false;
     }
 
-    _dimensions = dimensions;
-    _format = format;
-    _multiSampled = multiSampled;
-
-    _vkFormat = ConvertHdFormat(format);
-    if (_vkFormat == VK_FORMAT_UNDEFINED)
+    VkFormat vkFormat = _fmtTokens.vkFormat;
+    if (vkFormat == VK_FORMAT_UNDEFINED)
     {
         return false;
     }
 
-    // create VkImage
-    VkImageCreateInfo imgInfo{};
-    imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imgInfo.imageType = VK_IMAGE_TYPE_2D;
-    imgInfo.extent = { static_cast<uint32_t>(dimensions[0]), static_cast<uint32_t>(dimensions[1]),
-                       1 };
-    imgInfo.mipLevels = 1;
-    imgInfo.arrayLayers = 1;
-    imgInfo.format = _vkFormat;
-    imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imgInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                    | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;  // for readback
-    imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    _context->createBuffer(*_stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                               | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    vkCreateImage(gDevice, &imgInfo, nullptr, &_image);
-
-    // allocate memory
-    VkMemoryRequirements memReq;
-    vkGetImageMemoryRequirements(gDevice, _image, &memReq);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReq.size;
-
-    // find memory type
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(gPhysicalDevice, &memProps);
-
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
-    {
-        if ((memReq.memoryTypeBits & (1 << i))
-            && (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-        {
-            allocInfo.memoryTypeIndex = i;
-            break;
-        }
-    }
-
-    vkAllocateMemory(gDevice, &allocInfo, nullptr, &_memory);
-    vkBindImageMemory(gDevice, _image, _memory, 0);
+    _context->createImage(_image, VK_IMAGE_TYPE_2D, vkFormat, width, height, _fmtTokens.usage,
+                          0  // device local
+    );
 
     TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Render buffer: id=%s, size=%llu\n", TF_FUNC_NAME().c_str(), GetId().GetText(),
-             memReq.size);
+        .Msg("[%s] Render buffer allocated: id=%s\n", TF_FUNC_NAME().c_str(), GetId().GetText());
 
     return true;
 }
@@ -121,89 +80,36 @@ bool NPTracerHdRenderBuffer::IsMultiSampled() const
     return _multiSampled;
 }
 
+// copy underlying image data to a staging buffer for i/o mapping
 void* NPTracerHdRenderBuffer::Map()
 {
     _mappers.fetch_add(1);
 
-    // create a staging buffer so that CPU-based map is still supported
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingMemory;
+    VkCommandBuffer cmd = _context->transferCommandBuffer;
 
-    VkBufferCreateInfo bufInfo{};
-    bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufInfo.size = _dimensions[0] * _dimensions[1] * 4;
-    bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    VkImageLayout currLayout = _layout;
 
-    vkCreateBuffer(gDevice, &bufInfo, nullptr, &stagingBuffer);
+    vkResetCommandBuffer(cmd, 0);
+    _context->beginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    VkMemoryRequirements memReq;
-    vkGetBufferMemoryRequirements(gDevice, stagingBuffer, &memReq);
+    _context->transitionImageLayout(cmd, _image.image, currLayout,
+                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _fmtTokens.writeAccess,
+                                    VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeStage,
+                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.aspect);
 
-    VkMemoryAllocateInfo alloc{};
-    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc.allocationSize = memReq.size;
+    _context->copyImageToBuffer(cmd, _image, *_stagingBuffer, static_cast<uint32_t>(_dimensions[0]),
+                                static_cast<uint32_t>(_dimensions[1]));
 
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(gPhysicalDevice, &memProps);
+    // restore image layout for future passes
+    _context->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                    currLayout, VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
+                                    VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
+                                    _fmtTokens.aspect);
 
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
-    {
-        if ((memReq.memoryTypeBits & (1 << i))
-            && (memProps.memoryTypes[i].propertyFlags
-                & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)))
-        {
-            alloc.memoryTypeIndex = i;
-            break;
-        }
-    }
+    _context->endCommandBuffer(cmd, NPQueueType::TRANSFER);
+    vkQueueWaitIdle(_context->queues[NPQueueType::TRANSFER].queue);
 
-    vkAllocateMemory(gDevice, &alloc, nullptr, &stagingMemory);
-    vkBindBufferMemory(gDevice, stagingBuffer, stagingMemory, 0);
-
-    // copy VkImage to buffer
-    VkCommandBufferAllocateInfo cmdAlloc{};
-    cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdAlloc.commandPool = gCommandPool;
-    cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdAlloc.commandBufferCount = 1;
-
-    VkCommandBuffer cmd;
-    vkAllocateCommandBuffers(gDevice, &cmdAlloc, &cmd);
-
-    VkCommandBufferBeginInfo begin{};
-    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    vkBeginCommandBuffer(cmd, &begin);
-
-    VkBufferImageCopy region{};
-    region.imageExtent = { static_cast<uint32_t>(_dimensions[0]),
-                           static_cast<uint32_t>(_dimensions[1]), 1 };
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.layerCount = 1;
-
-    vkCmdCopyImageToBuffer(cmd, _image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingBuffer, 1,
-                           &region);
-
-    vkEndCommandBuffer(cmd);
-
-    VkSubmitInfo submit{};
-    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &cmd;
-
-    vkQueueSubmit(gQueue, 1, &submit, VK_NULL_HANDLE);
-    vkQueueWaitIdle(gQueue);
-
-    // map memory for i/o
-    void* data;
-    vkMapMemory(gDevice, stagingMemory, 0, VK_WHOLE_SIZE, 0, &data);
-
-    size_t size = _dimensions[0] * _dimensions[1] * 4;
-    _cpuBuffer.resize(size);
-    memcpy(_cpuBuffer.data(), data, size);
-
-    vkUnmapMemory(gDevice, stagingMemory);
-
-    return _cpuBuffer.data();
+    return _stagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
 
 void NPTracerHdRenderBuffer::Unmap()
@@ -236,31 +142,13 @@ VtValue NPTracerHdRenderBuffer::GetResource(bool multiSampled) const
     return VtValue();
 }
 
-VkImage NPTracerHdRenderBuffer::GetVkImage() const
-{
-    return _image;
-}
-
-VkDeviceMemory NPTracerHdRenderBuffer::GetVkDeviceMemory() const
-{
-    return _memory;
-}
-
 void NPTracerHdRenderBuffer::_Deallocate()
 {
-    // reset to default/empty values.
-    if (_image)
-    {
-        vkDestroyImage(gDevice, _image, nullptr);
-        _image = VK_NULL_HANDLE;
-    }
+    // reset to default/empty values
+    _image.destroy(_context->device, _context->allocator);
+    _stagingBuffer->destroy(_context->allocator);
 
-    if (_memory)
-    {
-        vkFreeMemory(gDevice, _memory, nullptr);
-        _memory = VK_NULL_HANDLE;
-    }
-
+    _layout = VK_IMAGE_LAYOUT_UNDEFINED;
     _dimensions = GfVec3i(-1);
     _format = HdFormatInvalid;
 

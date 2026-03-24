@@ -1,10 +1,11 @@
 #pragma once
 
+#include <NPTracerRenderer/structs.h>
+
 #include <pxr/imaging/hd/renderBuffer.h>
-#include <pxr/imaging/hgi/texture.h>
-#include <pxr/imaging/hgi/hgi.h>
-#include <pxr/imaging/hdSt/textureUtils.h>
 #include <pxr/base/gf/vec3i.h>
+
+#include <vulkan/vulkan.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -12,7 +13,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 class NPTracerHdRenderBuffer final : public HdRenderBuffer
 {
 public:
-    NPTracerHdRenderBuffer(const SdfPath& bprimId, Hgi* hgi);
+    NPTracerHdRenderBuffer(const SdfPath& bprimId);
 
     // allocate a new buffer with the given dimensions and format
     virtual bool Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled) override;
@@ -38,16 +39,21 @@ public:
     virtual void Resolve() override;
     
     virtual VtValue GetResource(bool multiSampled) const override;
+    
+    VkImage GetVkImage() const;
+    VkDeviceMemory GetVkDeviceMemory() const;
 
 private:
     // release any allocated resources
     virtual void _Deallocate() override;
     
     // the actual underlying buffer
-    HgiTextureHandle _texture;
-    HdStTextureUtils::AlignedBuffer<uint8_t> _mappedBuffer;
-    
-    Hgi* _hgi = nullptr; // hydra graphics interface
+    VkImage _image = VK_NULL_HANDLE;
+    VkDeviceMemory _memory = VK_NULL_HANDLE;
+    VkFormat _vkFormat = VK_FORMAT_UNDEFINED;
+
+    // staging buffer for CPU readback
+    std::vector<uint8_t> _cpuBuffer;
     
     GfVec3i _dimensions = GfVec3i(-1, -1, -1);
     HdFormat _format = HdFormatInvalid;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
+#include "usd_plugin/NPTracerHdRenderBuffer.h"
 
 #include <NPTracerRenderer/structs.h>
 
@@ -27,9 +28,9 @@ private:
     NPTracerHdRenderDelegate* _delegate;
     
     std::atomic<bool> _converged{false};
-
+    
+    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state, NPTracerHdRenderBuffer* renderBuffer);
     RendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
-    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

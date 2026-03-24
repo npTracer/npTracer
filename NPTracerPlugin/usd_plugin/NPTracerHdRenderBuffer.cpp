@@ -5,8 +5,22 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Hgi* hgi)
-    : HdRenderBuffer(bprimId), _hgi(hgi)
+extern VkDevice gDevice;
+extern VkPhysicalDevice gPhysicalDevice;
+extern VkQueue gQueue;
+extern VkCommandPool gCommandPool;
+
+static VkFormat ConvertHdFormat(HdFormat fmt)
+{
+    switch (fmt)
+    {
+        case HdFormatUNorm8Vec4: return VK_FORMAT_R8G8B8A8_UNORM;
+        case HdFormatFloat32: return VK_FORMAT_D32_SFLOAT;
+        default: return VK_FORMAT_UNDEFINED;
+    }
+}
+
+NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId) : HdRenderBuffer(bprimId)
 {
 }
 
@@ -29,65 +43,56 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     _format = format;
     _multiSampled = multiSampled;
 
-    if (!_hgi) {
-        TF_WARN("Hgi is null in Allocate");
-        return false;
-    }
-
-    // build texture descriptor
-    HgiTextureDesc desc;
-    desc.debugName = GetId().GetString();
-    desc.dimensions = _dimensions;
-    desc.layerCount = 1;
-    desc.mipLevels = 1;
-
-    desc.type = (_dimensions[2] > 1)
-        ? HgiTextureType3D
-        : HgiTextureType2D;
-
-    // convert HdFormat to HgiFormat
-    desc.format = HgiFormatInvalid;
-
-    switch (_format)
+    _vkFormat = ConvertHdFormat(format);
+    if (_vkFormat == VK_FORMAT_UNDEFINED)
     {
-        case HdFormatUNorm8Vec4:
-            desc.format = HgiFormatUNorm8Vec4;
-            break;
-        case HdFormatFloat32:
-            desc.format = HgiFormatFloat32;
-            break;
-        default:
-            TF_WARN("Unsupported HdFormat for NPTracer: %d", _format);
-            return false;
-    }
-
-    // extract usage flags
-    if (HdAovHasDepthSemantic(GetId().GetNameToken())) {
-        desc.usage =
-            HgiTextureUsageBitsDepthTarget |
-            HgiTextureUsageBitsShaderRead;
-    } else {
-        desc.usage =
-            HgiTextureUsageBitsColorTarget |
-            HgiTextureUsageBitsShaderRead;
-    }
-
-    desc.sampleCount = HgiSampleCount1;
-
-    // create GPU texture
-    _texture = _hgi->CreateTexture(desc);
-
-    if (!_texture) {
-        TF_DEBUG(NPTRACER_RENDER).Msg("Failed to create HgiTexture");
         return false;
     }
-    
-    _dimensions = dimensions;
-    _format = format;
+
+    // create VkImage
+    VkImageCreateInfo imgInfo{};
+    imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imgInfo.imageType = VK_IMAGE_TYPE_2D;
+    imgInfo.extent = { static_cast<uint32_t>(dimensions[0]), static_cast<uint32_t>(dimensions[1]), 1 };
+    imgInfo.mipLevels = 1;
+    imgInfo.arrayLayers = 1;
+    imgInfo.format = _vkFormat;
+    imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imgInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                    | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;  // for readback
+    imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    vkCreateImage(gDevice, &imgInfo, nullptr, &_image);
+
+    // allocate memory
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(gDevice, _image, &memReq);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+
+    // find memory type
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(gPhysicalDevice, &memProps);
+
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
+    {
+        if ((memReq.memoryTypeBits & (1 << i))
+            && (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        {
+            allocInfo.memoryTypeIndex = i;
+            break;
+        }
+    }
+
+    vkAllocateMemory(gDevice, &allocInfo, nullptr, &_memory);
+    vkBindImageMemory(gDevice, _image, _memory, 0);
 
     TF_DEBUG(NPTRACER_RENDER)
         .Msg("[%s] Render buffer: id=%s, size=%llu\n", TF_FUNC_NAME().c_str(), GetId().GetText(),
-             _texture->GetByteSizeOfResource());
+             memReq.size);
 
     return true;
 }
@@ -120,14 +125,91 @@ bool NPTracerHdRenderBuffer::IsMultiSampled() const
 void* NPTracerHdRenderBuffer::Map()
 {
     _mappers.fetch_add(1);
-    if (!_hgi) {
-        return nullptr;
+
+    // create a staging buffer so that CPU-based map is still supported
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+
+    VkBufferCreateInfo bufInfo{};
+    bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufInfo.size = _dimensions[0] * _dimensions[1] * 4;
+    bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+    vkCreateBuffer(gDevice, &bufInfo, nullptr, &stagingBuffer);
+
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(gDevice, stagingBuffer, &memReq);
+
+    VkMemoryAllocateInfo alloc{};
+    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc.allocationSize = memReq.size;
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(gPhysicalDevice, &memProps);
+
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
+    {
+        if ((memReq.memoryTypeBits & (1 << i))
+            && (memProps.memoryTypes[i].propertyFlags
+                & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)))
+        {
+            alloc.memoryTypeIndex = i;
+            break;
+        }
     }
 
-    size_t size = 0;
-    _mappedBuffer = HdStTextureUtils::HgiTextureReadback(_hgi, _texture, &size);
+    vkAllocateMemory(gDevice, &alloc, nullptr, &stagingMemory);
+    vkBindBufferMemory(gDevice, stagingBuffer, stagingMemory, 0);
 
-    return _mappedBuffer.get();
+    // copy VkImage to buffer
+    VkCommandBufferAllocateInfo cmdAlloc{};
+    cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAlloc.commandPool = gCommandPool;
+    cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdAlloc.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(gDevice, &cmdAlloc, &cmd);
+
+    VkCommandBufferBeginInfo begin{};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(cmd, &begin);
+
+    VkBufferImageCopy region{};
+    region.imageExtent = { static_cast<uint32_t>(_dimensions[0]), static_cast<uint32_t>(_dimensions[1]), 1 };
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.layerCount = 1;
+    
+    vkCmdCopyImageToBuffer(
+        cmd,
+        _image,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        stagingBuffer,
+        1,
+        &region
+    );
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit{};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+
+    vkQueueSubmit(gQueue, 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(gQueue);
+    
+    // map memory for i/o
+    void* data;
+    vkMapMemory(gDevice, stagingMemory, 0, VK_WHOLE_SIZE, 0, &data);
+
+    size_t size = _dimensions[0] * _dimensions[1] * 4;
+    _cpuBuffer.resize(size);
+    memcpy(_cpuBuffer.data(), data, size);
+
+    vkUnmapMemory(gDevice, stagingMemory);
+
+    return _cpuBuffer.data();
 }
 
 void NPTracerHdRenderBuffer::Unmap()
@@ -157,17 +239,30 @@ void NPTracerHdRenderBuffer::Resolve()
 
 VtValue NPTracerHdRenderBuffer::GetResource(bool multiSampled) const
 {
-    return VtValue(_texture);
+    return VtValue();
+}
+
+VkImage NPTracerHdRenderBuffer::GetVkImage() const
+{
+    return _image;
+}
+
+VkDeviceMemory NPTracerHdRenderBuffer::GetVkDeviceMemory() const
+{
+    return _memory;
 }
 
 void NPTracerHdRenderBuffer::_Deallocate()
 {
-    TF_VERIFY(!IsMapped());
-
     // reset to default/empty values.
-    if (_texture)
-    {
-        _texture = HgiTextureHandle();
+    if (_image) {
+        vkDestroyImage(gDevice, _image, nullptr);
+        _image = VK_NULL_HANDLE;
+    }
+
+    if (_memory) {
+        vkFreeMemory(gDevice, _memory, nullptr);
+        _memory = VK_NULL_HANDLE;
     }
 
     _dimensions = GfVec3i(-1);

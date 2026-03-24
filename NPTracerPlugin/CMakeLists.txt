@@ -23,18 +23,6 @@ set(PLUG_INFO_JSON_OUT_PATH "${CUSTOM_USD_DSO_PATH}/plugInfo.json")
 
 add_subdirectory(usd_plugin)
 
-# these libs are not added by `houdini_configure_target` by default
-set(PXR_EXTRA_LIBS
-    hgi
-    hdSt
-)
-if (WIN32)
-    list(TRANSFORM PXR_EXTRA_LIBS PREPEND "${HOUDINI_LIB_PATH}/libpxr_" OUTPUT_VARIABLE PXR_EXTRA_LIBS)
-else()
-    list(TRANSFORM PXR_EXTRA_LIBS PREPEND "${HOUDINI_LIB_PATH}/pxr_" OUTPUT_VARIABLE PXR_EXTRA_LIBS)
-endif()
-list(TRANSFORM PXR_EXTRA_LIBS APPEND ".lib" OUTPUT_VARIABLE PXR_EXTRA_LIBS)
-
 set(CURR_SOURCES
     "${NPTracerPlugin_ROOT_DIR}/plugin.cpp"
     ${USD_PLUG_SOURCES}
@@ -49,7 +37,6 @@ add_library(${PROJECT_NAME} SHARED ${CURR_SOURCES} ${CURR_HEADERS})
 target_link_libraries(${PROJECT_NAME} 
     Houdini 
     HoudiniThirdParty
-    ${PXR_EXTRA_LIBS}
     ${RENDERER_TARGET_NAME}
 )
 

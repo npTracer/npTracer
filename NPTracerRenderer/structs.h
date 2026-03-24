@@ -220,15 +220,14 @@ struct RendererPayload
 struct VkRenderTarget
 {
     VkImage image;
-    VkImageView view;
     VkFormat format;
     uint32_t width;
     uint32_t height;
-    VkImageLayout layout;
 };
 
 struct VkRendererAovs
 {
     VkRenderTarget color;
-    // depth, normals? in the future
+    VkRenderTarget depth;
+    // normals? in the future
 };

@@ -10,7 +10,7 @@ public:
     Scene();
     ~Scene();
 
-    void addMesh(const NPMesh& mesh);
+    NPMesh* addMesh();
     bool removeMesh(const uint32_t& objectId);
 
     inline const std::vector<NPMesh>& getMeshes() const
@@ -18,19 +18,14 @@ public:
         return _meshes;
     }
 
-    inline NPCameraRecord* getCamera()
-    {
-        return &_camera;
-    }
-
-    inline void setCamera(NPCameraRecord& camera)
-    {
-        _camera = camera;
-    }
-
     inline const std::vector<NPLight>& getLights() const
     {
         return _lights;
+    }
+
+    inline NPCameraRecord* getCamera()
+    {
+        return &_camera;
     }
 
 private:

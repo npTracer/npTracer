@@ -37,7 +37,7 @@ protected:
 
 private:
     NPTracerHdRenderDelegate* _pCreator;
-    std::unique_ptr<NPMesh> _pMesh;
+    NPMesh* _pMesh = nullptr;
 
     void _UpdateInScene(HdSceneDelegate* delegate);
     void _AddToScene();

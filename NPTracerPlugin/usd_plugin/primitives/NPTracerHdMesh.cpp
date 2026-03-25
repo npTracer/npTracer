@@ -70,11 +70,9 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
         return;  // do not add to scene if it is not visible
     }
 
-    _pMesh = std::make_unique<NPMesh>(id.GetHash(), id.GetAsString());
-
-    sConstructMesh(id, delegate, _pMesh.get());
-
     _AddToScene();
+
+    sConstructMesh(id, delegate, _pMesh);
 }
 
 void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate, NPMesh* outMesh)
@@ -136,7 +134,7 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
         {
             TF_WARN("Primvar UVs were found for %s but count of %i does not match "
                     "flattened index count of %i.",
-                    id.GetString(), uvValue.GetArraySize(), flattenedCount);
+                    id.GetString().c_str(), uvValue.GetArraySize(), flattenedCount);
         }
     }
 
@@ -160,7 +158,7 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
         {
             TF_WARN("Primvar normals were found for %s but count of %i does not match "
                     "flattened index count of %i.",
-                    id.GetString(), normalsValue.GetArraySize(), flattenedCount);
+                    id.GetString().c_str(), normalsValue.GetArraySize(), flattenedCount);
         }
     }
 
@@ -229,12 +227,14 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
 void NPTracerHdMesh::_AddToScene()
 {
     Scene* scene = _pCreator->GetScene();
-    if (scene && _pMesh)
+    if (scene)
     {
-        scene->addMesh(*_pMesh);
-        _pMesh = nullptr;
+        const SdfPath& id = GetId();
+        _pMesh = scene->addMesh();
+        _pMesh->objectId = id.GetHash();
+        _pMesh->scenePath = id.GetString();
 
-        NP_DBG("Added mesh '%s' to scene", GetId().GetAsString());
+        NP_DBG("Added mesh '%s' to scene", id.GetAsString().c_str());
     }
 }
 
@@ -246,7 +246,7 @@ void NPTracerHdMesh::_RemoveFromScene()
         bool removed = scene->removeMesh(_pMesh->objectId);
         _pMesh = nullptr;
 
-        NP_DBG("Removed mesh '%s' from scene: %b", GetId().GetAsString(), removed);
+        NP_DBG("Removed mesh '%s' from scene: %b", GetId().GetAsString().c_str(), removed);
     }
 }
 

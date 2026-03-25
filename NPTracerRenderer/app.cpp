@@ -63,7 +63,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     NPCameraRecord* cam = scene->getCamera();
 
     cameraRecordCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
-                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+                                                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     // create light buffer
     bool lightRecordCreated = false;
@@ -80,8 +80,9 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     }
 
     VkDeviceSize lightSize = sizeof(GPULight) * gpuLights.size();
-    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(), lightSize,
-                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(),
+                                                         lightSize,
+                                                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // CREATE EVERYTHING
     if (meshRecordCreated)

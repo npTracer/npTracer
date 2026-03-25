@@ -235,8 +235,6 @@ struct NPMesh
             vertices.push_back(v);
         }
     }
-
-    NPMesh(uint64_t objectId, NPScenePath scenePath) : objectId(objectId), scenePath(scenePath) {};
 };
 
 enum class NPLightType : uint8_t

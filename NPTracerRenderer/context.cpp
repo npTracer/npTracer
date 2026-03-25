@@ -468,8 +468,8 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
 {
     NPBuffer stagingBuffer;
     if (!createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-        | VMA_ALLOCATION_CREATE_MAPPED_BIT))
+                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                          | VMA_ALLOCATION_CREATE_MAPPED_BIT))
     {
         return false;
     }

@@ -4,9 +4,10 @@ Scene::Scene() {}
 
 Scene::~Scene() {}
 
-void Scene::addMesh(const NPMesh& mesh)
+NPMesh* Scene::addMesh()
 {
-    _meshes.push_back(mesh);
+    _meshes.push_back({});
+    return &_meshes.back();
 }
 
 bool Scene::removeMesh(const uint32_t& objectId)

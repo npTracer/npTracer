@@ -11,7 +11,7 @@ public:
     ~Scene();
 
     void addMesh(const NPMesh& mesh);
-    bool removeMesh(const uint32_t& id);
+    bool removeMesh(const uint32_t& objectId);
 
     inline const std::vector<NPMesh>& getMeshes() const
     {

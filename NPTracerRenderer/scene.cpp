@@ -9,10 +9,10 @@ void Scene::addMesh(const NPMesh& mesh)
     _meshes.push_back(mesh);
 }
 
-bool Scene::removeMesh(const uint32_t& id)
+bool Scene::removeMesh(const uint32_t& objectId)
 {
     auto it = std::find_if(_meshes.begin(), _meshes.end(),
-                           [&id](const NPMesh& mesh) { return mesh.id == id; });
+                           [&objectId](const NPMesh& mesh) { return mesh.objectId == objectId; });
 
     bool found = it != _meshes.end();
     if (found)

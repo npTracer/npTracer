@@ -75,9 +75,7 @@ public:
 private:
     void _Initialize();
 
-    const TfTokenVector SUPPORTED_RPRIM_TYPES = {
-        HdPrimTypeTokens->mesh, HdPrimTypeTokens->light
-    };  // renderable primitives
+    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };  // renderable primitives
     const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera };  // state prims
     const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
 

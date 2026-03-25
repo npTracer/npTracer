@@ -23,13 +23,8 @@ public:
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
     VmaAllocator allocator = VK_NULL_HANDLE;
-
-    // swapchain
-    VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    NPSwapchainParams swapchainParams;
-    std::vector<NPImage> swapchainImages;
     NPImage depthImage;
-    std::vector<VkSemaphore> doneRenderingSemaphores;
+    VkFormat depthFormat;
     std::vector<NPFrame> frames;
 
     // queues
@@ -37,19 +32,15 @@ public:
     std::array<uint32_t, 2> queueFamilyIndices;
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
-    // vulkan
     void setFrameCount(const int frameCount)
     {
         FRAME_COUNT = frameCount;
     }
 
-    void createWindow(GLFWwindow*& window, int width, int height);
     void createInstance(bool enableDebug);
-    void createSurface(GLFWwindow* window);
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
     void createAllocator();
-    void createSwapchain(GLFWwindow* window);
     void createSyncAndFrameObjects();
 
     // command buffers
@@ -69,7 +60,7 @@ public:
                      uint32_t height, VkImageUsageFlags usage,
                      VmaAllocationCreateFlags allocationFlags, bool shouldCreateView = true) const;
     void createTextureImage(NPImage& handle);
-    void createDepthImage();
+    void createDepthImage(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                            uint32_t width, uint32_t height);
@@ -85,9 +76,6 @@ public:
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);
 
-    void recreateSwapchain(GLFWwindow* window);
-    void cleanupSwapchain();
-
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
     void waitIdle();
     void destroyDebugMessenger();
@@ -102,6 +90,4 @@ private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 };

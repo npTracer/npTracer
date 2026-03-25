@@ -57,9 +57,9 @@ void App::createRenderingResources(NPRendererAovs& aovs)
 
     // create camera buffer
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
-    const NPCameraRecord cam = scene->getCamera();
+    NPCameraRecord* cam = scene->getCamera();
 
-    context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
+    context.createDeviceLocalBuffer(cameraRecordBuffer, cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     // CREATE MESH DESCRIPTOR SET LAYOUT

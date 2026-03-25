@@ -1,6 +1,7 @@
 #include "usd_plugin/NPTracerHdRenderPass.h"
 
 #include "usd_plugin/debugCodes.h"
+#include "usd_plugin/hdMathUtils.h"
 
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/base/gf/camera.h>
@@ -22,7 +23,10 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
                                     TfTokenVector const& renderTags)
 {
     this->SetConverged(false);
+
     App* app = _pCreator->GetRendererApp();
+    NPCameraRecord* cam = app->getScene()->getCamera();
+    _SyncCamera(renderPassState, cam);
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
@@ -75,6 +79,15 @@ bool NPTracerHdRenderPass::IsConverged() const
 void NPTracerHdRenderPass::SetConverged(bool converged)
 {
     _converged.store(converged);
+}
+
+void NPTracerHdRenderPass::_SyncCamera(HdRenderPassStateSharedPtr const& renderPassState,
+                                       NPCameraRecord* outCam) const
+{
+    HdCamera const* hdCam = renderPassState->GetCamera();
+    outCam->model = GfMatrix4fToGLM(GfMatrix4f(hdCam->GetTransform()));
+    outCam->view = GfMatrix4fToGLM(GfMatrix4f(renderPassState->GetWorldToViewMatrix()));
+    outCam->proj = GfMatrix4fToGLM(GfMatrix4f(renderPassState->GetProjectionMatrix()));
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

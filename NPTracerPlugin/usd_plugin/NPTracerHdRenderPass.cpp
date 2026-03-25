@@ -4,7 +4,6 @@
 #include "usd_plugin/hdMathUtils.h"
 
 #include <pxr/imaging/hd/camera.h>
-#include <pxr/base/gf/camera.h>
 #include <pxr/imaging/hd/renderPassState.h>
 #include <pxr/imaging/hd/renderBuffer.h>
 
@@ -32,7 +31,7 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
     NPRendererAovs payload;
 
-    static std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
+    std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
     dirtyBuffers.clear();
 
     for (HdRenderPassAovBinding const& binding : aovBindings)
@@ -85,9 +84,9 @@ void NPTracerHdRenderPass::_SyncCamera(HdRenderPassStateSharedPtr const& renderP
                                        NPCameraRecord* outCam) const
 {
     HdCamera const* hdCam = renderPassState->GetCamera();
-    outCam->model = GfMatrix4fToGLM(GfMatrix4f(hdCam->GetTransform()));
-    outCam->view = GfMatrix4fToGLM(GfMatrix4f(renderPassState->GetWorldToViewMatrix()));
-    outCam->proj = GfMatrix4fToGLM(GfMatrix4f(renderPassState->GetProjectionMatrix()));
+    outCam->model = GfMatrix4dToGLM(hdCam->GetTransform());
+    outCam->view = GfMatrix4dToGLM(renderPassState->GetWorldToViewMatrix());
+    outCam->proj = GfMatrix4dToGLM(renderPassState->GetProjectionMatrix());
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

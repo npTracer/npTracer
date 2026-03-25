@@ -77,7 +77,7 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
 
 void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate, NPMesh* outMesh)
 {
-    FLOAT4X4 xform = GfMatrix4fToGLM(GfMatrix4f(delegate->GetTransform(id)));
+    FLOAT4X4 xform = GfMatrix4dToGLM(delegate->GetTransform(id));
 
     outMesh->objectToWorld = xform;
     outMesh->worldToObject = glm::inverse(xform);
@@ -169,23 +169,16 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
     outMesh->_normals.resize(flattenedCount);
     outMesh->_uvs.resize(flattenedCount);
 
-    int maxAllowedIndex = static_cast<int>(indexedPositions.size());
+    int maxAllowedIndex = static_cast<int>(indexedPositions.size()) - 1;
 
     // flatten all vertex data
-    for (size_t i = 0; i < tris.size(); ++i)
+    for (size_t i = 0; i < tris.size(); i++)
     {
         const GfVec3i& tri = tris[i];
 
-        int t0 = tri[0];
-        int t1 = tri[1];
-        int t2 = tri[2];
-
-        if (t0 >= maxAllowedIndex || t1 >= maxAllowedIndex || t2 >= maxAllowedIndex)
-        {
-            TF_WARN("Triangle indices out of bounds (%i) in mesh %s: (%i, %i, %i)",
-                    id.GetString().c_str(), maxAllowedIndex, t0, t1, t2);
-            continue;
-        }
+        int t0 = std::min(maxAllowedIndex, tri[0]);
+        int t1 = std::min(maxAllowedIndex, tri[1]);
+        int t2 = std::min(maxAllowedIndex, tri[2]);
 
         int flatIdx0 = i * 3 + 0;
         int flatIdx1 = i * 3 + 1;

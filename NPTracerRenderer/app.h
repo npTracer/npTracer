@@ -51,8 +51,6 @@ private:
     std::vector<VkDescriptorSet> descriptorSets;
 
     std::unique_ptr<Scene> scene;
-    std::vector<NPMeshRecord> meshRecords;
-    std::vector<NPLight> lightRecords;
 
     NPBuffer meshRecordBuffer;
     NPBuffer lightRecordBuffer;

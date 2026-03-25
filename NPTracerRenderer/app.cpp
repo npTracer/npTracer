@@ -13,7 +13,7 @@ void App::create()
     context.createLogicalDeviceAndQueues();
     context.createAllocator();
     context.createSyncAndFrameObjects();
-    context.createDepthImage(WIDTH, HEIGHT); // TODO pass actual depth aov target
+    context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
 }
 
 // RESOURCE CREATION
@@ -22,8 +22,12 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     uint32_t vbCount = 0;
     uint32_t ibCount = 0;
 
-    for (const NPMesh& mesh : scene->getMeshes())
+    const size_t meshCount = scene->getMeshCount();
+    std::vector<NPMeshRecord> meshRecords;
+    meshRecords.reserve(meshCount);
+    for (int i = 0; i < meshCount; i++)
     {
+        NPMesh const* mesh = scene->getMeshAtIndex(i);
         NPMeshRecord meshRecord{};
         meshRecord.vbIdx = vbCount++;
         meshRecord.ibIdx = ibCount++;
@@ -31,7 +35,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         NPBuffer vertexBuffer;
         NPBuffer indexBuffer;
 
-        const std::vector<NPVertex>& vertices = mesh.vertices;
+        const std::vector<NPVertex>& vertices = mesh->vertices;
         VkDeviceSize vbSize = sizeof(vertices[0]) * vertices.size();
         context.createDeviceLocalBuffer(vertexBuffer, const_cast<NPVertex*>(vertices.data()),
                                         vbSize,
@@ -39,8 +43,8 @@ void App::createRenderingResources(NPRendererAovs& aovs)
                                             | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         vertexBuffers.push_back(vertexBuffer);
 
-        VkDeviceSize ibSize = sizeof(mesh.indices[0]) * mesh.indices.size();
-        context.createDeviceLocalBuffer(indexBuffer, (void*)mesh.indices.data(), ibSize,
+        VkDeviceSize ibSize = sizeof(mesh->indices[0]) * mesh->indices.size();
+        context.createDeviceLocalBuffer(indexBuffer, (void*)mesh->indices.data(), ibSize,
                                         VK_BUFFER_USAGE_INDEX_BUFFER_BIT
                                             | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         indexBuffers.push_back(indexBuffer);
@@ -64,20 +68,21 @@ void App::createRenderingResources(NPRendererAovs& aovs)
 
     // create light buffer
     bool lightRecordCreated = false;
-    lightRecords = scene->getLights();
-    std::vector<GPULight> gpuLights;
-    gpuLights.reserve(static_cast<uint32_t>(lightRecords.size()));
-    for (const auto& light : lightRecords)
+    const size_t lightCount = scene->getLightCount();
+    std::vector<NPLightRecord> lightRecords;
+    lightRecords.reserve(lightCount);
+    for (int i = 0; i < lightCount; i++)
     {
-        GPULight gpuLight;
-        gpuLight.transform = light.transform;
-        gpuLight.intensity = light.intensity;
-        gpuLight.color = light.color;
-        gpuLights.push_back(gpuLight);
+        NPLight const* light = scene->getLightAtIndex(i);
+        NPLightRecord lightRecord;
+        lightRecord.transform = light->transform;
+        lightRecord.intensity = light->intensity;
+        lightRecord.color = light->color;
+        lightRecords.push_back(lightRecord);
     }
 
-    VkDeviceSize lightSize = sizeof(GPULight) * gpuLights.size();
-    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(),
+    VkDeviceSize lightSize = sizeof(NPLightRecord) * lightRecords.size();
+    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, lightRecords.data(),
                                                          lightSize,
                                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
@@ -595,12 +600,7 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
 
-    VkViewport viewport{ 0.0f,
-                         0.0f,
-                         (float)extent.width,
-                         (float)extent.height,
-                         0.0f,
-                         1.0f };
+    VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
 
     VkRect2D scissor{ { 0, 0 }, extent };
 
@@ -611,11 +611,10 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
                             descriptorSets.data(), 0, nullptr);
 
-    const std::vector<NPMesh>& meshes = scene->getMeshes();
-    for (size_t i = 0; i < meshRecords.size(); i++)
+    for (size_t i = 0; i < scene->getMeshCount(); i++)
     {
-        const NPMesh& mesh = meshes[i];
-        vkCmdDraw(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, i);
+        NPMesh const* mesh = scene->getMeshAtIndex(i);
+        vkCmdDraw(commandBuffer, static_cast<uint32_t>(mesh->indices.size()), 1, 0, i);
     }
 
     vkCmdEndRendering(commandBuffer);

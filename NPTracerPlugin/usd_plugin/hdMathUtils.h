@@ -11,6 +11,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 #define GfVec4ToGLM(_gfVecPtr) (glm::make_vec4(reinterpret_cast<const float*>(_gfVecPtr.data())))
 #define GfMatrix4fToGLM(_gfMatPtr)                                                                 \
     (glm::make_mat4(reinterpret_cast<const float*>(_gfMatPtr.data())))
+#define GfMatrix4dToGLM(_gfMatPtr) (GfMatrix4fToGLM(GfMatrix4f(_gfMatPtr)))
 #define VtVec2fArrayToGLM(_gfArrPtr)                                                               \
     (std::vector<FLOAT2>(reinterpret_cast<const FLOAT2*>(_gfArrPtr.data()),                        \
                          reinterpret_cast<const FLOAT2*>(_gfArrPtr.data()) + _gfArrPtr.size()))

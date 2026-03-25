@@ -281,7 +281,7 @@ struct NPRenderSettings
 
 struct NPRendererAovs
 {
-    NPImage color;
-    NPImage depth;
+    NPImage* color;
+    NPImage* depth;
     // normals?
 };

@@ -64,5 +64,5 @@ private:
     void createGraphicsPipeline(NPPipeline& pipeline,
                                 std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
                                 NPRendererAovs& aovs);
-    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget);
+    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
 };

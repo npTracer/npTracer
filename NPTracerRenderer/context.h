@@ -67,7 +67,7 @@ public:
     // images
     void createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                      uint32_t height, VkImageUsageFlags usage,
-                     VmaAllocationCreateFlags allocationFlags);
+                     VmaAllocationCreateFlags allocationFlags, bool shouldCreateView = true) const;
     void createTextureImage(NPImage& handle);
     void createDepthImage();
     void createTextureSampler(VkSampler& sampler);

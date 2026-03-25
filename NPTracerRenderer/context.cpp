@@ -493,7 +493,7 @@ void Context::copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size)
 // IMAGES
 void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                           uint32_t height, VkImageUsageFlags usage,
-                          VmaAllocationCreateFlags allocationFlags)
+                          VmaAllocationCreateFlags allocationFlags, bool shouldCreateView) const
 {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -517,9 +517,29 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     {
         throw std::runtime_error("failed to create image!");
     }
+
     handle.width = width;
     handle.height = height;
     handle.format = format;
+
+    if (!shouldCreateView)
+    {
+        return;  // good to return early here
+    }
+
+    // create view
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = handle.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = handle.format;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
 void Context::createTextureImage(NPImage& handle)
@@ -565,20 +585,6 @@ void Context::createTextureImage(NPImage& handle)
     handle.width = width;
     handle.height = height;
     handle.format = VK_FORMAT_R8G8B8A8_SRGB;
-
-    // view creation
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = handle.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = handle.format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-
-    vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 
     vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);

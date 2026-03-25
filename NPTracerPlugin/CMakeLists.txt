@@ -42,6 +42,10 @@ target_link_libraries(${PROJECT_NAME}
 
 # install directly to `CUSTOM_USD_DSO_PATH`
 houdini_configure_target(${PROJECT_NAME} INSTDIR "${CUSTOM_USD_DSO_PATH}")
+if(DEFINED INSTALL_HELPER_TARGET_NAME)
+    add_dependencies(${PROJECT_NAME} ${INSTALL_HELPER_TARGET_NAME})
+endif()
+
 ConfigureFilePostBuild(${PROJECT_NAME}
     IN_PATH
         "${PLUG_INFO_JSON_IN_PATH}"
@@ -68,6 +72,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${NPTracerPlugin_ROOT_DIR}")
 
 # set a compile definition for whether debugging is enabled
 target_compile_definitions(${PROJECT_NAME} PUBLIC "NPTRACER_DEBUG=$<BOOL:${NPTracerPlugin_USD_PLUG_DEBUG}>")
+
+SetupInstallationAfterBuild(${PROJECT_NAME})
 
 # set some useful VS settings for QOL
 if(CMAKE_GENERATOR MATCHES "Visual Studio")

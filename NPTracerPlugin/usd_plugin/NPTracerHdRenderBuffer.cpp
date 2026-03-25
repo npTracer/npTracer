@@ -107,7 +107,8 @@ void* NPTracerHdRenderBuffer::Map()
     _pCtx->endCommandBuffer(cmd, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
 
-    return _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
+    auto test = _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
+    return test;
 }
 
 void NPTracerHdRenderBuffer::Unmap()

@@ -227,7 +227,7 @@ void NPTracerHdMesh::_AddToScene()
         _pMesh->objectId = id.GetHash();
         _pMesh->scenePath = id.GetString();
 
-        NP_DBG("Added mesh '%s' to scene", id.GetAsString().c_str());
+        NP_DBG("Added mesh '%s' to scene\n", id.GetAsString().c_str());
     }
 }
 
@@ -239,7 +239,7 @@ void NPTracerHdMesh::_RemoveFromScene()
         bool removed = scene->removeMesh(_pMesh->objectId);
         _pMesh = nullptr;
 
-        NP_DBG("Removed mesh '%s' from scene: %b", GetId().GetAsString().c_str(), removed);
+        NP_DBG("Removed mesh '%s' from scene: %b\n", GetId().GetAsString().c_str(), removed);
     }
 }
 

@@ -131,14 +131,6 @@ struct NPDescriptorSetLayout
     }
 };
 
-struct NPSwapchainParams
-{
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR presentMode;
-    VkExtent2D extent;
-    VkFormat depthFormat;
-};
-
 struct NPFrame
 {
     VkSemaphore donePresentingSemaphore;

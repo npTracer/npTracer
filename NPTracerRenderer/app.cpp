@@ -8,15 +8,12 @@ void App::create()
 
     // create vulkan basics
     context.setFrameCount(FRAME_COUNT);
-    context.createWindow(window, WIDTH, HEIGHT);
     context.createInstance(enableDebug);
-    context.createSurface(window);
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
     context.createAllocator();
-    context.createSwapchain(window);
     context.createSyncAndFrameObjects();
-    context.createDepthImage();
+    context.createDepthImage(WIDTH, HEIGHT); // TODO pass actual depth aov target
 }
 
 // RESOURCE CREATION
@@ -482,7 +479,7 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachmentFormats = &aovs.color->format;
-    renderingInfo.depthAttachmentFormat = context.swapchainParams.depthFormat;
+    renderingInfo.depthAttachmentFormat = context.depthFormat;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -565,6 +562,11 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     VkClearValue clearDepth{};
     clearDepth.depthStencil = { 1.0f, 0 };
 
+    // TODO pass in image params
+    VkExtent2D extent{};
+    extent.width = WIDTH;
+    extent.height = HEIGHT;
+
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachmentInfo.imageView = renderTarget->view;
@@ -584,7 +586,7 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderingInfo.renderArea.offset = { 0, 0 };
-    renderingInfo.renderArea.extent = context.swapchainParams.extent;
+    renderingInfo.renderArea.extent = extent;
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachmentInfo;
@@ -595,12 +597,12 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
 
     VkViewport viewport{ 0.0f,
                          0.0f,
-                         (float)context.swapchainParams.extent.width,
-                         (float)context.swapchainParams.extent.height,
+                         (float)extent.width,
+                         (float)extent.height,
                          0.0f,
                          1.0f };
 
-    VkRect2D scissor{ { 0, 0 }, context.swapchainParams.extent };
+    VkRect2D scissor{ { 0, 0 }, extent };
 
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);

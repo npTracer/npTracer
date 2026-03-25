@@ -51,13 +51,13 @@ private:
     std::vector<VkDescriptorSet> descriptorSets;
 
     std::unique_ptr<Scene> scene;
+    std::vector<uint32_t> indexCounts;
 
     NPBuffer meshRecordBuffer;
     NPBuffer lightRecordBuffer;
+    NPBuffer cameraRecordBuffer;
     std::vector<NPBuffer> vertexBuffers;
     std::vector<NPBuffer> indexBuffers;
-
-    NPBuffer cameraRecordBuffer;
 
     // resource creation
     void createRenderingResources(NPRendererAovs& aovs);

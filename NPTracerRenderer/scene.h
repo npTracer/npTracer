@@ -23,6 +23,11 @@ public:
         return _camera;
     }
 
+    inline const std::vector<NPLight>& getLights() const
+    {
+        return _lights;
+    }
+
 private:
     std::vector<NPMesh> _meshes;
     std::vector<NPLight> _lights;

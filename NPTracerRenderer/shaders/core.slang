@@ -18,6 +18,13 @@ struct Camera
     float4x4 proj;
 };
 
+struct Light
+{
+    float4x4 matrix;
+    float3 color;
+    float intensity;
+};
+
 struct VertexOutput
 {
     float4 pos : SV_Position;
@@ -38,6 +45,10 @@ StructuredBuffer<uint> indexBuffers[];
 // set 1
 [[vk::binding(0, 1)]]
 ConstantBuffer<Camera> cam;
+
+// set 2
+[[vk::binding(0, 2)]]
+StructuredBuffer<Light> lights;
 
 [shader("vertex")]
 VertexOutput vertMain(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)

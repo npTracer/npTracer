@@ -52,8 +52,10 @@ private:
 
     std::unique_ptr<Scene> scene;
     std::vector<NPMeshRecord> meshRecords;
+    std::vector<NPLight> lightRecords;
 
     NPBuffer meshRecordBuffer;
+    NPBuffer lightRecordBuffer;
     std::vector<NPBuffer> vertexBuffers;
     std::vector<NPBuffer> indexBuffers;
 

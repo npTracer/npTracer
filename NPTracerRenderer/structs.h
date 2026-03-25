@@ -245,6 +245,14 @@ enum class NPLightType : uint8_t
     AREA
 };
 
+struct GPULight
+{
+    FLOAT4X4 transform;
+
+    FLOAT3 color;
+    float intensity;
+};
+
 struct NPLight
 {
     NPLightType type;

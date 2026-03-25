@@ -62,6 +62,22 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
+    lightRecords = scene->getLights();
+    std::vector<GPULight> gpuLights;
+    gpuLights.reserve(static_cast<uint32_t>(lightRecords.size()));
+    for (const auto& light : lightRecords)
+    {
+        GPULight gpuLight;
+        gpuLight.transform = light.transform;
+        gpuLight.intensity = light.intensity;
+        gpuLight.color = light.color;
+        gpuLights.push_back(gpuLight);
+    }
+
+    VkDeviceSize lightSize = sizeof(GPULight) * gpuLights.size();
+    context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(), lightSize,
+                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
     // CREATE MESH DESCRIPTOR SET LAYOUT
 
     NPDescriptorSetLayout meshDescriptorSetLayout;
@@ -170,9 +186,48 @@ void App::createRenderingResources(NPRendererAovs& aovs)
                            &cameraDescriptorSetLayout.pool);
     descriptorSetLayouts.emplace_back(cameraDescriptorSetLayout);
 
-    // DESCRIPTOR SET CREATION
+    // CREATE LIGHT DESCRIPTOR SET LAYOUT
+
+    NPDescriptorSetLayout lightDescriptorSetLayout;
+    VkDescriptorSetLayoutBinding lightBinding{};
+    lightBinding.binding = 0;
+    lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    lightBinding.descriptorCount = 1;
+    lightBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+    lightBinding.pImmutableSamplers = nullptr;
+
+    std::vector<VkDescriptorSetLayoutBinding> lightBindings{ lightBinding };
+
+    VkDescriptorSetLayoutCreateInfo lightLayoutInfo{};
+    lightLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    lightLayoutInfo.bindingCount = static_cast<uint32_t>(lightBindings.size());
+    lightLayoutInfo.pBindings = lightBindings.data();
+
+    vkCreateDescriptorSetLayout(context.device, &lightLayoutInfo, nullptr,
+                                &lightDescriptorSetLayout.layout);
+
+    VkDescriptorPoolSize lightPoolSize{};
+    lightPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    lightPoolSize.descriptorCount = 1;
+
+    std::vector<VkDescriptorPoolSize> lightPoolSizes{ {
+        lightPoolSize,
+    } };
+
+    VkDescriptorPoolCreateInfo lightPoolInfo{};
+    lightPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    lightPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    lightPoolInfo.maxSets = 1;
+    lightPoolInfo.poolSizeCount = static_cast<uint32_t>(lightPoolSizes.size());
+    lightPoolInfo.pPoolSizes = lightPoolSizes.data();
+
+    vkCreateDescriptorPool(context.device, &lightPoolInfo, nullptr, &lightDescriptorSetLayout.pool);
+    descriptorSetLayouts.emplace_back(lightDescriptorSetLayout);
+
+    // DESCRIPTOR SET ALLOCATION
     VkDescriptorSet meshDescriptorSet;
     VkDescriptorSet cameraDescriptorSet;
+    VkDescriptorSet lightDescriptorSet;
 
     VkDescriptorSetAllocateInfo meshAllocInfo{};
     meshAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -186,8 +241,17 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     cameraAllocInfo.descriptorSetCount = 1;
     cameraAllocInfo.pSetLayouts = &cameraDescriptorSetLayout.layout;
 
+    VkDescriptorSetAllocateInfo lightAllocInfo{};
+    lightAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    lightAllocInfo.descriptorPool = lightDescriptorSetLayout.pool;
+    lightAllocInfo.descriptorSetCount = 1;
+    lightAllocInfo.pSetLayouts = &lightDescriptorSetLayout.layout;
+
     vkAllocateDescriptorSets(context.device, &meshAllocInfo, &meshDescriptorSet);
     vkAllocateDescriptorSets(context.device, &cameraAllocInfo, &cameraDescriptorSet);
+    vkAllocateDescriptorSets(context.device, &lightAllocInfo, &lightDescriptorSet);
+
+    // DESCRIPTOR SET CREATION
 
     // binding 0: mesh records
     VkDescriptorBufferInfo meshRecordInfo{};
@@ -265,9 +329,27 @@ void App::createRenderingResources(NPRendererAovs& aovs)
 
     vkUpdateDescriptorSets(context.device, 1, &cameraWrite, 0, nullptr);
 
+    // lights
+    VkDescriptorBufferInfo lightBufferInfo;
+    lightBufferInfo.buffer = lightRecordBuffer.buffer;
+    lightBufferInfo.offset = 0;
+    lightBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet lightWrite{};
+    lightWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    lightWrite.dstSet = lightDescriptorSet;
+    lightWrite.dstBinding = 0;
+    lightWrite.dstArrayElement = 0;
+    lightWrite.descriptorCount = 1;
+    lightWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    lightWrite.pBufferInfo = &lightBufferInfo;
+
+    vkUpdateDescriptorSets(context.device, 1, &lightWrite, 0, nullptr);
+
     // store
     descriptorSets.push_back(meshDescriptorSet);
     descriptorSets.push_back(cameraDescriptorSet);
+    descriptorSets.push_back(lightDescriptorSet);
 }
 
 void App::createGraphicsPipeline(NPPipeline& pipeline,

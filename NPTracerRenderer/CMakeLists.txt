@@ -45,6 +45,7 @@ set(VMA_HEADERS
 set(STB_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/stb")
 set(STB_HEADERS
     "${NPTracer_EXTERNAL_DIR}/stb/stb_image.h"
+    "${NPTracer_EXTERNAL_DIR}/stb/stb_image_write.h"
 )
 
 add_library(${PROJECT_NAME} ${LIB_SOURCES} ${LIB_HEADERS})

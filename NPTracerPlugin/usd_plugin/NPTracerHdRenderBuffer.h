@@ -63,6 +63,9 @@ private:
     // reused GPU buffer for image to GPU buffer transfer
     NPBuffer _stagingBuffer;
 
+    // dedicated command buffer for Map() readback, avoids conflicting with frame command buffers
+    VkCommandBuffer _mapCommandBuffer = VK_NULL_HANDLE;
+
     GfVec3i _dimensions = GfVec3i(-1, -1, -1);
     HdFormat _format = HdFormatInvalid;
     bool _multiSampled = false;

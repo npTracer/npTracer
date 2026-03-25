@@ -1,5 +1,10 @@
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+
 #include "app.h"
 #include "utils.h"
+
+#include <iostream>
 
 void App::create()
 {
@@ -13,7 +18,6 @@ void App::create()
     context.createLogicalDeviceAndQueues();
     context.createAllocator();
     context.createSyncAndFrameObjects();
-    context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
 }
 
 // RESOURCE CREATION
@@ -480,10 +484,11 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
 
     vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &pipeline.layout);
 
+    VkFormat colorFormat = renderTarget.format;
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = &aovs.color->format;
+    renderingInfo.pColorAttachmentFormats = &colorFormat;
     renderingInfo.depthAttachmentFormat = context.depthFormat;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -516,6 +521,67 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
 // DRAW CALL
 void App::executeDrawCall(NPRendererAovs& aovs)
 {
+    // wait for any prior GPU work before destroying resources
+    vkQueueWaitIdle(context.queues[NPQueueType::GRAPHICS].queue);
+
+    // tear down per-frame resources from previous call
+    for (auto& dsl : descriptorSetLayouts)
+    {
+        dsl.destroy(context.device);
+    }
+    descriptorSetLayouts.clear();
+    descriptorSets.clear();
+
+    for (auto& buf : vertexBuffers)
+    {
+        buf.destroy(context.allocator);
+    }
+    vertexBuffers.clear();
+
+    for (auto& buf : indexBuffers)
+    {
+        buf.destroy(context.allocator);
+    }
+    indexBuffers.clear();
+    indexCounts.clear();
+
+    if (meshRecordBuffer.buffer != VK_NULL_HANDLE)
+    {
+        meshRecordBuffer.destroy(context.allocator);
+        meshRecordBuffer = {};
+    }
+    if (cameraRecordBuffer.buffer != VK_NULL_HANDLE)
+    {
+        cameraRecordBuffer.destroy(context.allocator);
+        cameraRecordBuffer = {};
+    }
+    if (lightRecordBuffer.buffer != VK_NULL_HANDLE)
+    {
+        lightRecordBuffer.destroy(context.allocator);
+        lightRecordBuffer = {};
+    }
+    if (pipeline.pipeline != VK_NULL_HANDLE)
+    {
+        pipeline.destroy(context.device);
+        pipeline = {};
+    }
+
+    uint32_t width = aovs.color->width;
+    uint32_t height = aovs.color->height;
+
+    // create internal render target
+    renderTarget.destroy(context.device, context.allocator);
+    context.createImage(renderTarget, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, 0);
+
+    // create host-visible readback buffer
+    readbackBuffer.destroy(context.allocator);
+    VkDeviceSize readbackSize = 4 * static_cast<VkDeviceSize>(width) * height;
+    context.createBuffer(readbackBuffer, readbackSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                         VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+                             | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    context.createDepthImage(width, height);
     createRenderingResources(aovs);
     createGraphicsPipeline(pipeline, descriptorSetLayouts, aovs);
 
@@ -525,26 +591,46 @@ void App::executeDrawCall(NPRendererAovs& aovs)
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    NPImage* renderTarget = aovs.color;
+    // populateDrawCall records render commands and transitions image to TRANSFER_SRC_OPTIMAL
+    populateDrawCall(frame.commandBuffer, &renderTarget);
 
-    populateDrawCall(frame.commandBuffer, renderTarget);
+    // append copy-to-readback in the same command buffer
+    context.copyImageToBuffer(frame.commandBuffer, renderTarget, readbackBuffer, width, height);
+    vkEndCommandBuffer(frame.commandBuffer);
 
-    vkResetFences(context.device, 1,
-                  &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
-    // new queue submission
+    // ensure CPU cache is clean before GPU writes to this buffer
+    vmaFlushAllocation(context.allocator, readbackBuffer.allocation, 0, VK_WHOLE_SIZE);
 
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    vkResetFences(context.device, 1, &frame.doneExecutingFence);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-    // signal that rendering is finished once execution is finished
     vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
-                  frame.doneExecutingFence);  // signal that execution has been completed on frame
-    // once it is done
+                  frame.doneExecutingFence);
+
+    vkQueueWaitIdle(context.queues[NPQueueType::GRAPHICS].queue);
+
+    // make GPU writes visible to CPU
+    vmaInvalidateAllocation(context.allocator, readbackBuffer.allocation, 0, VK_WHOLE_SIZE);
+
+    // save to PNG
+    void* mappedData = readbackBuffer.allocInfo.pMappedData;
+    if (mappedData)
+    {
+        std::string outputPath = std::string(getenv("TEMP")) + "\\render_output.png";
+        int stride = width * 4;
+        if (stbi_write_png(outputPath.c_str(), width, height, 4, mappedData, stride))
+        {
+            std::cout << "[NPTracer] Saved render output to: " << outputPath << std::endl;
+        }
+        else
+        {
+            std::cerr << "[NPTracer] Failed to save render output" << std::endl;
+        }
+    }
 
     // increment frame (within ring)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
@@ -567,10 +653,9 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     VkClearValue clearDepth{};
     clearDepth.depthStencil = { 1.0f, 0 };
 
-    // TODO pass in image params
     VkExtent2D extent{};
-    extent.width = WIDTH;
-    extent.height = HEIGHT;
+    extent.width = renderTarget->width;
+    extent.height = renderTarget->height;
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -619,12 +704,12 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkCmdEndRendering(commandBuffer);
 
     context.transitionImageLayout(commandBuffer, renderTarget->image,
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
+                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                  VK_ACCESS_2_TRANSFER_READ_BIT,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
-
-    vkEndCommandBuffer(commandBuffer);
+                                  VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 }
 
 void App::destroy()
@@ -633,6 +718,9 @@ void App::destroy()
     {
         descriptorSetLayout.destroy(context.device);
     }
+
+    renderTarget.destroy(context.device, context.allocator);
+    readbackBuffer.destroy(context.allocator);
 
     if (meshRecordBuffer.buffer != VK_NULL_HANDLE)
     {

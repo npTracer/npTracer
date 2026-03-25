@@ -1,5 +1,7 @@
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
+#include <iostream>
+
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
 
@@ -48,6 +50,11 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
                        0  // device local
     );
 
+    if (_mapCommandBuffer == VK_NULL_HANDLE)
+    {
+        _pCtx->createCommandBuffer(_mapCommandBuffer, NPQueueType::GRAPHICS);
+    }
+
     NP_DBG("[%s] Render buffer allocated: id=%s\n", TF_FUNC_NAME().c_str(), GetId().GetText());
 
     return true;
@@ -81,11 +88,10 @@ bool NPTracerHdRenderBuffer::IsMultiSampled() const
 // copy underlying image data to a staging buffer for i/o mapping
 void* NPTracerHdRenderBuffer::Map()
 {
+    vkDeviceWaitIdle(_pCtx->device);
     _mappers.fetch_add(1);
 
-    VkCommandBuffer cmd = _pCtx->frames[0].commandBuffer;
-
-    VkImageLayout currLayout = _layout;
+    VkCommandBuffer cmd = _mapCommandBuffer;
 
     vkResetCommandBuffer(cmd, 0);
     _pCtx->beginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -106,10 +112,8 @@ void* NPTracerHdRenderBuffer::Map()
 
     _pCtx->endCommandBuffer(cmd, NPQueueType::GRAPHICS);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::GRAPHICS].queue);
-
-    auto test = _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
-
-    return test;
+    
+    return _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
 }
 
 void NPTracerHdRenderBuffer::Unmap()

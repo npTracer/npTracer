@@ -84,7 +84,7 @@ void NPTracerHdRenderPass::_SyncCamera(HdRenderPassStateSharedPtr const& renderP
                                        NPCameraRecord* outCam) const
 {
     HdCamera const* hdCam = renderPassState->GetCamera();
-    outCam->model = GfMatrix4dToGLM(hdCam->GetTransform());
+    outCam->model = FLOAT4X4(1.0f);  // identity; per-mesh transforms not yet supported
     outCam->view = GfMatrix4dToGLM(renderPassState->GetWorldToViewMatrix());
     outCam->proj = GfMatrix4dToGLM(renderPassState->GetProjectionMatrix());
 }

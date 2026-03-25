@@ -222,7 +222,7 @@ struct NPMesh
         {
             NPVertex v{};
             v.pos = _positions[i];
-            v.color = (i < _colors.size()) ? _colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f };
+            v.color = (i < _normals.size()) ? _normals[i] : FLOAT3{ 1.0f, 0.0f, 0.0f };
             v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
             vertices.push_back(v);
         }

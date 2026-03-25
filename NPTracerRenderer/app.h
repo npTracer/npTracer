@@ -53,6 +53,9 @@ private:
     std::unique_ptr<Scene> scene;
     std::vector<uint32_t> indexCounts;
 
+    NPImage renderTarget;
+    NPBuffer readbackBuffer;
+
     NPBuffer meshRecordBuffer;
     NPBuffer lightRecordBuffer;
     NPBuffer cameraRecordBuffer;

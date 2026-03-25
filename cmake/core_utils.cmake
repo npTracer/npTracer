@@ -98,3 +98,18 @@ function(FilterInstallableTargets out_variable_name)
 
     set(${out_variable_name} ${${out_variable_name}} PARENT_SCOPE)
 endfunction()
+
+function(SetupInstallationAfterBuild target_name)
+    # ensure install command retains configurations
+    if(IS_MULTI_CONFIG)
+        set(INSTALL_HELPER_COMMANDLINE_ARGS --config $<CONFIG>)
+    else()
+        set(INSTALL_HELPER_COMMANDLINE_ARGS -DCMAKE_BUILD_TYPE=$<CONFIG>)
+    endif()
+    
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" 
+        ${INSTALL_HELPER_COMMANDLINE_ARGS} 
+        COMMENT "Install after building '${target_name}'."
+    )
+endfunction()

@@ -15,6 +15,7 @@
 
 using FLOAT2 = glm::f32vec2;
 using FLOAT3 = glm::f32vec3;
+using FLOAT4 = glm::f32vec4;
 using FLOAT4X4 = glm::f32mat4;
 
 using NPScenePath = std::string;

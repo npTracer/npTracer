@@ -7,8 +7,6 @@
 #include <pxr/imaging/hd/renderBuffer.h>
 #include <pxr/base/gf/vec3i.h>
 
-#include <vulkan/vulkan.h>
-
 PXR_NAMESPACE_OPEN_SCOPE
 
 // a block of memory that we are rendering into
@@ -47,18 +45,12 @@ public:
         return &_image;
     }
 
-    inline void SetLayout(const VkImageLayout& layout)
-    {
-        _layout = layout;
-    }
-
 private:
     // release any allocated resources
     virtual void _Deallocate() override;
 
     // the actual underlying buffer
     NPImage _image;
-    VkImageLayout _layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     // reused GPU buffer for image to GPU buffer transfer
     NPBuffer _stagingBuffer;

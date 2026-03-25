@@ -85,8 +85,6 @@ void* NPTracerHdRenderBuffer::Map()
 
     VkCommandBuffer cmd = _pCtx->frames[0].commandBuffer;
 
-    VkImageLayout currLayout = _layout;
-
     vkResetCommandBuffer(cmd, 0);
     _pCtx->beginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
@@ -100,16 +98,14 @@ void* NPTracerHdRenderBuffer::Map()
 
     // restore image layout for future passes
     _pCtx->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                 VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
-                                 _fmtTokens.aspect);
+                                 VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_2_TRANSFER_READ_BIT,
+                                 _fmtTokens.writeAccess, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                 _fmtTokens.writeStage, _fmtTokens.aspect);
 
     _pCtx->endCommandBuffer(cmd, NPQueueType::GRAPHICS);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::GRAPHICS].queue);
 
-    auto test = _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
-
-    return test;
+    return _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
 }
 
 void NPTracerHdRenderBuffer::Unmap()
@@ -148,7 +144,6 @@ void NPTracerHdRenderBuffer::_Deallocate()
     _image.destroy(_pCtx->device, _pCtx->allocator);
     _stagingBuffer.destroy(_pCtx->allocator);
 
-    _layout = VK_IMAGE_LAYOUT_UNDEFINED;
     _dimensions = GfVec3i(-1);
     _format = HdFormatInvalid;
 

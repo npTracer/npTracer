@@ -83,278 +83,281 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(), lightSize,
                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    // CREATE MESH DESCRIPTOR SET LAYOUT
-
-    NPDescriptorSetLayout meshDescriptorSetLayout;
-
-    VkDescriptorSetLayoutBinding binding0{};
-    binding0.binding = 0;
-    binding0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    binding0.descriptorCount = 1;
-    binding0.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-    binding0.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutBinding binding1{};
-    binding1.binding = 1;
-    binding1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    binding1.descriptorCount = MAX_RESOURCE_COUNT;
-    binding1.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-    binding1.pImmutableSamplers = nullptr;
-
-    VkDescriptorSetLayoutBinding binding2{};
-    binding2.binding = 2;
-    binding2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    binding2.descriptorCount = MAX_RESOURCE_COUNT;
-    binding2.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-    binding2.pImmutableSamplers = nullptr;
-
-    std::vector<VkDescriptorSetLayoutBinding> meshBindings{ {
-        binding0,
-        binding1,
-        binding2,
-    } };
-
-    std::vector<VkDescriptorBindingFlags> meshBindingFlags{
-        0, 0,
-        VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
-            | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
-    };
-
-    VkDescriptorSetLayoutBindingFlagsCreateInfo meshFlagsInfo{};
-    meshFlagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    meshFlagsInfo.bindingCount = static_cast<uint32_t>(meshBindings.size());
-    meshFlagsInfo.pBindingFlags = meshBindingFlags.data();
-
-    VkDescriptorSetLayoutCreateInfo meshLayoutInfo{};
-    meshLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    meshLayoutInfo.pNext = &meshFlagsInfo;
-    meshLayoutInfo.bindingCount = static_cast<uint32_t>(meshBindings.size());
-    meshLayoutInfo.pBindings = meshBindings.data();
-
-    vkCreateDescriptorSetLayout(context.device, &meshLayoutInfo, nullptr,
-                                &meshDescriptorSetLayout.layout);
-
-    VkDescriptorPoolSize meshPoolSize{};
-    meshPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    meshPoolSize.descriptorCount = 2 * MAX_RESOURCE_COUNT + 1;
-
-    std::vector<VkDescriptorPoolSize> meshPoolSizes{ {
-        meshPoolSize,
-    } };
-
-    VkDescriptorPoolCreateInfo meshPoolInfo{};
-    meshPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    meshPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    meshPoolInfo.maxSets = 1;
-    meshPoolInfo.poolSizeCount = static_cast<uint32_t>(meshPoolSizes.size());
-    meshPoolInfo.pPoolSizes = meshPoolSizes.data();
-
-    vkCreateDescriptorPool(context.device, &meshPoolInfo, nullptr, &meshDescriptorSetLayout.pool);
-    descriptorSetLayouts.emplace_back(meshDescriptorSetLayout);
-
-    // CREATE CAMERA DESCRIPTOR SET LAYOUT
-
-    NPDescriptorSetLayout cameraDescriptorSetLayout;
-    VkDescriptorSetLayoutBinding cameraBinding{};
-    cameraBinding.binding = 0;
-    cameraBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    cameraBinding.descriptorCount = 1;
-    cameraBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-    cameraBinding.pImmutableSamplers = nullptr;
-
-    std::vector<VkDescriptorSetLayoutBinding> cameraBindings{ cameraBinding };
-
-    VkDescriptorSetLayoutCreateInfo cameraLayoutInfo{};
-    cameraLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    cameraLayoutInfo.bindingCount = static_cast<uint32_t>(cameraBindings.size());
-    cameraLayoutInfo.pBindings = cameraBindings.data();
-
-    vkCreateDescriptorSetLayout(context.device, &cameraLayoutInfo, nullptr,
-                                &cameraDescriptorSetLayout.layout);
-
-    VkDescriptorPoolSize cameraPoolSize{};
-    cameraPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    cameraPoolSize.descriptorCount = 1;
-
-    std::vector<VkDescriptorPoolSize> cameraPoolSizes{ {
-        cameraPoolSize,
-    } };
-
-    VkDescriptorPoolCreateInfo cameraPoolInfo{};
-    cameraPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    cameraPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    cameraPoolInfo.maxSets = 1;
-    cameraPoolInfo.poolSizeCount = static_cast<uint32_t>(cameraPoolSizes.size());
-    cameraPoolInfo.pPoolSizes = cameraPoolSizes.data();
-
-    vkCreateDescriptorPool(context.device, &cameraPoolInfo, nullptr,
-                           &cameraDescriptorSetLayout.pool);
-    descriptorSetLayouts.emplace_back(cameraDescriptorSetLayout);
-
-    // CREATE LIGHT DESCRIPTOR SET LAYOUT
-
-    NPDescriptorSetLayout lightDescriptorSetLayout;
-    VkDescriptorSetLayoutBinding lightBinding{};
-    lightBinding.binding = 0;
-    lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    lightBinding.descriptorCount = 1;
-    lightBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-    lightBinding.pImmutableSamplers = nullptr;
-
-    std::vector<VkDescriptorSetLayoutBinding> lightBindings{ lightBinding };
-
-    VkDescriptorSetLayoutCreateInfo lightLayoutInfo{};
-    lightLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    lightLayoutInfo.bindingCount = static_cast<uint32_t>(lightBindings.size());
-    lightLayoutInfo.pBindings = lightBindings.data();
-
-    vkCreateDescriptorSetLayout(context.device, &lightLayoutInfo, nullptr,
-                                &lightDescriptorSetLayout.layout);
-
-    VkDescriptorPoolSize lightPoolSize{};
-    lightPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    lightPoolSize.descriptorCount = 1;
-
-    std::vector<VkDescriptorPoolSize> lightPoolSizes{ {
-        lightPoolSize,
-    } };
-
-    VkDescriptorPoolCreateInfo lightPoolInfo{};
-    lightPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    lightPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    lightPoolInfo.maxSets = 1;
-    lightPoolInfo.poolSizeCount = static_cast<uint32_t>(lightPoolSizes.size());
-    lightPoolInfo.pPoolSizes = lightPoolSizes.data();
-
-    vkCreateDescriptorPool(context.device, &lightPoolInfo, nullptr, &lightDescriptorSetLayout.pool);
-    descriptorSetLayouts.emplace_back(lightDescriptorSetLayout);
-
-    // DESCRIPTOR SET ALLOCATION
-    VkDescriptorSet meshDescriptorSet;
-    VkDescriptorSet cameraDescriptorSet;
-    VkDescriptorSet lightDescriptorSet;
-
-    VkDescriptorSetAllocateInfo meshAllocInfo{};
-    meshAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    meshAllocInfo.descriptorPool = meshDescriptorSetLayout.pool;
-    meshAllocInfo.descriptorSetCount = 1;
-    meshAllocInfo.pSetLayouts = &meshDescriptorSetLayout.layout;
-
-    VkDescriptorSetAllocateInfo cameraAllocInfo{};
-    cameraAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    cameraAllocInfo.descriptorPool = cameraDescriptorSetLayout.pool;
-    cameraAllocInfo.descriptorSetCount = 1;
-    cameraAllocInfo.pSetLayouts = &cameraDescriptorSetLayout.layout;
-
-    VkDescriptorSetAllocateInfo lightAllocInfo{};
-    lightAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    lightAllocInfo.descriptorPool = lightDescriptorSetLayout.pool;
-    lightAllocInfo.descriptorSetCount = 1;
-    lightAllocInfo.pSetLayouts = &lightDescriptorSetLayout.layout;
-
-    vkAllocateDescriptorSets(context.device, &meshAllocInfo, &meshDescriptorSet);
-    vkAllocateDescriptorSets(context.device, &cameraAllocInfo, &cameraDescriptorSet);
-    vkAllocateDescriptorSets(context.device, &lightAllocInfo, &lightDescriptorSet);
-
-    // DESCRIPTOR SET CREATION
-
-    // binding 0: mesh records
-    VkDescriptorBufferInfo meshRecordInfo{};
-    meshRecordInfo.buffer = meshRecordBuffer.buffer;
-    meshRecordInfo.offset = 0;
-    meshRecordInfo.range = VK_WHOLE_SIZE;
-
-    // binding 1: vertex buffers
-    std::vector<VkDescriptorBufferInfo> vertexBufferInfos(vertexBuffers.size());
-    for (size_t i = 0; i < vertexBuffers.size(); i++)
+    // CREATE EVERYTHING
+    if (meshRecordCreated)
     {
-        vertexBufferInfos[i].buffer = vertexBuffers[i].buffer;
-        vertexBufferInfos[i].offset = 0;
-        vertexBufferInfos[i].range = VK_WHOLE_SIZE;
+        // layout
+        NPDescriptorSetLayout meshDescriptorSetLayout;
+        VkDescriptorSetLayoutBinding binding0{};
+        binding0.binding = 0;
+        binding0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding0.descriptorCount = 1;
+        binding0.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        binding0.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutBinding binding1{};
+        binding1.binding = 1;
+        binding1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding1.descriptorCount = MAX_RESOURCE_COUNT;
+        binding1.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        binding1.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutBinding binding2{};
+        binding2.binding = 2;
+        binding2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding2.descriptorCount = MAX_RESOURCE_COUNT;
+        binding2.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        binding2.pImmutableSamplers = nullptr;
+
+        std::vector<VkDescriptorSetLayoutBinding> meshBindings{ {
+            binding0,
+            binding1,
+            binding2,
+        } };
+
+        std::vector<VkDescriptorBindingFlags> meshBindingFlags{
+            0, 0,
+            VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
+                | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+        };
+
+        VkDescriptorSetLayoutBindingFlagsCreateInfo meshFlagsInfo{};
+        meshFlagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+        meshFlagsInfo.bindingCount = static_cast<uint32_t>(meshBindings.size());
+        meshFlagsInfo.pBindingFlags = meshBindingFlags.data();
+
+        VkDescriptorSetLayoutCreateInfo meshLayoutInfo{};
+        meshLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        meshLayoutInfo.pNext = &meshFlagsInfo;
+        meshLayoutInfo.bindingCount = static_cast<uint32_t>(meshBindings.size());
+        meshLayoutInfo.pBindings = meshBindings.data();
+
+        vkCreateDescriptorSetLayout(context.device, &meshLayoutInfo, nullptr,
+                                    &meshDescriptorSetLayout.layout);
+
+        VkDescriptorPoolSize meshPoolSize{};
+        meshPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        meshPoolSize.descriptorCount = 2 * MAX_RESOURCE_COUNT + 1;
+
+        std::vector<VkDescriptorPoolSize> meshPoolSizes{ {
+            meshPoolSize,
+        } };
+
+        VkDescriptorPoolCreateInfo meshPoolInfo{};
+        meshPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        meshPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        meshPoolInfo.maxSets = 1;
+        meshPoolInfo.poolSizeCount = static_cast<uint32_t>(meshPoolSizes.size());
+        meshPoolInfo.pPoolSizes = meshPoolSizes.data();
+
+        vkCreateDescriptorPool(context.device, &meshPoolInfo, nullptr,
+                               &meshDescriptorSetLayout.pool);
+        descriptorSetLayouts.emplace_back(meshDescriptorSetLayout);
+
+        // allocation
+        VkDescriptorSet meshDescriptorSet;
+        VkDescriptorSetAllocateInfo meshAllocInfo{};
+        meshAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        meshAllocInfo.descriptorPool = meshDescriptorSetLayout.pool;
+        meshAllocInfo.descriptorSetCount = 1;
+        meshAllocInfo.pSetLayouts = &meshDescriptorSetLayout.layout;
+        vkAllocateDescriptorSets(context.device, &meshAllocInfo, &meshDescriptorSet);
+
+        // write
+        // binding 0: mesh records
+        VkDescriptorBufferInfo meshRecordInfo{};
+        meshRecordInfo.buffer = meshRecordBuffer.buffer;
+        meshRecordInfo.offset = 0;
+        meshRecordInfo.range = VK_WHOLE_SIZE;
+
+        // binding 1: vertex buffers
+        std::vector<VkDescriptorBufferInfo> vertexBufferInfos(vertexBuffers.size());
+        for (size_t i = 0; i < vertexBuffers.size(); i++)
+        {
+            vertexBufferInfos[i].buffer = vertexBuffers[i].buffer;
+            vertexBufferInfos[i].offset = 0;
+            vertexBufferInfos[i].range = VK_WHOLE_SIZE;
+        }
+
+        // binding 2: index buffers
+        std::vector<VkDescriptorBufferInfo> indexBufferInfos(indexBuffers.size());
+        for (size_t i = 0; i < indexBuffers.size(); i++)
+        {
+            indexBufferInfos[i].buffer = indexBuffers[i].buffer;
+            indexBufferInfos[i].offset = 0;
+            indexBufferInfos[i].range = VK_WHOLE_SIZE;
+        }
+
+        // descriptor write 0: mesh records
+        VkWriteDescriptorSet write0{};
+        write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write0.dstSet = meshDescriptorSet;
+        write0.dstBinding = 0;
+        write0.dstArrayElement = 0;
+        write0.descriptorCount = 1;
+        write0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write0.pBufferInfo = &meshRecordInfo;
+
+        // descriptor write 1: vertex buffers
+        VkWriteDescriptorSet write1{};
+        write1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write1.dstSet = meshDescriptorSet;
+        write1.dstBinding = 1;
+        write1.dstArrayElement = 0;
+        write1.descriptorCount = static_cast<uint32_t>(vertexBufferInfos.size());
+        write1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write1.pBufferInfo = vertexBufferInfos.data();
+
+        // descriptor write 2: index buffers
+        VkWriteDescriptorSet write2{};
+        write2.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write2.dstSet = meshDescriptorSet;
+        write2.dstBinding = 2;
+        write2.dstArrayElement = 0;
+        write2.descriptorCount = static_cast<uint32_t>(indexBufferInfos.size());
+        write2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write2.pBufferInfo = indexBufferInfos.data();
+
+        std::vector<VkWriteDescriptorSet> descriptorWrites{ write0, write1, write2 };
+
+        vkUpdateDescriptorSets(context.device, static_cast<uint32_t>(descriptorWrites.size()),
+                               descriptorWrites.data(), 0, nullptr);
+
+        descriptorSets.push_back(meshDescriptorSet);
     }
 
-    // binding 2: index buffers
-    std::vector<VkDescriptorBufferInfo> indexBufferInfos(indexBuffers.size());
-    for (size_t i = 0; i < indexBuffers.size(); i++)
+    if (cameraRecordCreated)
     {
-        indexBufferInfos[i].buffer = indexBuffers[i].buffer;
-        indexBufferInfos[i].offset = 0;
-        indexBufferInfos[i].range = VK_WHOLE_SIZE;
+        NPDescriptorSetLayout cameraDescriptorSetLayout;
+        VkDescriptorSetLayoutBinding cameraBinding{};
+        cameraBinding.binding = 0;
+        cameraBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        cameraBinding.descriptorCount = 1;
+        cameraBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        cameraBinding.pImmutableSamplers = nullptr;
+
+        std::vector<VkDescriptorSetLayoutBinding> cameraBindings{ cameraBinding };
+
+        VkDescriptorSetLayoutCreateInfo cameraLayoutInfo{};
+        cameraLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        cameraLayoutInfo.bindingCount = static_cast<uint32_t>(cameraBindings.size());
+        cameraLayoutInfo.pBindings = cameraBindings.data();
+
+        vkCreateDescriptorSetLayout(context.device, &cameraLayoutInfo, nullptr,
+                                    &cameraDescriptorSetLayout.layout);
+
+        VkDescriptorPoolSize cameraPoolSize{};
+        cameraPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        cameraPoolSize.descriptorCount = 1;
+
+        std::vector<VkDescriptorPoolSize> cameraPoolSizes{ {
+            cameraPoolSize,
+        } };
+
+        VkDescriptorPoolCreateInfo cameraPoolInfo{};
+        cameraPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        cameraPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        cameraPoolInfo.maxSets = 1;
+        cameraPoolInfo.poolSizeCount = static_cast<uint32_t>(cameraPoolSizes.size());
+        cameraPoolInfo.pPoolSizes = cameraPoolSizes.data();
+
+        vkCreateDescriptorPool(context.device, &cameraPoolInfo, nullptr,
+                               &cameraDescriptorSetLayout.pool);
+        descriptorSetLayouts.emplace_back(cameraDescriptorSetLayout);
+
+        VkDescriptorSet cameraDescriptorSet;
+        VkDescriptorSetAllocateInfo cameraAllocInfo{};
+        cameraAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        cameraAllocInfo.descriptorPool = cameraDescriptorSetLayout.pool;
+        cameraAllocInfo.descriptorSetCount = 1;
+        cameraAllocInfo.pSetLayouts = &cameraDescriptorSetLayout.layout;
+        vkAllocateDescriptorSets(context.device, &cameraAllocInfo, &cameraDescriptorSet);
+
+        // camera
+        VkDescriptorBufferInfo cameraRecordInfo{};
+        cameraRecordInfo.buffer = cameraRecordBuffer.buffer;
+        cameraRecordInfo.offset = 0;
+        cameraRecordInfo.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet cameraWrite{};
+        cameraWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        cameraWrite.dstSet = cameraDescriptorSet;
+        cameraWrite.dstBinding = 0;
+        cameraWrite.dstArrayElement = 0;
+        cameraWrite.descriptorCount = 1;
+        cameraWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        cameraWrite.pBufferInfo = &cameraRecordInfo;
+
+        vkUpdateDescriptorSets(context.device, 1, &cameraWrite, 0, nullptr);
+        descriptorSets.push_back(cameraDescriptorSet);
     }
 
-    // descriptor write 0: mesh records
-    VkWriteDescriptorSet write0{};
-    write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write0.dstSet = meshDescriptorSet;
-    write0.dstBinding = 0;
-    write0.dstArrayElement = 0;
-    write0.descriptorCount = 1;
-    write0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write0.pBufferInfo = &meshRecordInfo;
+    if (lightRecordCreated)
+    {
+        NPDescriptorSetLayout lightDescriptorSetLayout;
+        VkDescriptorSetLayoutBinding lightBinding{};
+        lightBinding.binding = 0;
+        lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        lightBinding.descriptorCount = 1;
+        lightBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        lightBinding.pImmutableSamplers = nullptr;
 
-    // descriptor write 1: vertex buffers
-    VkWriteDescriptorSet write1{};
-    write1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write1.dstSet = meshDescriptorSet;
-    write1.dstBinding = 1;
-    write1.dstArrayElement = 0;
-    write1.descriptorCount = static_cast<uint32_t>(vertexBufferInfos.size());
-    write1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write1.pBufferInfo = vertexBufferInfos.data();
+        std::vector<VkDescriptorSetLayoutBinding> lightBindings{ lightBinding };
 
-    // descriptor write 2: index buffers
-    VkWriteDescriptorSet write2{};
-    write2.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write2.dstSet = meshDescriptorSet;
-    write2.dstBinding = 2;
-    write2.dstArrayElement = 0;
-    write2.descriptorCount = static_cast<uint32_t>(indexBufferInfos.size());
-    write2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write2.pBufferInfo = indexBufferInfos.data();
+        VkDescriptorSetLayoutCreateInfo lightLayoutInfo{};
+        lightLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        lightLayoutInfo.bindingCount = static_cast<uint32_t>(lightBindings.size());
+        lightLayoutInfo.pBindings = lightBindings.data();
 
-    std::vector<VkWriteDescriptorSet> descriptorWrites{ write0, write1, write2 };
+        vkCreateDescriptorSetLayout(context.device, &lightLayoutInfo, nullptr,
+                                    &lightDescriptorSetLayout.layout);
 
-    vkUpdateDescriptorSets(context.device, static_cast<uint32_t>(descriptorWrites.size()),
-                           descriptorWrites.data(), 0, nullptr);
+        VkDescriptorPoolSize lightPoolSize{};
+        lightPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        lightPoolSize.descriptorCount = 1;
 
-    // camera
-    VkDescriptorBufferInfo cameraRecordInfo{};
-    cameraRecordInfo.buffer = cameraRecordBuffer.buffer;
-    cameraRecordInfo.offset = 0;
-    cameraRecordInfo.range = VK_WHOLE_SIZE;
+        std::vector<VkDescriptorPoolSize> lightPoolSizes{ {
+            lightPoolSize,
+        } };
 
-    VkWriteDescriptorSet cameraWrite{};
-    cameraWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    cameraWrite.dstSet = cameraDescriptorSet;
-    cameraWrite.dstBinding = 0;
-    cameraWrite.dstArrayElement = 0;
-    cameraWrite.descriptorCount = 1;
-    cameraWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    cameraWrite.pBufferInfo = &cameraRecordInfo;
+        VkDescriptorPoolCreateInfo lightPoolInfo{};
+        lightPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        lightPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        lightPoolInfo.maxSets = 1;
+        lightPoolInfo.poolSizeCount = static_cast<uint32_t>(lightPoolSizes.size());
+        lightPoolInfo.pPoolSizes = lightPoolSizes.data();
 
-    vkUpdateDescriptorSets(context.device, 1, &cameraWrite, 0, nullptr);
+        vkCreateDescriptorPool(context.device, &lightPoolInfo, nullptr,
+                               &lightDescriptorSetLayout.pool);
+        descriptorSetLayouts.emplace_back(lightDescriptorSetLayout);
 
-    // lights
-    VkDescriptorBufferInfo lightBufferInfo;
-    lightBufferInfo.buffer = lightRecordBuffer.buffer;
-    lightBufferInfo.offset = 0;
-    lightBufferInfo.range = VK_WHOLE_SIZE;
+        VkDescriptorSet lightDescriptorSet;
+        VkDescriptorSetAllocateInfo lightAllocInfo{};
+        lightAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        lightAllocInfo.descriptorPool = lightDescriptorSetLayout.pool;
+        lightAllocInfo.descriptorSetCount = 1;
+        lightAllocInfo.pSetLayouts = &lightDescriptorSetLayout.layout;
 
-    VkWriteDescriptorSet lightWrite{};
-    lightWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    lightWrite.dstSet = lightDescriptorSet;
-    lightWrite.dstBinding = 0;
-    lightWrite.dstArrayElement = 0;
-    lightWrite.descriptorCount = 1;
-    lightWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    lightWrite.pBufferInfo = &lightBufferInfo;
+        vkAllocateDescriptorSets(context.device, &lightAllocInfo, &lightDescriptorSet);
 
-    vkUpdateDescriptorSets(context.device, 1, &lightWrite, 0, nullptr);
+        // lights
+        VkDescriptorBufferInfo lightBufferInfo;
+        lightBufferInfo.buffer = lightRecordBuffer.buffer;
+        lightBufferInfo.offset = 0;
+        lightBufferInfo.range = VK_WHOLE_SIZE;
 
-    // store
-    descriptorSets.push_back(meshDescriptorSet);
-    descriptorSets.push_back(cameraDescriptorSet);
-    descriptorSets.push_back(lightDescriptorSet);
+        VkWriteDescriptorSet lightWrite{};
+        lightWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        lightWrite.dstSet = lightDescriptorSet;
+        lightWrite.dstBinding = 0;
+        lightWrite.dstArrayElement = 0;
+        lightWrite.descriptorCount = 1;
+        lightWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        lightWrite.pBufferInfo = &lightBufferInfo;
+
+        vkUpdateDescriptorSets(context.device, 1, &lightWrite, 0, nullptr);
+        descriptorSets.push_back(lightDescriptorSet);
+    }
 }
 
 void App::createGraphicsPipeline(NPPipeline& pipeline,

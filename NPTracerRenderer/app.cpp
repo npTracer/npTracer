@@ -19,6 +19,10 @@ void App::create()
 // RESOURCE CREATION
 void App::createRenderingResources(NPRendererAovs& aovs)
 {
+
+    std::vector<NPMeshRecord> meshRecords(static_cast<uint32_t>(scene->getMeshes().size()));
+    std::vector<GPULight> lightRecords(static_cast<uint32_t>(scene->getLights().size()));
+
     uint32_t vbCount = 0;
     uint32_t ibCount = 0;
 
@@ -45,6 +49,8 @@ void App::createRenderingResources(NPRendererAovs& aovs)
                                             | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         indexBuffers.push_back(indexBuffer);
 
+        // temp
+        indexCounts.push_back(static_cast<uint32_t>(mesh.indices.size()));
         meshRecords.push_back(meshRecord);
     }
 
@@ -59,25 +65,23 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
     NPCameraRecord* cam = scene->getCamera();
 
-    cameraRecordCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
+    cameraRecordCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     // create light buffer
     bool lightRecordCreated = false;
-    lightRecords = scene->getLights();
-    std::vector<GPULight> gpuLights;
-    gpuLights.reserve(static_cast<uint32_t>(lightRecords.size()));
+    lightRecords.reserve(static_cast<uint32_t>(lightRecords.size()));
     for (const auto& light : lightRecords)
     {
         GPULight gpuLight;
         gpuLight.transform = light.transform;
         gpuLight.intensity = light.intensity;
         gpuLight.color = light.color;
-        gpuLights.push_back(gpuLight);
+        lightRecords.push_back(gpuLight);
     }
 
-    VkDeviceSize lightSize = sizeof(GPULight) * gpuLights.size();
-    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(), lightSize,
+    VkDeviceSize lightSize = sizeof(GPULight) * lightRecords.size();
+    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, lightRecords.data(), lightSize,
                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // CREATE EVERYTHING
@@ -113,9 +117,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         } };
 
         std::vector<VkDescriptorBindingFlags> meshBindingFlags{
-            0, 0,
-            VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
-                | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+            0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
         };
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo meshFlagsInfo{};
@@ -610,18 +612,16 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
                             descriptorSets.data(), 0, nullptr);
 
-    const std::vector<NPMesh>& meshes = scene->getMeshes();
-    for (size_t i = 0; i < meshRecords.size(); i++)
+    for (size_t i = 0; i < indexCounts.size(); i++)
     {
-        const NPMesh& mesh = meshes[i];
-        vkCmdDraw(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, i);
+        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, i);
     }
 
     vkCmdEndRendering(commandBuffer);
 
     context.transitionImageLayout(commandBuffer, renderTarget->image,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                  VK_IMAGE_LAYOUT_GENERAL,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
@@ -639,6 +639,16 @@ void App::destroy()
     if (meshRecordBuffer.buffer != VK_NULL_HANDLE)
     {
         meshRecordBuffer.destroy(context.allocator);
+    }
+
+    if (cameraRecordBuffer.buffer != VK_NULL_HANDLE)
+    {
+        cameraRecordBuffer.destroy(context.allocator);
+    }
+
+    if (lightRecordBuffer.buffer != VK_NULL_HANDLE)
+    {
+        lightRecordBuffer.destroy(context.allocator);
     }
 
     for (auto& buffer : vertexBuffers)

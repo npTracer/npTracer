@@ -1,3 +1,5 @@
+static const uint MAX_RESOURCE_COUNT = 10000;
+
 struct MeshRecord
 {
     uint vbIdx;
@@ -37,18 +39,18 @@ struct VertexOutput
 StructuredBuffer<MeshRecord> meshRecords;
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<Vertex> vertexBuffers[];
+StructuredBuffer<Vertex> vertexBuffers[MAX_RESOURCE_COUNT];
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<uint> indexBuffers[];
+StructuredBuffer<uint> indexBuffers[MAX_RESOURCE_COUNT];
 
 // set 1
 [[vk::binding(0, 1)]]
 ConstantBuffer<Camera> cam;
 
 // set 2
-[[vk::binding(0, 2)]]
-StructuredBuffer<Light> lights;
+//[[vk::binding(0, 2)]]
+//StructuredBuffer<Light> lights;
 
 [shader("vertex")]
 VertexOutput vertMain(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
@@ -56,8 +58,11 @@ VertexOutput vertMain(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID
     VertexOutput output;
     MeshRecord rec = meshRecords[instanceID];
 
-    uint index = indexBuffers[rec.ibIdx][vertexID];
-    Vertex vertex = vertexBuffers[rec.vbIdx][index];
+    uint vb = NonUniformResourceIndex(rec.vbIdx);
+    uint ib = NonUniformResourceIndex(rec.ibIdx);
+
+    uint index = indexBuffers[ib][vertexID];
+    Vertex vertex = vertexBuffers[vb][index];
 
     float4 worldPos = mul(cam.model, float4(vertex.pos, 1.0));
     float4 viewPos = mul(cam.view, worldPos);

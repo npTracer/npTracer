@@ -60,7 +60,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     // create camera buffer
     bool cameraRecordCreated = false;
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
-    const NPCameraRecord cam = scene->getCamera();
+    NPCameraRecord* cam = scene->getCamera();
 
     cameraRecordCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);

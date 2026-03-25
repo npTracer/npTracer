@@ -28,6 +28,9 @@ private:
     NPTracerHdRenderDelegate* _pCreator;
 
     std::atomic<bool> _converged{ false };
+
+    void _SyncCamera(HdRenderPassStateSharedPtr const& renderPassState,
+                     NPCameraRecord* outCam) const;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

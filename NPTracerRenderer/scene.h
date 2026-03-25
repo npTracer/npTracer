@@ -18,9 +18,14 @@ public:
         return _meshes;
     }
 
-    inline const NPCameraRecord& getCamera() const
+    inline NPCameraRecord* getCamera()
     {
-        return _camera;
+        return &_camera;
+    }
+
+    inline void setCamera(NPCameraRecord& camera)
+    {
+        _camera = camera;
     }
 
     inline const std::vector<NPLight>& getLights() const

@@ -51,17 +51,22 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         meshRecords.push_back(meshRecord);
     }
 
+    bool meshRecordCreated = false;
     VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
-    context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize,
-                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    meshRecordCreated = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(),
+                                                        meshRecordSize,
+                                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // create camera buffer
+    bool cameraRecordCreated = false;
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
     const NPCameraRecord cam = scene->getCamera();
 
-    context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
+    cameraRecordCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
+    // create light buffer
+    bool lightRecordCreated = false;
     lightRecords = scene->getLights();
     std::vector<GPULight> gpuLights;
     gpuLights.reserve(static_cast<uint32_t>(lightRecords.size()));
@@ -75,7 +80,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     }
 
     VkDeviceSize lightSize = sizeof(GPULight) * gpuLights.size();
-    context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(), lightSize,
+    lightRecordCreated = context.createDeviceLocalBuffer(lightRecordBuffer, gpuLights.data(), lightSize,
                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // CREATE MESH DESCRIPTOR SET LAYOUT

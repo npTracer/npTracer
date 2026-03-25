@@ -438,7 +438,7 @@ void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueF
 }
 
 // BUFFERS
-void Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
+bool Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                            VmaAllocationCreateFlags allocationFlags)
 {
     VkBufferCreateInfo bufferInfo{};
@@ -457,26 +457,36 @@ void Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFla
                         &handle.allocation, &handle.allocInfo)
         != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create buffer!");
+        return false;
     }
+
+    return true;
 }
 
-void Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
+bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
                                       VkBufferUsageFlags usage)
 {
     NPBuffer stagingBuffer;
-    createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                     | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    if (!createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+        | VMA_ALLOCATION_CREATE_MAPPED_BIT))
+    {
+        return false;
+    }
 
     memcpy(stagingBuffer.allocInfo.pMappedData, data, size);
 
-    createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
+    if (!createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0))
+    {
+        return false;
+    }
 
     copyBuffer(stagingBuffer, handle, size);
 
     vkQueueWaitIdle(queues[NPQueueType::TRANSFER].queue);
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+
+    return true;
 }
 
 void Context::copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size)

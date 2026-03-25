@@ -58,9 +58,9 @@ public:
     void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
 
     // buffers
-    void createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
+    bool createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                       VmaAllocationCreateFlags allocationFlags);
-    void createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
+    bool createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size);
 

@@ -73,6 +73,13 @@ public:
                                VkPipelineStageFlags2 dstStageMask,
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
+    void clearImageColor(
+    VkCommandBuffer cmd,
+    VkImage image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout,
+    VkClearColorValue clearColor);
+    
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);
 

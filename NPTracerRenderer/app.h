@@ -61,6 +61,7 @@ private:
     NPBuffer cameraRecordBuffer;
     std::vector<NPBuffer> vertexBuffers;
     std::vector<NPBuffer> indexBuffers;
+    std::vector<NPBuffer> transformBuffers;
 
     // resource creation
     void createRenderingResources(NPRendererAovs& aovs);

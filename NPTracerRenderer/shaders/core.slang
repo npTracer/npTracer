@@ -4,6 +4,7 @@ struct MeshRecord
 {
     uint vbIdx;
     uint ibIdx;
+    uint tbIdx;
 };
 
 struct Vertex
@@ -44,6 +45,9 @@ StructuredBuffer<Vertex> vertexBuffers[MAX_RESOURCE_COUNT];
 [[vk::binding(2, 0)]]
 StructuredBuffer<uint> indexBuffers[MAX_RESOURCE_COUNT];
 
+[[vk::binding(3, 0)]]
+StructuredBuffer<float4x4> trasformBuffers[MAX_RESOURCE_COUNT];
+
 // set 1
 [[vk::binding(0, 1)]]
 ConstantBuffer<Camera> cam;
@@ -60,11 +64,14 @@ VertexOutput vertMain(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID
 
     uint vb = NonUniformResourceIndex(rec.vbIdx);
     uint ib = NonUniformResourceIndex(rec.ibIdx);
-
+    uint tb = NonUniformResourceIndex(rec.tbIdx);
+    
     uint index = indexBuffers[ib][vertexID];
     Vertex vertex = vertexBuffers[vb][index];
 
-    float4 worldPos = mul(cam.model, float4(vertex.pos, 1.0));
+    float4x4 transform = transformBuffers[tb][0];
+
+    float4 worldPos = mul(transform, float4(vertex.pos, 1.0));
     float4 viewPos = mul(cam.view, worldPos);
     output.pos = mul(cam.proj, viewPos);
 

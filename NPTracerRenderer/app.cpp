@@ -25,7 +25,8 @@ void App::createRenderingResources(NPRendererAovs& aovs)
 {
     uint32_t vbCount = 0;
     uint32_t ibCount = 0;
-
+    uint32_t tbCount = 0;
+    
     const size_t meshCount = scene->getMeshCount();
     std::vector<NPMeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
@@ -35,9 +36,11 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         NPMeshRecord meshRecord{};
         meshRecord.vbIdx = vbCount++;
         meshRecord.ibIdx = ibCount++;
+        meshRecord.tbIdx = tbCount++;
 
         NPBuffer vertexBuffer;
         NPBuffer indexBuffer;
+        NPBuffer transformBuffer;
 
         const std::vector<NPVertex>& vertices = mesh->vertices;
         VkDeviceSize vbSize = sizeof(vertices[0]) * vertices.size();
@@ -53,6 +56,10 @@ void App::createRenderingResources(NPRendererAovs& aovs)
                                             | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         indexBuffers.push_back(indexBuffer);
 
+        VkDeviceSize transformSize = sizeof(FLOAT4X4);
+        context.createDeviceLocalBuffer(transformBuffer, &mesh->objectToWorld, transformSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        transformBuffers.push_back(transformBuffer);
+        
         // temp
         indexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
         meshRecords.push_back(meshRecord);
@@ -117,15 +124,23 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         binding2.descriptorCount = MAX_RESOURCE_COUNT;
         binding2.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
         binding2.pImmutableSamplers = nullptr;
+        
+        VkDescriptorSetLayoutBinding binding3{};
+        binding3.binding = 3;
+        binding3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding3.descriptorCount = MAX_RESOURCE_COUNT;
+        binding3.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        binding3.pImmutableSamplers = nullptr;
 
         std::vector<VkDescriptorSetLayoutBinding> meshBindings{ {
             binding0,
             binding1,
             binding2,
+            binding3
         } };
 
         std::vector<VkDescriptorBindingFlags> meshBindingFlags{
-            0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+            0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
         };
 
         VkDescriptorSetLayoutBindingFlagsCreateInfo meshFlagsInfo{};
@@ -144,7 +159,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
 
         VkDescriptorPoolSize meshPoolSize{};
         meshPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        meshPoolSize.descriptorCount = 2 * MAX_RESOURCE_COUNT + 1;
+        meshPoolSize.descriptorCount = 1 + 3 * MAX_RESOURCE_COUNT;
 
         std::vector<VkDescriptorPoolSize> meshPoolSizes{ {
             meshPoolSize,
@@ -195,6 +210,15 @@ void App::createRenderingResources(NPRendererAovs& aovs)
             indexBufferInfos[i].range = VK_WHOLE_SIZE;
         }
 
+        // binding 3: transform buffers
+        std::vector<VkDescriptorBufferInfo> transformBufferInfos(transformBuffers.size());
+        for (size_t i = 0; i < transformBuffers.size(); i++)
+        {
+            transformBufferInfos[i].buffer = transformBuffers[i].buffer;
+            transformBufferInfos[i].offset = 0;
+            transformBufferInfos[i].range = VK_WHOLE_SIZE;
+        }
+        
         // descriptor write 0: mesh records
         VkWriteDescriptorSet write0{};
         write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -224,8 +248,18 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         write2.descriptorCount = static_cast<uint32_t>(indexBufferInfos.size());
         write2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         write2.pBufferInfo = indexBufferInfos.data();
+        
+        // descriptor write 3: index buffers
+        VkWriteDescriptorSet write3{};
+        write3.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write3.dstSet = meshDescriptorSet;
+        write3.dstBinding = 3;
+        write3.dstArrayElement = 0;
+        write3.descriptorCount = static_cast<uint32_t>(transformBufferInfos.size());
+        write3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write3.pBufferInfo = transformBufferInfos.data();
 
-        std::vector<VkWriteDescriptorSet> descriptorWrites{ write0, write1, write2 };
+        std::vector<VkWriteDescriptorSet> descriptorWrites{ write0, write1, write2, write3 };
 
         vkUpdateDescriptorSets(context.device, static_cast<uint32_t>(descriptorWrites.size()),
                                descriptorWrites.data(), 0, nullptr);
@@ -571,8 +605,15 @@ void App::executeDrawCall(NPRendererAovs& aovs)
 
     // create internal render target
     renderTarget.destroy(context.device, context.allocator);
-    context.createImage(renderTarget, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
-                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, 0);
+    context.createImage(renderTarget,
+                    VK_IMAGE_TYPE_2D,
+                    VK_FORMAT_R8G8B8A8_UNORM,
+                    width,
+                    height,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                    0);
 
     // create host-visible readback buffer
     readbackBuffer.destroy(context.allocator);
@@ -583,6 +624,9 @@ void App::executeDrawCall(NPRendererAovs& aovs)
 
     context.createDepthImage(width, height);
     createRenderingResources(aovs);
+    
+    vkDeviceWaitIdle(context.device);
+    
     createGraphicsPipeline(pipeline, descriptorSetLayouts, aovs);
 
     // grab a frame
@@ -613,22 +657,23 @@ void App::executeDrawCall(NPRendererAovs& aovs)
 
     vkQueueWaitIdle(context.queues[NPQueueType::GRAPHICS].queue);
 
-    // make GPU writes visible to CPU
     vmaInvalidateAllocation(context.allocator, readbackBuffer.allocation, 0, VK_WHOLE_SIZE);
-
+    
     // save to PNG
     void* mappedData = readbackBuffer.allocInfo.pMappedData;
     if (mappedData)
     {
+        uint8_t* pixels = static_cast<uint8_t*>(mappedData);
+        for (uint32_t i = 0; i < width * height; ++i)
+        {
+            pixels[i * 4 + 3] = 255; // force opaque alpha for debugging
+        }
+
         std::string outputPath = std::string(getenv("TEMP")) + "\\render_output.png";
         int stride = width * 4;
         if (stbi_write_png(outputPath.c_str(), width, height, 4, mappedData, stride))
         {
             std::cout << "[NPTracer] Saved render output to: " << outputPath << std::endl;
-        }
-        else
-        {
-            std::cerr << "[NPTracer] Failed to save render output" << std::endl;
         }
     }
 
@@ -641,14 +686,27 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    // Explicit debug clear to opaque white.
+    // This proves the image is valid even if the draw does nothing.
+    VkClearColorValue whiteClear{};
+    whiteClear.float32[0] = 1.0f;
+    whiteClear.float32[1] = 1.0f;
+    whiteClear.float32[2] = 1.0f;
+    whiteClear.float32[3] = 1.0f;
 
-    VkClearValue clearColor{};
-    clearColor.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+    context.clearImageColor(commandBuffer,
+                            renderTarget->image,
+                            VK_IMAGE_LAYOUT_UNDEFINED,
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                            whiteClear);
+
+    context.transitionImageLayout(commandBuffer, context.depthImage.image,
+                                  VK_IMAGE_LAYOUT_UNDEFINED,
+                                  VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                                  {},
+                                  VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                  VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                                  VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT);
 
     VkClearValue clearDepth{};
     clearDepth.depthStencil = { 1.0f, 0 };
@@ -661,9 +719,10 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachmentInfo.imageView = renderTarget->view;
     colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+
+    // Important: preserve the explicit clear we just did.
+    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentInfo.clearValue = clearColor;
 
     VkRenderingAttachmentInfo depthAttachmentInfo{};
     depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -685,20 +744,25 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
 
-    VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
-
+    VkViewport viewport{ 0.0f, 0.0f, static_cast<float>(extent.width),
+                         static_cast<float>(extent.height), 0.0f, 1.0f };
     VkRect2D scissor{ { 0, 0 }, extent };
 
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
-                            descriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipeline.layout,
+                            0,
+                            static_cast<uint32_t>(descriptorSets.size()),
+                            descriptorSets.data(),
+                            0,
+                            nullptr);
 
     for (size_t i = 0; i < indexCounts.size(); i++)
     {
-        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, i);
+        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
 
     vkCmdEndRendering(commandBuffer);

@@ -293,6 +293,73 @@ void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueF
     vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, nullptr);
 }
 
+void Context::clearImageColor(
+    VkCommandBuffer cmd,
+    VkImage image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout,
+    VkClearColorValue clearColor)
+{
+    VkImageMemoryBarrier toTransferDst{};
+    toTransferDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toTransferDst.oldLayout = oldLayout;
+    toTransferDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    toTransferDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toTransferDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toTransferDst.image = image;
+    toTransferDst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    toTransferDst.subresourceRange.baseMipLevel = 0;
+    toTransferDst.subresourceRange.levelCount = 1;
+    toTransferDst.subresourceRange.baseArrayLayer = 0;
+    toTransferDst.subresourceRange.layerCount = 1;
+    toTransferDst.srcAccessMask = 0;
+    toTransferDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &toTransferDst);
+
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+
+    vkCmdClearColorImage(
+        cmd,
+        image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        &clearColor,
+        1,
+        &range);
+
+    VkImageMemoryBarrier toNextLayout{};
+    toNextLayout.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toNextLayout.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    toNextLayout.newLayout = newLayout;
+    toNextLayout.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toNextLayout.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toNextLayout.image = image;
+    toNextLayout.subresourceRange = range;
+    toNextLayout.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    toNextLayout.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &toNextLayout);
+}
+
 // BUFFERS
 bool Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                            VmaAllocationCreateFlags allocationFlags)

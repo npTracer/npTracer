@@ -187,6 +187,7 @@ struct NPMeshRecord
 {
     uint32_t vbIdx;
     uint32_t ibIdx;
+    uint32_t tbIdx;
 };
 
 struct NPMesh

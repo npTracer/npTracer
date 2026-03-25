@@ -56,7 +56,7 @@ private:
     VkImageLayout _layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     // reused GPU buffer for image to GPU buffer transfer
-    std::unique_ptr<NPBuffer> _stagingBuffer;
+    NPBuffer _stagingBuffer;
 
     GfVec3i _dimensions = GfVec3i(-1, -1, -1);
     HdFormat _format = HdFormatInvalid;
@@ -68,7 +68,7 @@ private:
 
     std::atomic<bool> _converged{ false };
 
-    Context* _context;
+    Context* _pCtx;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

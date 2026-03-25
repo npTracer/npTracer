@@ -24,9 +24,9 @@ NPTracerHdRenderDelegate::NPTracerHdRenderDelegate(const HdRenderSettingsMap& se
 
 NPTracerHdRenderDelegate::~NPTracerHdRenderDelegate()
 {
-    _app->destroy();
-    _renderParam.reset();
-    _resourceRegistry.reset();
+    _pApp->destroy();
+    _pRenderParam.reset();
+    _pResourceRegistry.reset();
     _settingDescriptors.clear();
     _settingsMap.clear();
 };
@@ -54,7 +54,7 @@ const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
 
 HdRenderParam* NPTracerHdRenderDelegate::GetRenderParam() const
 {
-    return _renderParam.get();
+    return _pRenderParam.get();
 }
 
 HdRenderSettingDescriptorList NPTracerHdRenderDelegate::GetRenderSettingDescriptors() const
@@ -64,7 +64,7 @@ HdRenderSettingDescriptorList NPTracerHdRenderDelegate::GetRenderSettingDescript
 
 HdResourceRegistrySharedPtr NPTracerHdRenderDelegate::GetResourceRegistry() const
 {
-    return _resourceRegistry;
+    return _pResourceRegistry;
 }
 
 HdInstancer* NPTracerHdRenderDelegate::CreateInstancer(HdSceneDelegate* delegate, const SdfPath& id)
@@ -81,7 +81,7 @@ void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
     NP_DBG("[%s] Create Rprim type: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
-             rprimId.GetText());
+           rprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->mesh)
     {
@@ -105,7 +105,7 @@ void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
     NP_DBG("[%s] Create Sprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
-             sprimId.GetText());
+           sprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -144,11 +144,11 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfPath& bprimId)
 {
     NP_DBG("[%s] Create Bprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
-             bprimId.GetText());
+           bprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
-        return new NPTracerHdRenderBuffer(bprimId, _app->getContext());
+        return new NPTracerHdRenderBuffer(bprimId, _pApp->getContext());
     }
     else
     {
@@ -170,7 +170,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
-        return new NPTracerHdRenderBuffer(SdfPath::EmptyPath(), _app->getContext());
+        return new NPTracerHdRenderBuffer(SdfPath::EmptyPath(), _pApp->getContext());
     }
     else
     {
@@ -207,11 +207,11 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
 
 void NPTracerHdRenderDelegate::_Initialize()
 {
-    _app = std::make_unique<App>();
-    _app->create();
+    _pApp = std::make_unique<App>();
+    _pApp->create();
 
-    _renderParam = std::make_unique<NPTracerHdRenderParam>();
-    _resourceRegistry = std::make_shared<HdResourceRegistry>();
+    _pRenderParam = std::make_unique<NPTracerHdRenderParam>();
+    _pResourceRegistry = std::make_shared<HdResourceRegistry>();
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

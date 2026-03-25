@@ -3,6 +3,9 @@
 
 void App::create()
 {
+    // define `scene`
+    scene = std::make_unique<Scene>();
+
     // create vulkan basics
     context.setFrameCount(FRAME_COUNT);
     context.createWindow(window, WIDTH, HEIGHT);
@@ -22,7 +25,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
     uint32_t vbCount = 0;
     uint32_t ibCount = 0;
 
-    for (const NPMesh& mesh : scene.getMeshes())
+    for (const NPMesh& mesh : scene->getMeshes())
     {
         NPMeshRecord meshRecord{};
         meshRecord.vbIdx = vbCount++;
@@ -54,7 +57,7 @@ void App::createRenderingResources(NPRendererAovs& aovs)
 
     // create camera buffer
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
-    const NPCameraRecord cam = scene.getCamera();
+    const NPCameraRecord cam = scene->getCamera();
 
     context.createDeviceLocalBuffer(cameraRecordBuffer, &cam, cameraSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -515,7 +518,7 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
                             descriptorSets.data(), 0, nullptr);
 
-    const std::vector<NPMesh>& meshes = scene.getMeshes();
+    const std::vector<NPMesh>& meshes = scene->getMeshes();
     for (size_t i = 0; i < meshRecords.size(); i++)
     {
         const NPMesh& mesh = meshes[i];

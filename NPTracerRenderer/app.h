@@ -3,6 +3,8 @@
 #include "context.h"
 #include "scene.h"
 
+#include <memory>
+
 class App
 {
     static constexpr bool enableDebug =
@@ -16,9 +18,14 @@ class App
     static constexpr uint32_t HEIGHT = 1440;
 
 public:
-    Context* getContext()
+    inline Context* getContext()
     {
         return &context;
+    }
+
+    inline Scene* getScene() const
+    {
+        return scene.get();
     }
 
     // interface
@@ -43,7 +50,7 @@ private:
 
     std::vector<VkDescriptorSet> descriptorSets;
 
-    Scene scene;
+    std::unique_ptr<Scene> scene;
     std::vector<NPMeshRecord> meshRecords;
 
     NPBuffer meshRecordBuffer;

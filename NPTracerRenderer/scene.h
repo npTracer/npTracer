@@ -10,8 +10,8 @@ public:
     Scene();
     ~Scene();
 
-    bool addInstances(const NPScenePathCollection& instances);
-    bool clearInstances(const NPScenePathCollection& instances);
+    void addMesh(const NPMesh& mesh);
+    bool removeMesh(const uint32_t& id);
 
     inline const std::vector<NPMesh>& getMeshes() const
     {

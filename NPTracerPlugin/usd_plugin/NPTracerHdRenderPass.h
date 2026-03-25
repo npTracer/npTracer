@@ -25,12 +25,12 @@ protected:
     void SetConverged(bool converged);
 
 private:
-    NPTracerHdRenderDelegate* _delegate;
+    NPTracerHdRenderDelegate* _pCreator;
 
     std::atomic<bool> _converged{ false };
 
     NPRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state,
-                                NPTracerHdRenderBuffer* renderBuffer);
+                                NPTracerHdRenderBuffer const* renderBuffer);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

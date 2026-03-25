@@ -4,12 +4,20 @@ Scene::Scene() {}
 
 Scene::~Scene() {}
 
-bool Scene::addInstances(const NPScenePathCollection& instances)
+void Scene::addMesh(const NPMesh& mesh)
 {
-    return false;
+    _meshes.push_back(mesh);
 }
 
-bool Scene::clearInstances(const NPScenePathCollection& instances)
+bool Scene::removeMesh(const uint32_t& id)
 {
-    return false;
+    auto it = std::find_if(_meshes.begin(), _meshes.end(),
+                           [&id](const NPMesh& mesh) { return mesh.id == id; });
+
+    bool found = it != _meshes.end();
+    if (found)
+    {
+        _meshes.erase(it);
+    }
+    return found;
 }

@@ -14,7 +14,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
                                            HdRprimCollection const& collection,
                                            NPTracerHdRenderDelegate* delegate)
-    : HdRenderPass(index, collection), _delegate(delegate)
+    : HdRenderPass(index, collection), _pCreator(delegate)
 {
 }
 
@@ -56,7 +56,7 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
 }
 
 NPRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr const& state,
-                                                  NPTracerHdRenderBuffer* buffer)
+                                                  NPTracerHdRenderBuffer const* buffer)
 {
     return {};
 }

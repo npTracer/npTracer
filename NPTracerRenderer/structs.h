@@ -6,7 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
-#include <glm/gtx/compatibility.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <string>
 #include <array>
@@ -199,12 +199,14 @@ struct NPMeshRecord
 
 struct NPMesh
 {
-    uint32_t objectId;
+    uint32_t id;  // the hash of the mesh's `SdfPath`
     NPScenePath scenePath;
 
     std::vector<uint32_t> indices;
     std::vector<NPVertex> vertices;
 
+    // NOTE: this vertex data should be stored flattened.
+    // i.e. `_positions.size() == indices.size()`, etc.
     std::vector<FLOAT3> _positions;
     std::vector<FLOAT3> _normals;
     std::vector<FLOAT2> _uvs;
@@ -233,6 +235,8 @@ struct NPMesh
             vertices.push_back(v);
         }
     }
+
+    NPMesh(uint32_t id, NPScenePath scenePath) : id(id), scenePath(scenePath) {};
 };
 
 enum class NPLightType : uint8_t

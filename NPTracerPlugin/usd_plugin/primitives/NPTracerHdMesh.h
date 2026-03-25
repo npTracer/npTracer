@@ -24,6 +24,13 @@ public:
 
     bool IsDirty(HdDirtyBits const* dirtyBits) const;
 
+    static void sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate, NPMesh* outMesh);
+    static bool sReadMeshPrimvars(SdfPath const& id, HdSceneDelegate* delegate,
+                                  const HdMeshUtil& meshUtil, VtValue* pvValueOut,
+                                  const std::function<bool(const std::string&)>& pred);
+
+    static VtValue sGetPrimvar(SdfPath const& id, HdSceneDelegate* delegate, const TfToken& name);
+
 private:
     NPTracerHdRenderDelegate* _pCreator;
     std::unique_ptr<NPMesh> _pMesh;
@@ -31,9 +38,6 @@ private:
     void _UpdateInScene(HdSceneDelegate* delegate);
     void _AddToScene();
     void _RemoveFromScene();
-    bool readMeshPrimvars(HdSceneDelegate* delegate, const HdMeshUtil& meshUtil,
-                          VtValue* pvValueOut,
-                          const std::function<bool(const std::string&)>& pred) const;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

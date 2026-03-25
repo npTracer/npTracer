@@ -83,10 +83,17 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
 
     _pMesh = std::make_unique<NPMesh>(id.GetHash(), id.GetAsString());
 
+    sConstructMesh(id, delegate, _pMesh.get());
+
+    _AddToScene();
+}
+
+void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate, NPMesh* outMesh)
+{
     FLOAT4X4 xform = GfMatrix4fToGLM(GfMatrix4f(delegate->GetTransform(id)));
 
-    _pMesh->objectToWorld = xform;
-    _pMesh->worldToObject = glm::inverse(xform);
+    outMesh->objectToWorld = xform;
+    outMesh->worldToObject = glm::inverse(xform);
 
     HdMeshTopology topo = delegate->GetMeshTopology(id);
 
@@ -122,17 +129,17 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
     hasUVs = !indexedUVs.empty() && (indexedUVs.size() == indexedPositions.size());
     // look for UVs in primvars as they are more ideal
     VtValue uvValue;
-    if (readMeshPrimvars(delegate, meshUtil, &uvValue,
-                             [](const std::string& pvName)
-                             { // naming standards for UVs
-                                 return pvName.compare("st") == 0
-                                        || pvName.substr(0, 3).compare("map") == 0;
-                             }))
+    if (sReadMeshPrimvars(id, delegate, meshUtil, &uvValue,
+                          [](const std::string& pvName)
+                          { // naming standards for UVs
+                              return pvName.compare("st") == 0
+                                     || pvName.substr(0, 3).compare("map") == 0;
+                          }))
     {
         if (uvValue.GetArraySize() == flattenedCount)
         {
             VtVec2fArray gfUVArray = uvValue.Get<VtVec2fArray>();
-            _pMesh->_uvs = VtVec2fArrayToGLM(gfUVArray);
+            outMesh->_uvs = VtVec2fArrayToGLM(gfUVArray);
 
             hasFlattenedUVs = true;
         }
@@ -140,7 +147,7 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
         {
             TF_WARN("Primvar UVs were found for %s but count of %i does not match "
                     "flattened index count of %i.",
-                    GetId().GetString(), uvValue.GetArraySize(), flattenedCount);
+                    id.GetString(), uvValue.GetArraySize(), flattenedCount);
         }
     }
 
@@ -150,13 +157,13 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
 
     // look for normals in primvars
     VtValue normalsValue;
-    if (readMeshPrimvars(delegate, meshUtil, &normalsValue,
-                         [](const std::string& pvName) { return pvName == HdTokens->normals; }))
+    if (sReadMeshPrimvars(id, delegate, meshUtil, &normalsValue,
+                          [](const std::string& pvName) { return pvName == HdTokens->normals; }))
     {
         if (normalsValue.GetArraySize() == flattenedCount)
         {
             VtVec3fArray vtNormalsArray = normalsValue.Get<VtVec3fArray>();
-            _pMesh->_normals = VtVec3fArrayToGLM(vtNormalsArray);
+            outMesh->_normals = VtVec3fArrayToGLM(vtNormalsArray);
 
             hasFlattenedNormals = true;
         }
@@ -164,16 +171,16 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
         {
             TF_WARN("Primvar normals were found for %s but count of %i does not match "
                     "flattened index count of %i.",
-                    GetId().GetString(), normalsValue.GetArraySize(), flattenedCount);
+                    id.GetString(), normalsValue.GetArraySize(), flattenedCount);
         }
     }
 
     // resize all to desired size
-    _pMesh->indices.resize(flattenedCount);
-    _pMesh->vertices.resize(flattenedCount);
-    _pMesh->_positions.resize(flattenedCount);
-    _pMesh->_normals.resize(flattenedCount);
-    _pMesh->_uvs.resize(flattenedCount);
+    outMesh->indices.resize(flattenedCount);
+    outMesh->vertices.resize(flattenedCount);
+    outMesh->_positions.resize(flattenedCount);
+    outMesh->_normals.resize(flattenedCount);
+    outMesh->_uvs.resize(flattenedCount);
 
     int maxAllowedIndex = indexedPositions.size();
 
@@ -189,7 +196,7 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
         if (t0 >= maxAllowedIndex || t1 >= maxAllowedIndex || t2 >= maxAllowedIndex)
         {
             TF_WARN("Triangle indices out of bounds (%i) in mesh %s: (%i, %i, %i)",
-                    GetId().GetString().c_str(), maxAllowedIndex, t0, t1, t2);
+                    id.GetString().c_str(), maxAllowedIndex, t0, t1, t2);
             continue;
         }
 
@@ -197,37 +204,37 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
         int flatIdx1 = i * 3 + 1;
         int flatIdx2 = i * 3 + 2;
 
-        _pMesh->indices[flatIdx0] = t0;
-        _pMesh->indices[flatIdx1] = t1;
-        _pMesh->indices[flatIdx2] = t2;
+        outMesh->indices[flatIdx0] = t0;
+        outMesh->indices[flatIdx1] = t1;
+        outMesh->indices[flatIdx2] = t2;
 
-        _pMesh->_positions[flatIdx0] = GfVec3ToGLM(indexedPositions[t0]);
-        _pMesh->_positions[flatIdx1] = GfVec3ToGLM(indexedPositions[t1]);
-        _pMesh->_positions[flatIdx2] = GfVec3ToGLM(indexedPositions[t2]);
+        outMesh->_positions[flatIdx0] = GfVec3ToGLM(indexedPositions[t0]);
+        outMesh->_positions[flatIdx1] = GfVec3ToGLM(indexedPositions[t1]);
+        outMesh->_positions[flatIdx2] = GfVec3ToGLM(indexedPositions[t2]);
 
         if (hasNormals && !hasFlattenedNormals)
         {
-            _pMesh->_normals[flatIdx0] = GfVec3ToGLM(indexedNormals[t0]);
-            _pMesh->_normals[flatIdx1] = GfVec3ToGLM(indexedNormals[t1]);
-            _pMesh->_normals[flatIdx2] = GfVec3ToGLM(indexedNormals[t2]);
+            outMesh->_normals[flatIdx0] = GfVec3ToGLM(indexedNormals[t0]);
+            outMesh->_normals[flatIdx1] = GfVec3ToGLM(indexedNormals[t1]);
+            outMesh->_normals[flatIdx2] = GfVec3ToGLM(indexedNormals[t2]);
         }
         if (hasUVs && !hasFlattenedUVs)
         {
-            _pMesh->_uvs[flatIdx0] = GfVec2ToGLM(indexedUVs[t0]);
-            _pMesh->_uvs[flatIdx1] = GfVec2ToGLM(indexedUVs[t1]);
-            _pMesh->_uvs[flatIdx2] = GfVec2ToGLM(indexedUVs[t2]);
+            outMesh->_uvs[flatIdx0] = GfVec2ToGLM(indexedUVs[t0]);
+            outMesh->_uvs[flatIdx1] = GfVec2ToGLM(indexedUVs[t1]);
+            outMesh->_uvs[flatIdx2] = GfVec2ToGLM(indexedUVs[t2]);
         }
     }
     if (!hasNormals && !hasFlattenedNormals)
     {  // fill with default value if has none
-        std::fill(_pMesh->_normals.begin(), _pMesh->_normals.end(), FLOAT3(0.f, 0.f, 0.f));
+        std::fill(outMesh->_normals.begin(), outMesh->_normals.end(), FLOAT3(0.f, 0.f, 0.f));
     }
     if (!hasUVs && !hasFlattenedUVs)
     {  // fill with default value if has none
-        std::fill(_pMesh->_uvs.begin(), _pMesh->_uvs.end(), FLOAT2(0.f, 0.f));
+        std::fill(outMesh->_uvs.begin(), outMesh->_uvs.end(), FLOAT2(0.f, 0.f));
     }
 
-    _pMesh->populateVertices();
+    outMesh->populateVertices();  // populate when everything is finalized for simplicity
 }
 
 void NPTracerHdMesh::_AddToScene()
@@ -254,12 +261,16 @@ void NPTracerHdMesh::_RemoveFromScene()
     }
 }
 
-bool NPTracerHdMesh::readMeshPrimvars(HdSceneDelegate* delegate, const HdMeshUtil& meshUtil,
-                                      VtValue* pvValueOut,
-                                      const std::function<bool(const std::string&)>& pred) const
+VtValue NPTracerHdMesh::sGetPrimvar(SdfPath const& id, HdSceneDelegate* delegate,
+                                    const TfToken& name)
 {
-    const SdfPath& id = GetId();
+    return delegate->Get(id, name);
+}
 
+bool NPTracerHdMesh::sReadMeshPrimvars(SdfPath const& id, HdSceneDelegate* delegate,
+                                       const HdMeshUtil& meshUtil, VtValue* pvValueOut,
+                                       const std::function<bool(const std::string&)>& pred)
+{
     HdPrimvarDescriptorVector primvars
         = delegate->GetPrimvarDescriptors(id, HdInterpolation::HdInterpolationFaceVarying);
 
@@ -285,7 +296,7 @@ bool NPTracerHdMesh::readMeshPrimvars(HdSceneDelegate* delegate, const HdMeshUti
     const TfToken nameToken = foundPvDesc->name;
 
     // get the underlying data of the descriptor
-    VtValue pv = GetPrimvar(delegate, nameToken);
+    VtValue pv = sGetPrimvar(id, delegate, nameToken);
 
     // make a named buffer of the data
     HdVtBufferSource buffer(nameToken, pv);

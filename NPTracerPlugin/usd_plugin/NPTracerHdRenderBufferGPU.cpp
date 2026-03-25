@@ -1,4 +1,4 @@
-#include "usd_plugin/NPTracerHdRenderBuffer.h"
+#include "usd_plugin/NPTracerHdRenderBufferGPU.h"
 
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
@@ -17,6 +17,8 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
            TF_FUNC_NAME().c_str(), GetId().GetText(), dimensions[0], dimensions[1], dimensions[2],
            format);
 
+    _Deallocate();
+
     _dimensions = dimensions;
     _format = format;
     _multiSampled = multiSampled;
@@ -26,8 +28,6 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     uint32_t height = static_cast<uint32_t>(dimensions[1]);
 
     VkDeviceSize size = _fmtTokens.bytesPerPixel * width * height;
-
-    _Deallocate();
 
     if (format == HdFormatInvalid)
     {
@@ -131,11 +131,6 @@ void NPTracerHdRenderBuffer::SetConverged(bool converged)
 void NPTracerHdRenderBuffer::Resolve()
 {
     // TODO
-}
-
-VtValue NPTracerHdRenderBuffer::GetResource(bool multiSampled) const
-{
-    return VtValue();
 }
 
 void NPTracerHdRenderBuffer::_Deallocate()

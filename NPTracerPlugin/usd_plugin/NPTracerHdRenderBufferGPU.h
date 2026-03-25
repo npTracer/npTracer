@@ -38,8 +38,6 @@ public:
     // resolve the sample buffer into final values
     virtual void Resolve() override;
 
-    virtual VtValue GetResource(bool multiSampled) const override;
-
     inline NPImage* GetImage()
     {
         return &_image;

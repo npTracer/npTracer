@@ -2,6 +2,7 @@
 
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/hdMathUtils.h"
+#include "usd_plugin/NPTracerHdRenderBufferGPU.h"
 
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/renderPassState.h>
@@ -27,46 +28,25 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     NPCameraRecord* cam = app->getScene()->getCamera();
     _SyncCamera(renderPassState, cam);
 
+    this->SetConverged(false);
+
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
-    NPRendererAovs payload;
-
-    std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
-    dirtyBuffers.clear();
-
-    for (HdRenderPassAovBinding const& binding : aovBindings)
+    for (HdRenderPassAovBinding const& aov : aovBindings)
     {
-        NPTracerHdRenderBuffer* buffer = dynamic_cast<NPTracerHdRenderBuffer*>(binding.renderBuffer);
+        NPTracerHdRenderBuffer* buffer = dynamic_cast<NPTracerHdRenderBuffer*>(aov.renderBuffer);
         if (!buffer)  // `dynamic_cast` failed
         {
             continue;
         }
         buffer->SetConverged(false);
 
-        if (binding.aovName == HdAovTokens->color)
+        if (aov.aovName == HdAovTokens->color)
         {
-            payload.color = buffer->GetImage();
-        }
-        else if (binding.aovName == HdAovTokens->depth)
-        {
-            payload.depth = buffer->GetImage();
-        }
-        else
-        {
-            buffer->SetConverged(true);
-            continue;  // skip pushing onto `dirtyBuffers`
         }
 
-        dirtyBuffers.push_back(buffer);
+        buffer->SetConverged(true);
     }
-
-    app->executeDrawCall(payload);
-
-    for (NPTracerHdRenderBuffer* buffer : dirtyBuffers)
-    {
-        buffer->SetConverged(true);  // mark all dirtied buffers
-    }
-
     this->SetConverged(true);
 }
 

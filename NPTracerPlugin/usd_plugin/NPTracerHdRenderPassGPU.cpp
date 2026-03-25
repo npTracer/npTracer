@@ -2,6 +2,7 @@
 
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/hdMathUtils.h"
+#include "usd_plugin/NPTracerHdRenderBuffer.h"
 
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/renderPassState.h>
@@ -32,7 +33,6 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     NPRendererAovs payload;
 
     std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
-    dirtyBuffers.clear();
 
     for (HdRenderPassAovBinding const& binding : aovBindings)
     {
@@ -45,11 +45,9 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
         if (binding.aovName == HdAovTokens->color)
         {
-            payload.color = buffer->GetImage();
         }
         else if (binding.aovName == HdAovTokens->depth)
         {
-            payload.depth = buffer->GetImage();
         }
         else
         {

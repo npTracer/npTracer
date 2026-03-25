@@ -38,22 +38,12 @@ public:
     // resolve the sample buffer into final values
     virtual void Resolve() override;
 
-    virtual VtValue GetResource(bool multiSampled) const override;
-
-    inline NPImage* GetImage()
-    {
-        return &_image;
-    }
-
 private:
     // release any allocated resources
     virtual void _Deallocate() override;
 
     // the actual underlying buffer
-    NPImage _image;
-
-    // reused GPU buffer for image to GPU buffer transfer
-    NPBuffer _stagingBuffer;
+    std::vector<uint8_t> _buffer;
 
     GfVec3i _dimensions = GfVec3i(-1, -1, -1);
     HdFormat _format = HdFormatInvalid;
@@ -64,7 +54,7 @@ private:
     std::atomic<int> _mappers{ 0 };
 
     std::atomic<bool> _converged{ false };
-
+    
     Context* _pCtx;
 };
 

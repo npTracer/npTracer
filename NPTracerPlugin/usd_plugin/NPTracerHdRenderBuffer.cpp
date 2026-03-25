@@ -83,14 +83,14 @@ void* NPTracerHdRenderBuffer::Map()
 {
     _mappers.fetch_add(1);
 
-    VkCommandBuffer cmd = _pCtx->transferCommandBuffer;
+    VkCommandBuffer cmd = _pCtx->frames[0].commandBuffer;
 
     VkImageLayout currLayout = _layout;
 
     vkResetCommandBuffer(cmd, 0);
     _pCtx->beginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    _pCtx->transitionImageLayout(cmd, _image.image, currLayout,
+    _pCtx->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _fmtTokens.writeAccess,
                                  VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeStage,
                                  VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.aspect);
@@ -100,14 +100,16 @@ void* NPTracerHdRenderBuffer::Map()
 
     // restore image layout for future passes
     _pCtx->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                 currLayout, VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
+                                 VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
                                  VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
                                  _fmtTokens.aspect);
 
-    _pCtx->endCommandBuffer(cmd, NPQueueType::TRANSFER);
-    vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
+    _pCtx->endCommandBuffer(cmd, NPQueueType::GRAPHICS);
+    vkQueueWaitIdle(_pCtx->queues[NPQueueType::GRAPHICS].queue);
 
-    return _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
+    auto test = _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
+
+    return test;
 }
 
 void NPTracerHdRenderBuffer::Unmap()

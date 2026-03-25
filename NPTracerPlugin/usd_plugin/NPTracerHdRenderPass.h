@@ -28,9 +28,6 @@ private:
     NPTracerHdRenderDelegate* _pCreator;
 
     std::atomic<bool> _converged{ false };
-
-    NPRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state,
-                                NPTracerHdRenderBuffer const* renderBuffer);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

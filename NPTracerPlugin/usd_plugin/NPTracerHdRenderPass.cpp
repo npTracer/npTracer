@@ -22,26 +22,48 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
                                     TfTokenVector const& renderTags)
 {
     this->SetConverged(false);
+    App* app = _pCreator->GetRendererApp();
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
-    for (HdRenderPassAovBinding const& aov : aovBindings)
+    NPRendererAovs payload;
+
+    static std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
+    dirtyBuffers.clear();
+
+    for (HdRenderPassAovBinding const& binding : aovBindings)
     {
-        NPTracerHdRenderBuffer* buffer = dynamic_cast<NPTracerHdRenderBuffer*>(aov.renderBuffer);
+        NPTracerHdRenderBuffer* buffer = dynamic_cast<NPTracerHdRenderBuffer*>(binding.renderBuffer);
         if (!buffer)  // `dynamic_cast` failed
         {
             continue;
         }
         buffer->SetConverged(false);
 
-        _ExtractAovs(renderPassState, buffer);
-
-        if (aov.aovName == HdAovTokens->color)
+        if (binding.aovName == HdAovTokens->color)
         {
+            payload.color = buffer->GetImage();
+        }
+        else if (binding.aovName == HdAovTokens->depth)
+        {
+            payload.depth = buffer->GetImage();
+        }
+        else
+        {
+            buffer->SetConverged(true);
+            continue;  // skip pushing onto `dirtyBuffers`
         }
 
-        buffer->SetConverged(true);
+        dirtyBuffers.push_back(buffer);
     }
+
+    app->executeDrawCall(payload);
+
+    for (NPTracerHdRenderBuffer* buffer : dirtyBuffers)
+    {
+        buffer->SetConverged(true);  // mark all dirtied buffers
+    }
+
     this->SetConverged(true);
 }
 
@@ -53,12 +75,6 @@ bool NPTracerHdRenderPass::IsConverged() const
 void NPTracerHdRenderPass::SetConverged(bool converged)
 {
     _converged.store(converged);
-}
-
-NPRendererAovs NPTracerHdRenderPass::_ExtractAovs(HdRenderPassStateSharedPtr const& state,
-                                                  NPTracerHdRenderBuffer const* buffer)
-{
-    return {};
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

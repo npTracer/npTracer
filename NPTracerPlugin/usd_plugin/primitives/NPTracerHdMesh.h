@@ -31,6 +31,10 @@ public:
 
     static VtValue sGetPrimvar(SdfPath const& id, HdSceneDelegate* delegate, const TfToken& name);
 
+protected:
+    HdDirtyBits _PropagateDirtyBits(HdDirtyBits bits) const override;
+    void _InitRepr(TfToken const& reprToken, HdDirtyBits* dirtyBits) override;
+
 private:
     NPTracerHdRenderDelegate* _pCreator;
     std::unique_ptr<NPMesh> _pMesh;

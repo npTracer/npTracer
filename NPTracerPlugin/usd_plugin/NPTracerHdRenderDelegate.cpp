@@ -3,6 +3,7 @@
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderPass.h"
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
+#include "usd_plugin/primitives/NPTracerHdMesh.h"
 
 #include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/sprim.h>
@@ -85,9 +86,7 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
 
     if (typeId == HdPrimTypeTokens->mesh)
     {
-    }
-    else if (typeId == HdPrimTypeTokens->light)
-    {
+        return new NPTracerHdMesh(rprimId, this);
     }
     else
     {

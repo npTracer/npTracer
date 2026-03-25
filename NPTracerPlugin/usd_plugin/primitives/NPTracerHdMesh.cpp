@@ -182,7 +182,7 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
     outMesh->_normals.resize(flattenedCount);
     outMesh->_uvs.resize(flattenedCount);
 
-    int maxAllowedIndex = indexedPositions.size();
+    int maxAllowedIndex = static_cast<int>(indexedPositions.size());
 
     // flatten all vertex data
     for (size_t i = 0; i < tris.size(); ++i)
@@ -254,7 +254,7 @@ void NPTracerHdMesh::_RemoveFromScene()
     Scene* scene = _pCreator->GetScene();
     if (scene && _pMesh)
     {
-        bool removed = scene->removeMesh(_pMesh->id);
+        bool removed = scene->removeMesh(_pMesh->objectId);
         _pMesh = nullptr;
 
         NP_DBG("Removed mesh '%s' from scene: %b", GetId().GetAsString(), removed);
@@ -267,14 +267,27 @@ VtValue NPTracerHdMesh::sGetPrimvar(SdfPath const& id, HdSceneDelegate* delegate
     return delegate->Get(id, name);
 }
 
+HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const
+{
+    return bits;
+}
+
+void NPTracerHdMesh::_InitRepr(TfToken const& reprToken, HdDirtyBits*)
+{
+    _ReprVector::iterator it = std::find_if(_reprs.begin(), _reprs.end(),
+                                            _ReprComparator(reprToken));
+    if (it == _reprs.end())
+    {
+        _reprs.emplace_back(reprToken, HdReprSharedPtr());
+    }
+}
+
 bool NPTracerHdMesh::sReadMeshPrimvars(SdfPath const& id, HdSceneDelegate* delegate,
                                        const HdMeshUtil& meshUtil, VtValue* pvValueOut,
                                        const std::function<bool(const std::string&)>& pred)
 {
     HdPrimvarDescriptorVector primvars
         = delegate->GetPrimvarDescriptors(id, HdInterpolation::HdInterpolationFaceVarying);
-
-    // look for `st` primvar or primvar that starts with `map`
 
     const HdPrimvarDescriptor* foundPvDesc = nullptr;
     for (size_t idx = 0; idx < primvars.size(); idx++)

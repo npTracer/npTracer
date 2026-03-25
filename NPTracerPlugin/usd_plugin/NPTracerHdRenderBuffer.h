@@ -42,6 +42,11 @@ public:
 
     virtual VtValue GetResource(bool multiSampled) const override;
 
+    inline NPImage* GetImage()
+    {
+        return &_image;
+    }
+
     inline void SetLayout(const VkImageLayout& layout)
     {
         _layout = layout;

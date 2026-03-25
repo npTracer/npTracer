@@ -199,7 +199,7 @@ struct NPMeshRecord
 
 struct NPMesh
 {
-    uint32_t id;  // the hash of the mesh's `SdfPath`
+    uint64_t objectId;  // the hash of the mesh's `SdfPath`
     NPScenePath scenePath;
 
     std::vector<uint32_t> indices;
@@ -236,7 +236,7 @@ struct NPMesh
         }
     }
 
-    NPMesh(uint32_t id, NPScenePath scenePath) : id(id), scenePath(scenePath) {};
+    NPMesh(uint64_t objectId, NPScenePath scenePath) : objectId(objectId), scenePath(scenePath) {};
 };
 
 enum class NPLightType : uint8_t
@@ -289,7 +289,7 @@ struct NPRenderSettings
 
 struct NPRendererAovs
 {
-    NPImage color;
-    NPImage depth;
+    NPImage* color;
+    NPImage* depth;
     // normals?
 };

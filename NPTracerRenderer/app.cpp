@@ -398,13 +398,13 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     inputInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     VkViewport viewport{
-        0.0f, 0.0f, static_cast<float>(aovs.color.width), static_cast<float>(aovs.color.height),
+        0.0f, 0.0f, static_cast<float>(aovs.color->width), static_cast<float>(aovs.color->height),
         0.0f, 1.0f
     };
 
     VkExtent2D extent{};
-    extent.width = aovs.color.width;
-    extent.height = aovs.color.height;
+    extent.width = aovs.color->width;
+    extent.height = aovs.color->height;
     VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
 
     VkPipelineViewportStateCreateInfo viewportState{};
@@ -472,7 +472,7 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = &aovs.color.format;
+    renderingInfo.pColorAttachmentFormats = &aovs.color->format;
     renderingInfo.depthAttachmentFormat = context.swapchainParams.depthFormat;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -514,7 +514,7 @@ void App::executeDrawCall(NPRendererAovs& aovs)
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    NPImage& renderTarget = aovs.color;
+    NPImage* renderTarget = aovs.color;
 
     populateDrawCall(frame.commandBuffer, renderTarget);
 
@@ -539,12 +539,12 @@ void App::executeDrawCall(NPRendererAovs& aovs)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget)
+void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
 {
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget.image, VK_IMAGE_LAYOUT_UNDEFINED,
+    context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -558,7 +558,7 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachmentInfo.imageView = renderTarget.view;
+    colorAttachmentInfo.imageView = renderTarget->view;
     colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -609,7 +609,7 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage& renderTarget
 
     vkCmdEndRendering(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget.image,
+    context.transitionImageLayout(commandBuffer, renderTarget->image,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},

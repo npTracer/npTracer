@@ -4,6 +4,8 @@
 
 #include <pxr/imaging/hd/renderDelegate.h>
 
+#include <NPTracerRenderer/app.h>
+
 #include <memory>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -60,17 +62,28 @@ public:
     // return the AOV description for `aovName`. This will be used to initialize the aov buffers.
     virtual HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
 
+    inline App* GetRendererApp() const
+    {
+        return _pApp.get();
+    }
+
+    inline Scene* GetScene() const
+    {
+        return _pApp != nullptr ? _pApp->getScene() : nullptr;
+    }
+
 private:
     void _Initialize();
 
-    static const TfTokenVector SUPPORTED_RPRIM_TYPES;
-    static const TfTokenVector SUPPORTED_SPRIM_TYPES;
-    static const TfTokenVector SUPPORTED_BPRIM_TYPES;
+    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };  // renderable primitives
+    const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera };  // state prims
+    const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
+
+    std::unique_ptr<App> _pApp;  // `App` lasts delegate's lifetime
 
     HdRenderSettingDescriptorList _settingDescriptors;
-    std::unique_ptr<NPTracerHdRenderParam> _renderParam;
-    HdResourceRegistrySharedPtr _resourceRegistry;
+    std::unique_ptr<NPTracerHdRenderParam> _pRenderParam;
+    HdResourceRegistrySharedPtr _pResourceRegistry;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE
-

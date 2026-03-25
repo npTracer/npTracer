@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(NPTracerRenderer)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
@@ -23,11 +23,13 @@ set(CURR_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
 set(LIB_SOURCES
     "${NPTracerRenderer_ROOT_DIR}/context.cpp"
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
+    "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
 )
 
 set(LIB_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
+    "${NPTracerRenderer_ROOT_DIR}/scene.h"
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
     "${NPTracerRenderer_ROOT_DIR}/structs.h"
 )

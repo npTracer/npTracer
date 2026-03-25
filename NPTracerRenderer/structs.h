@@ -6,8 +6,9 @@
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
-#include <glm/gtx/compatibility.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
+#include <string>
 #include <array>
 #include <optional>
 #include <vector>
@@ -16,7 +17,10 @@ using FLOAT2 = glm::f32vec2;
 using FLOAT3 = glm::f32vec3;
 using FLOAT4X4 = glm::f32mat4;
 
-struct Vertex
+using NPScenePath = std::string;
+using NPScenePathCollection = std::vector<NPScenePath>;
+
+struct NPVertex
 {
     FLOAT3 pos;
     FLOAT3 color;
@@ -25,22 +29,24 @@ struct Vertex
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
     {
-        return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+        return { 0, sizeof(NPVertex), VK_VERTEX_INPUT_RATE_VERTEX };
     }
 
     // tell vulkan what attributes exist within each vertex and how big they are
     static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
         return {
-            VkVertexInputAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
-            VkVertexInputAttributeDescription{1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                              offsetof(Vertex, color)},
-            VkVertexInputAttributeDescription{2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)},
+            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                                               offsetof(NPVertex, pos) },
+            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                                               offsetof(NPVertex, color) },
+            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32_SFLOAT,
+                                               offsetof(NPVertex, uv) },
         };
     }
 };
 
-struct Buffer
+struct NPBuffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -53,14 +59,30 @@ struct Buffer
             vmaDestroyBuffer(allocator, buffer, allocation);
         }
     }
+
+    static std::vector<VkBuffer> extractVkBuffers(const std::vector<NPBuffer>& buffers)
+    {
+        std::vector<VkBuffer> vkBuffers;
+        vkBuffers.reserve(buffers.size());
+        for (const auto& buffer : buffers)
+        {
+            vkBuffers.push_back(buffer.buffer);
+        }
+
+        return vkBuffers;
+    }
 };
 
-struct Image
+struct NPImage
 {
     VkImage image = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
     VmaAllocationInfo allocInfo;
+
+    uint32_t width = 0;
+    uint32_t height = 0;
+    VkFormat format = VK_FORMAT_UNDEFINED;
 
     void destroy(VkDevice device, VmaAllocator allocator)
     {
@@ -78,21 +100,44 @@ struct Image
     }
 };
 
-struct SwapchainParams
+struct NPPipeline
 {
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR presentMode;
-    VkExtent2D extent;
-    VkFormat depthFormat;
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+
+    void destroy(VkDevice device)
+    {
+        if (pipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device, pipeline, nullptr);
+        }
+
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device, layout, nullptr);
+        }
+    }
 };
 
-struct Frame
+struct NPDescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+
+    void destroy(VkDevice device)
+    {
+        vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        vkDestroyDescriptorPool(device, pool, nullptr);
+    }
+};
+
+struct NPFrame
 {
     VkSemaphore donePresentingSemaphore;
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
 
-    Buffer uboBuffer;
+    NPBuffer uboBuffer;
     VkDescriptorSet descriptorSet;
 
     void destroy(VkDevice device, VmaAllocator allocator)
@@ -103,14 +148,14 @@ struct Frame
     }
 };
 
-enum class QueueFamily
+enum class NPQueueType : uint8_t
 {
     GRAPHICS,
     TRANSFER,
     COMPUTE
 };
 
-struct Queue
+struct NPQueue
 {
     VkQueue queue = VK_NULL_HANDLE;
     std::optional<uint32_t> index;
@@ -131,43 +176,76 @@ struct Queue
 };
 
 // shared structs
-struct UniformBufferObject
+struct NPCameraRecord
 {
     alignas(16) FLOAT4X4 model;
     alignas(16) FLOAT4X4 view;
     alignas(16) FLOAT4X4 proj;
 };
 
-struct MeshData
+struct NPMeshRecord
 {
-    uint32_t objectId;
-    
+    uint32_t vbIdx;
+    uint32_t ibIdx;
+};
+
+struct NPMesh
+{
+    uint64_t objectId;  // the hash of the mesh's `SdfPath`
+    NPScenePath scenePath;
+
     std::vector<uint32_t> indices;
-    std::vector<FLOAT3> positions;
+    std::vector<NPVertex> vertices;
 
-    std::vector<FLOAT3> normals;
-    std::vector<FLOAT2> uvs;
+    // NOTE: this vertex data should be stored flattened.
+    // i.e. `_positions.size() == indices.size()`, etc.
+    std::vector<FLOAT3> _positions;
+    std::vector<FLOAT3> _normals;
+    std::vector<FLOAT2> _uvs;
+    std::vector<FLOAT3> _colors;
+    std::vector<uint32_t> _materialIds;
 
-    std::vector<FLOAT3> colors;
-    std::vector<uint32_t> materialIds;
-    
     FLOAT4X4 objectToWorld;
-    FLOAT4X4 worldToObject;
-    
+    FLOAT4X4 worldToObject;  // model matrix
+
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
+
+    void populateVertices()
+    {
+        size_t count = _positions.size();
+
+        this->vertices.clear();
+        this->vertices.reserve(count);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            NPVertex v{};
+            v.pos = _positions[i];
+            v.color = (i < _colors.size()) ? _colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f };
+            v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
+            vertices.push_back(v);
+        }
+    }
 };
 
-enum class LightType : uint8_t
+enum class NPLightType : uint8_t
 {
-    Directional,
-    Point,
-    Area
+    POINT,
+    AREA
 };
 
-struct LightData
+struct NPLightRecord
 {
-    LightType type;
+    FLOAT4X4 transform;
+
+    FLOAT3 color;
+    float intensity;
+};
+
+struct NPLight
+{
+    NPLightType type;
 
     FLOAT4X4 transform;
 
@@ -184,51 +262,24 @@ struct LightData
     uint32_t lightId;
 };
 
-struct CameraData
+enum class NPStylizationFunction : uint8_t
 {
-    // extrinsics
-    FLOAT3 cameraPos;
-    FLOAT3 cameraForward;
-    FLOAT3 cameraUp;
-    
-    // intrinsics
-    float fov;
-    float aspect;
+    PASSTHROUGH
 };
 
-struct RenderSettings
+struct NPRenderSettings
 {
     // general settings
-    uint32_t maxDepth;
-    uint32_t samplesPerPixel;
-    
+    uint32_t maxDepth = 1;
+    uint32_t samplesPerPixel = 1;
+
     // stylization-specific
-    uint32_t stylizationId;
-    uint32_t flags; // firstHitOnly, etc.
+    NPStylizationFunction stylizationFunction = NPStylizationFunction::PASSTHROUGH;
 };
 
-struct RendererPayload
+struct NPRendererAovs
 {
-    std::vector<MeshData> meshes;
-    std::vector<LightData> lights;
-    
-    CameraData cam;
-    
-    RenderSettings settings;
-};
-
-struct VkRenderTarget
-{
-    VkImage image;
-    VkImageView view;
-    VkFormat format;
-    uint32_t width;
-    uint32_t height;
-    VkImageLayout layout;
-};
-
-struct VkRendererAovs
-{
-    VkRenderTarget color;
-    // depth, normals? in the future
+    NPImage* color;
+    NPImage* depth;
+    // normals?
 };

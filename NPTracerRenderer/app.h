@@ -1,6 +1,9 @@
 #pragma once
 
 #include "context.h"
+#include "scene.h"
+
+#include <memory>
 
 class App
 {
@@ -14,15 +17,52 @@ class App
     static constexpr uint32_t WIDTH = 2560;
     static constexpr uint32_t HEIGHT = 1440;
 
-private:
-    Context context;
+public:
+    inline Context* getContext()
+    {
+        return &context;
+    }
 
-    GLFWwindow* window = nullptr;
+    inline Scene* getScene() const
+    {
+        return scene.get();
+    }
 
+    // interface
     void create();
-    void render();
     void destroy();
 
-public:
+    void executeDrawCall(NPRendererAovs& aovs);
+
     void run();
+
+private:
+    static constexpr int FRAME_COUNT = 2;
+    static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
+    uint32_t currentFrame = 0;
+
+    Context context;
+    GLFWwindow* window = nullptr;
+
+    // rendering resources
+    NPPipeline pipeline;
+    std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
+
+    std::vector<VkDescriptorSet> descriptorSets;
+
+    std::unique_ptr<Scene> scene;
+    std::vector<uint32_t> indexCounts;
+
+    NPBuffer meshRecordBuffer;
+    NPBuffer lightRecordBuffer;
+    NPBuffer cameraRecordBuffer;
+    std::vector<NPBuffer> vertexBuffers;
+    std::vector<NPBuffer> indexBuffers;
+
+    // resource creation
+    void createRenderingResources(NPRendererAovs& aovs);
+    void createGraphicsPipeline(NPPipeline& pipeline,
+                                std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
+                                NPRendererAovs& aovs);
+    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
 };

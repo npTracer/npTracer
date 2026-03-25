@@ -1,4 +1,4 @@
-#include "usd_plugin/NPTracerDebugCodes.h"
+#include "usd_plugin/debugCodes.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 

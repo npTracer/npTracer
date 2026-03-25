@@ -1,42 +1,54 @@
-#include "NPTracerHdRenderBuffer.h"
-#include "NPTracerDebugCodes.h"
+#include "usd_plugin/NPTracerHdRenderBuffer.h"
+
+#include "usd_plugin/debugCodes.h"
+#include "usd_plugin/NPTracerHdRenderParam.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId)
-    : HdRenderBuffer(bprimId)
+NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context)
+    : HdRenderBuffer(bprimId), _pCtx(context)
 {
 }
 
-bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions,
-                                 HdFormat format,
-                                 bool multiSampled)
+bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled)
 {
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Allocate render buffer: id=%s, dimensions=(%i, %i, %i), "
-             "format=%i\n",
-             TF_FUNC_NAME().c_str(),
-             GetId().GetText(),
-             dimensions[0],
-             dimensions[1],
-             dimensions[2],
-             format);
-
-    _Deallocate();
-
-    // enforce 2D buffer for now
-    TF_VERIFY(dimensions[2] == 1);
+    NP_DBG("[%s] Allocate render buffer: id=%s, dimensions=(%i, %i, %i), "
+           "format=%i\n",
+           TF_FUNC_NAME().c_str(), GetId().GetText(), dimensions[0], dimensions[1], dimensions[2],
+           format);
 
     _dimensions = dimensions;
     _format = format;
-    _buffer.resize(_dimensions[0] * _dimensions[1] * _dimensions[2] *
-                   HdDataSizeOfFormat(format));
+    _multiSampled = multiSampled;
+    _fmtTokens = Np::GetFormatTokens(format);
 
-    TF_DEBUG(NPTRACER_RENDER)
-        .Msg("[%s] Render buffer: id=%s, size=%llu\n",
-             TF_FUNC_NAME().c_str(),
-             GetId().GetText(),
-             _buffer.size());
+    uint32_t width = static_cast<uint32_t>(dimensions[0]);
+    uint32_t height = static_cast<uint32_t>(dimensions[1]);
+
+    VkDeviceSize size = _fmtTokens.bytesPerPixel * width * height;
+
+    _Deallocate();
+
+    if (format == HdFormatInvalid)
+    {
+        return false;
+    }
+
+    VkFormat vkFormat = _fmtTokens.vkFormat;
+    if (vkFormat == VK_FORMAT_UNDEFINED)
+    {
+        return false;
+    }
+
+    _pCtx->createBuffer(_stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                            | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    _pCtx->createImage(_image, VK_IMAGE_TYPE_2D, vkFormat, width, height, _fmtTokens.usage,
+                       0  // device local
+    );
+
+    NP_DBG("[%s] Render buffer allocated: id=%s\n", TF_FUNC_NAME().c_str(), GetId().GetText());
 
     return true;
 }
@@ -63,13 +75,39 @@ HdFormat NPTracerHdRenderBuffer::GetFormat() const
 
 bool NPTracerHdRenderBuffer::IsMultiSampled() const
 {
-    return false;
+    return _multiSampled;
 }
 
+// copy underlying image data to a staging buffer for i/o mapping
 void* NPTracerHdRenderBuffer::Map()
 {
     _mappers.fetch_add(1);
-    return _buffer.data();
+
+    VkCommandBuffer cmd = _pCtx->transferCommandBuffer;
+
+    VkImageLayout currLayout = _layout;
+
+    vkResetCommandBuffer(cmd, 0);
+    _pCtx->beginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    _pCtx->transitionImageLayout(cmd, _image.image, currLayout,
+                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _fmtTokens.writeAccess,
+                                 VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeStage,
+                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.aspect);
+
+    _pCtx->copyImageToBuffer(cmd, _image, _stagingBuffer, static_cast<uint32_t>(_dimensions[0]),
+                             static_cast<uint32_t>(_dimensions[1]));
+
+    // restore image layout for future passes
+    _pCtx->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                 currLayout, VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
+                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
+                                 _fmtTokens.aspect);
+
+    _pCtx->endCommandBuffer(cmd, NPQueueType::TRANSFER);
+    vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
+
+    return _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
 }
 
 void NPTracerHdRenderBuffer::Unmap()
@@ -95,17 +133,23 @@ void NPTracerHdRenderBuffer::SetConverged(bool converged)
 void NPTracerHdRenderBuffer::Resolve()
 {
     // TODO
-    return;
+}
+
+VtValue NPTracerHdRenderBuffer::GetResource(bool multiSampled) const
+{
+    return VtValue();
 }
 
 void NPTracerHdRenderBuffer::_Deallocate()
 {
-    TF_VERIFY(!IsMapped());
+    // reset to default/empty values
+    _image.destroy(_pCtx->device, _pCtx->allocator);
+    _stagingBuffer.destroy(_pCtx->allocator);
 
-    // reset to default/empty values.
-    _dimensions = GfVec3i(-1, -1, -1);
+    _layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    _dimensions = GfVec3i(-1);
     _format = HdFormatInvalid;
-    _buffer.resize(0);
+
     _mappers.store(0);
     _converged.store(false);
 }

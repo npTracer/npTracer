@@ -8,7 +8,7 @@ endif()
 
 project(NPTracerPlugin)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(NPTracerPlugin_USD_PLUG_DEBUG "Enable messages written to debugger output via USD's `TfDebug` class." ON)
@@ -34,7 +34,12 @@ set(CURR_HEADERS
 
 add_library(${PROJECT_NAME} SHARED ${CURR_SOURCES} ${CURR_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} Houdini HoudiniThirdParty ${RENDERER_TARGET_NAME})
+target_link_libraries(${PROJECT_NAME} 
+    Houdini 
+    HoudiniThirdParty
+    ${RENDERER_TARGET_NAME}
+)
+
 # install directly to `CUSTOM_USD_DSO_PATH`
 houdini_configure_target(${PROJECT_NAME} INSTDIR "${CUSTOM_USD_DSO_PATH}")
 ConfigureFilePostBuild(${PROJECT_NAME}

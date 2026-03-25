@@ -1,6 +1,7 @@
 #pragma once
 
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
+#include "usd_plugin/NPTracerHdRenderBuffer.h"
 
 #include <NPTracerRenderer/structs.h>
 
@@ -16,20 +17,20 @@ public:
 
 protected:
     virtual void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
-                  TfTokenVector const& renderTags) override;
-    
+                          TfTokenVector const& renderTags) override;
+
     virtual bool IsConverged() const override;
-    
+
     // set the convergence state
     void SetConverged(bool converged);
 
 private:
-    NPTracerHdRenderDelegate* _delegate;
-    
-    std::atomic<bool> _converged{false};
+    NPTracerHdRenderDelegate* _pCreator;
 
-    RendererPayload _BuildRendererPayload(HdRenderPassStateSharedPtr const& state);
-    VkRendererAovs _ExtractAovs(HdRenderPassStateSharedPtr const& state);
+    std::atomic<bool> _converged{ false };
+
+    void _SyncCamera(HdRenderPassStateSharedPtr const& renderPassState,
+                     NPCameraRecord* outCam) const;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

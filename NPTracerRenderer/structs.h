@@ -80,8 +80,8 @@ struct NPImage
     VmaAllocation allocation = VK_NULL_HANDLE;
     VmaAllocationInfo allocInfo;
 
-    uint32_t width = 0;
-    uint32_t height = 0;
+    uint32_t width = -1;
+    uint32_t height = -1;
     VkFormat format = VK_FORMAT_UNDEFINED;
 
     void destroy(VkDevice device, VmaAllocator allocator)
@@ -90,6 +90,7 @@ struct NPImage
         {
             vmaDestroyImage(allocator, image, allocation);
             image = VK_NULL_HANDLE;
+            allocInfo = {};
         }
 
         if (view != VK_NULL_HANDLE)
@@ -152,7 +153,8 @@ enum class NPQueueType : uint8_t
 {
     GRAPHICS,
     TRANSFER,
-    COMPUTE
+    COMPUTE,
+    _COUNT  // sentinel
 };
 
 struct NPQueue
@@ -279,7 +281,7 @@ struct NPRenderSettings
 
 struct NPRendererAovs
 {
-    NPImage* color;
-    NPImage* depth;
+    NPImage* color = nullptr;
+    NPImage* depth = nullptr;
     // normals?
 };

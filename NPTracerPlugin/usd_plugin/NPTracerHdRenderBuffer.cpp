@@ -3,19 +3,32 @@
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
 
+#define PREPARE_UNIQUE_PTR(_ptr, _ptrType, _destroyer)                                             \
+    if (_ptr == nullptr)                                                                           \
+    {                                                                                              \
+        _ptr = std::make_unique<_ptrType>();                                                       \
+    }                                                                                              \
+    else                                                                                           \
+    {                                                                                              \
+        _destroyer();                                                                              \
+        _ptr.reset();                                                                              \
+        _ptr = std::make_unique<_ptrType>();                                                       \
+    }
+
 PXR_NAMESPACE_OPEN_SCOPE
 
 NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context)
-    : HdRenderBuffer(bprimId), _pCtx(context)
+    : HdRenderBuffer(bprimId)
+    , _pCtx(context)
+    , _pImage(nullptr)
+    , _pStagingBuffer(nullptr)
+    , _fmtTokens(Np::GetFormatTokens(HdFormatInvalid))
 {
 }
 
 bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled)
 {
-    NP_DBG("[%s] Allocate render buffer: id=%s, dimensions=(%i, %i, %i), "
-           "format=%i\n",
-           TF_FUNC_NAME().c_str(), GetId().GetText(), dimensions[0], dimensions[1], dimensions[2],
-           format);
+    _Deallocate();
 
     _dimensions = dimensions;
     _format = format;
@@ -24,10 +37,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     uint32_t width = static_cast<uint32_t>(dimensions[0]);
     uint32_t height = static_cast<uint32_t>(dimensions[1]);
-
     VkDeviceSize size = _fmtTokens.bytesPerPixel * width * height;
-
-    _Deallocate();
 
     if (format == HdFormatInvalid)
     {
@@ -40,15 +50,22 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
         return false;
     }
 
-    _pCtx->createBuffer(_stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                            | VMA_ALLOCATION_CREATE_MAPPED_BIT);
-
-    _pCtx->createImage(_image, VK_IMAGE_TYPE_2D, vkFormat, width, height, _fmtTokens.usage,
+    PREPARE_UNIQUE_PTR(_pImage, NPImage,
+                       [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
+    _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, width, height, _fmtTokens.usage,
                        0  // device local
     );
 
-    NP_DBG("[%s] Render buffer allocated: id=%s\n", TF_FUNC_NAME().c_str(), GetId().GetText());
+    PREPARE_UNIQUE_PTR(_pStagingBuffer, NPBuffer,
+                       [this]() { _pStagingBuffer->destroy(_pCtx->allocator); });
+    _pCtx->createBuffer(*_pStagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                            | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    NP_DBG("[%s] Allocated render buffer: id=%s, dimensions=(%i, %i, %i), "
+           "format=%i\n",
+           TF_FUNC_NAME().c_str(), GetId().GetText(), dimensions[0], dimensions[1], dimensions[2],
+           format);
 
     return true;
 }
@@ -81,41 +98,54 @@ bool NPTracerHdRenderBuffer::IsMultiSampled() const
 // copy underlying image data to a staging buffer for i/o mapping
 void* NPTracerHdRenderBuffer::Map()
 {
-    _mappers.fetch_add(1);
+    if (!_pImage)
+    {
+        TF_FATAL_CODING_ERROR("Map called before allocation for buffer '%s'.", GetId().GetText());
+    }
 
-    VkCommandBuffer cmd = _pCtx->frames[0].commandBuffer;
+    NP_DBG("Render buffer '%s' requested for map.", GetId().GetText());
 
-    vkResetCommandBuffer(cmd, 0);
-    _pCtx->beginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    _readers.fetch_add(1);  // add first to signal there is an intended reader
 
-    _pCtx->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_GENERAL,
+    while (HasWriter())
+    {
+        std::this_thread::yield();  // for now ensure reading can only occur during writing
+    }
+
+    vkResetCommandBuffer(_transferCmdBuffer, 0);
+    _pCtx->createCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
+    _pCtx->beginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    _pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _fmtTokens.writeAccess,
                                  VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeStage,
                                  VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.aspect);
 
-    _pCtx->copyImageToBuffer(cmd, _image, _stagingBuffer, static_cast<uint32_t>(_dimensions[0]),
+    _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
+                             static_cast<uint32_t>(_dimensions[0]),
                              static_cast<uint32_t>(_dimensions[1]));
 
     // restore image layout for future passes
-    _pCtx->transitionImageLayout(cmd, _image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                 VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_2_TRANSFER_READ_BIT,
-                                 _fmtTokens.writeAccess, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                 _fmtTokens.writeStage, _fmtTokens.aspect);
+    _pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image,
+                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+                                 VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
+                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
+                                 _fmtTokens.aspect);
 
-    _pCtx->endCommandBuffer(cmd, NPQueueType::GRAPHICS);
-    vkQueueWaitIdle(_pCtx->queues[NPQueueType::GRAPHICS].queue);
+    _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
+    vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
 
-    return _stagingBuffer.allocInfo.pMappedData;  // zero-copy op
+    return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
 
 void NPTracerHdRenderBuffer::Unmap()
 {
-    _mappers.fetch_sub(1);
+    _readers.fetch_sub(1);
 }
 
 bool NPTracerHdRenderBuffer::IsMapped() const
 {
-    return _mappers.load() > 0;
+    return _readers.load() > 0;
 }
 
 bool NPTracerHdRenderBuffer::IsConverged() const
@@ -133,21 +163,56 @@ void NPTracerHdRenderBuffer::Resolve()
     // TODO
 }
 
-VtValue NPTracerHdRenderBuffer::GetResource(bool multiSampled) const
+bool NPTracerHdRenderBuffer::HasWriter() const
 {
-    return VtValue();
+    return _hasWriter.load();
+}
+
+NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
+{
+    if (waitUntilSuccess)
+    {
+        while (HasWriter() || IsMapped())
+        {
+            std::this_thread::yield();  // for now ensure reading can only occur during writing
+        }
+    }
+
+    if (!HasWriter() && !IsMapped())
+    {
+        SetConverged(false);  // first mark not converged
+        _hasWriter.store(true);
+        return _pImage.get();
+    }
+    return nullptr;
+}
+
+void NPTracerHdRenderBuffer::EndWrite()
+{
+    SetConverged(true);
+    _hasWriter.store(false);
 }
 
 void NPTracerHdRenderBuffer::_Deallocate()
 {
+    TF_DEV_AXIOM(!HasWriter() && !IsMapped() && IsConverged());
+
     // reset to default/empty values
-    _image.destroy(_pCtx->device, _pCtx->allocator);
-    _stagingBuffer.destroy(_pCtx->allocator);
+    if (_pImage)
+    {
+        _pImage->destroy(_pCtx->device, _pCtx->allocator);
+        _pImage.reset(nullptr);  // reset to nullptr to signal non-allocated state
+    }
+    if (_pStagingBuffer)
+    {
+        _pStagingBuffer->destroy(_pCtx->allocator);
+        _pStagingBuffer.reset(nullptr);
+    }
 
     _dimensions = GfVec3i(-1);
     _format = HdFormatInvalid;
 
-    _mappers.store(0);
+    _readers.store(0);
     _converged.store(false);
 }
 

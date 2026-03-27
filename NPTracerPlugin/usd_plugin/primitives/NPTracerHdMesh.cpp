@@ -117,8 +117,7 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
     // look for UVs in primvars as they are more ideal
     VtValue uvValue;
     if (sReadMeshPrimvars(id, delegate, meshUtil, &uvValue,
-                          [](const std::string& pvName)
-                          { // naming standards for UVs
+                          [](const std::string& pvName) {  // naming standards for UVs
                               return pvName.compare("st") == 0
                                      || pvName.substr(0, 3).compare("map") == 0;
                           }))

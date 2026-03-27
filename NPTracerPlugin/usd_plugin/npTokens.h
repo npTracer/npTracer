@@ -9,13 +9,13 @@ namespace Np  // match casing of other Usd libraries
 {
 struct FormatTokens
 {
-    VkFormat vkFormat;
-    VkImageUsageFlags usage;
-    VkImageAspectFlags aspect;
-    VkAccessFlags2 writeAccess;
-    VkPipelineStageFlags2 writeStage;
-    VkImageLayout attachmentLayout;
-    uint64_t bytesPerPixel;
+    VkFormat vkFormat = VK_FORMAT_UNDEFINED;
+    VkImageUsageFlags usage = 0;
+    VkImageAspectFlags aspect = 0;
+    VkAccessFlags2 writeAccess = 0;
+    VkPipelineStageFlags2 writeStage = 0;
+    VkImageLayout attachmentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    uint64_t bytesPerPixel = 0;
 };
 
 inline constexpr FormatTokens kColorFormatTokens = { VK_FORMAT_R8G8B8A8_UNORM,
@@ -55,7 +55,19 @@ inline constexpr FormatTokens kIdFormatTokens = { VK_FORMAT_R32_SINT,
                                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                                   4 };
 
-const FormatTokens& GetFormatTokens(HdFormat fmt);
+inline constexpr FormatTokens kInvalidFormatTokens = {};  // default value denotes invalid
+
+inline const FormatTokens& GetFormatTokens(HdFormat fmt)
+{
+    switch (fmt)
+    {
+        case HdFormatUNorm8Vec4: return kColorFormatTokens;
+        case HdFormatFloat32: return kDepthFormatTokens;
+        case HdFormatFloat32Vec3: return kNormalFormatTokens;
+        case HdFormatInt32: return kIdFormatTokens;
+        default: return kInvalidFormatTokens;
+    }
+}
 }  // namespace Np
 
 PXR_NAMESPACE_CLOSE_SCOPE

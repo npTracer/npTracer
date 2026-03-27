@@ -73,6 +73,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${NPTracerPlugin_ROOT_DIR}")
 # set a compile definition for whether debugging is enabled
 target_compile_definitions(${PROJECT_NAME} PUBLIC "NPTRACER_DEBUG=$<BOOL:${NPTracerPlugin_USD_PLUG_DEBUG}>")
 
+if (MSVC) # disable compiler optimizations
+    target_compile_options(${PROJECT_NAME} PRIVATE /Od)
+else()
+    target_compile_options(${PROJECT_NAME} PRIVATE -O0)
+endif()
+
 SetupInstallationAfterBuild(${PROJECT_NAME})
 
 # set some useful VS settings for QOL

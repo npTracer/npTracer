@@ -24,15 +24,13 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     this->SetConverged(false);
 
     App* app = _pCreator->GetRendererApp();
-    NPCameraRecord* cam = app->getScene()->getCamera();
-    _SyncCamera(renderPassState, cam);
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
     NPRendererAovs payload;
 
-    std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
-    dirtyBuffers.clear();
+    std::vector<NPTracerHdRenderBuffer*> requestedWriters;
+    requestedWriters.reserve(aovBindings.size());
 
     for (HdRenderPassAovBinding const& binding : aovBindings)
     {
@@ -45,26 +43,29 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
         if (binding.aovName == HdAovTokens->color)
         {
-            payload.color = buffer->GetImage();
+            payload.color = buffer->RequestImageForWrite(true);
         }
         else if (binding.aovName == HdAovTokens->depth)
         {
-            payload.depth = buffer->GetImage();
+            payload.depth = buffer->RequestImageForWrite(true);
         }
         else
         {
             buffer->SetConverged(true);
-            continue;  // skip pushing onto `dirtyBuffers`
+            continue;  // skip pushing onto buffer vector
         }
 
-        dirtyBuffers.push_back(buffer);
+        requestedWriters.push_back(buffer);
     }
+
+    NPCameraRecord* cam = app->getScene()->getCamera();
+    _SyncCamera(renderPassState, cam);  // fill in camera data after all buffers have been requested
 
     app->executeDrawCall(payload);
 
-    for (NPTracerHdRenderBuffer* buffer : dirtyBuffers)
+    for (NPTracerHdRenderBuffer* buffer : requestedWriters)
     {
-        buffer->SetConverged(true);  // mark all dirtied buffers
+        buffer->EndWrite();  // mark all requested buffers
     }
 
     this->SetConverged(true);

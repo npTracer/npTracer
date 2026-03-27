@@ -569,8 +569,8 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
 
     // TODO pass in image params
     VkExtent2D extent{};
-    extent.width = WIDTH;
-    extent.height = HEIGHT;
+    extent.width = renderTarget->width;
+    extent.height = renderTarget->height;
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;

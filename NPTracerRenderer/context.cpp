@@ -91,50 +91,55 @@ void Context::createLogicalDeviceAndQueues()
     std::vector<VkQueueFamilyProperties> properties(propertyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &propertyCount, properties.data());
 
-    NPQueue graphicsQueue;
-    NPQueue transferQueue;
-
     // queue selection
     for (uint32_t i = 0; i < properties.size(); i++)
     {
         const auto& family = properties[i];
 
-        if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT
+            && !queues.count(NPQueueType::GRAPHICS))  // do not overwrite with a later match
         {
-            graphicsQueue.index = i;
+            queues[NPQueueType::GRAPHICS].index = i;  // operator[] will insert if does not exist
         }
-        else if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
+        if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
-            transferQueue.index = i;
+            if (!queues.count(NPQueueType::TRANSFER) || !(family.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+            {  // allow overwrite if this is a dedicated transfer queue
+                queues[NPQueueType::TRANSFER].index = i;
+            }
         }
     }
 
-    float queuePriority = 1.0f;
+    std::unordered_set<uint32_t> queueFamilyIndicesSet;
+    for (auto it = queues.begin(); it != queues.end();)
+    {
+        if (!it->second) it = queues.erase(it);  // should not occur, but for completion's sake
+        else
+        {
+            queueFamilyIndicesSet.insert(it->second.index.value());
+            ++it;
+        }
+    }
+    queueFamilyIndices.clear();
+    queueFamilyIndices.reserve(static_cast<size_t>(NPQueueType::_COUNT));  // reserve upfront
+    queueFamilyIndices.assign(queueFamilyIndicesSet.begin(), queueFamilyIndicesSet.end());
+
+    constexpr float kQueuePriority = 1.0f;
+
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-
-    if (graphicsQueue)
+    queueCreateInfos.reserve(queueFamilyIndices.size());
+    for (uint32_t idx : queueFamilyIndices)
     {
         VkDeviceQueueCreateInfo queueCreateInfo{};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = graphicsQueue.index.value();
+        queueCreateInfo.queueFamilyIndex = idx;
         queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfo.pQueuePriorities = &kQueuePriority;
 
-        queueCreateInfos.emplace_back(queueCreateInfo);
+        queueCreateInfos.push_back(queueCreateInfo);
     }
 
-    if (transferQueue)
-    {
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = transferQueue.index.value();
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
-
-        queueCreateInfos.emplace_back(queueCreateInfo);
-    }
-
-    // TODO add device features
+    // TODO: add device features
     VkPhysicalDeviceVulkan13Features vulkan13Features{};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.synchronization2 = VK_TRUE;
@@ -151,7 +156,7 @@ void Context::createLogicalDeviceAndQueues()
     features2.pNext = &indexingFeatures;
     features2.features.samplerAnisotropy = true;
 
-    // TODO add more device extensions
+    // TODO: add more device extensions
     std::vector<const char*> requiredDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
     };
@@ -170,44 +175,23 @@ void Context::createLogicalDeviceAndQueues()
         throw std::runtime_error("failed to create logical device");
     }
 
-    if (graphicsQueue)
+    for (auto& [type, queue] : queues)
     {
-        vkGetDeviceQueue(device, graphicsQueue.index.value(), 0, &graphicsQueue.queue);
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = graphicsQueue.index.value();
-
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool)
-            != VK_SUCCESS)
+        if (queue)
         {
-            throw std::runtime_error("failed to create command pool");
+            vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
+
+            VkCommandPoolCreateInfo poolInfo{};
+            poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            poolInfo.queueFamilyIndex = queue.index.value();
+
+            if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create command pool");
+            }
         }
-        queues[NPQueueType::GRAPHICS] = graphicsQueue;
     }
-
-    if (transferQueue)
-    {
-        vkGetDeviceQueue(device, transferQueue.index.value(), 0, &transferQueue.queue);
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = transferQueue.index.value();
-
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &transferQueue.commandPool)
-            != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create command pool");
-        }
-        queues[NPQueueType::TRANSFER] = transferQueue;
-    }
-
-    queueFamilyIndices = {
-        queues[NPQueueType::GRAPHICS].index.value(),
-        queues[NPQueueType::TRANSFER].index.value(),
-    };
 }
 
 void Context::createAllocator()
@@ -233,9 +217,9 @@ void Context::createSyncAndFrameObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (int i = 0; i < FRAME_COUNT; i++)
+    for (int i = 0; i < kFrameCount; i++)
     {
-        NPFrame frame;
+        NPFrame frame{};
 
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
@@ -295,7 +279,7 @@ void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueF
 
 // BUFFERS
 bool Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
-                           VmaAllocationCreateFlags allocationFlags)
+                           VmaAllocationCreateFlags allocationFlags) const
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -692,7 +676,7 @@ void Context::destroyDebugMessenger()
 
 void Context::destroy()
 {
-    for (int i = 0; i < FRAME_COUNT; i++)
+    for (int i = 0; i < kFrameCount; i++)
     {
         frames[i].destroy(device, allocator);
     }

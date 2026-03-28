@@ -75,8 +75,8 @@ add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 
 target_link_libraries(${PROJECT_NAME} PUBLIC 
     glfw
-    Vulkan::Vulkan 
-    glm::glm-header-only # use header-only GLM
+    Vulkan::Vulkan
+    glm::glm
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")
@@ -116,8 +116,6 @@ install(EXPORT ${PROJECT_TARGETS_NAME}
         NAMESPACE ${PROJECT_NAME}::
         DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
-
-include(CMakePackageConfigHelpers)
 
 configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
   "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"

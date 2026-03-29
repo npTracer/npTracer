@@ -81,8 +81,7 @@ void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
-    NP_DBG("Create Rprim type: type=%s id=%s\n", typeId.GetText(),
-           rprimId.GetText());
+    NP_DBG("Create Rprim type: type=%s id=%s\n", typeId.GetText(), rprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->mesh)
     {
@@ -103,8 +102,7 @@ void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
-    NP_DBG("Create Sprim: type=%s id=%s\n", typeId.GetText(),
-           sprimId.GetText());
+    NP_DBG("Create Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -142,8 +140,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
 HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfPath& bprimId)
 {
-    NP_DBG("Create Bprim: type=%s id=%s\n", typeId.GetText(),
-           bprimId.GetText());
+    NP_DBG("Create Bprim: type=%s id=%s\n", typeId.GetText(), bprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {

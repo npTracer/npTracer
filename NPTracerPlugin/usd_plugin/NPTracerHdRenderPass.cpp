@@ -42,7 +42,7 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
         {
             continue;
         }
-        
+
         TF_DEV_AXIOM(buffer->IsConverged() && !buffer->IsMapped());
 
         if (binding.aovName == HdAovTokens->color)

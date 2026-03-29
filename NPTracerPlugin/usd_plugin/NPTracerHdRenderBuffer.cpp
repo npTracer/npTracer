@@ -30,8 +30,8 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 {
     NP_DBG("Requested allocation of render buffer: id=%s, dimensions=(%i, %i, %i), format=%i\n",
            GetId().GetText(), dimensions[0], dimensions[1], dimensions[2], format);
-    
-    TF_DEV_AXIOM(dimensions[2] == 1); // temp: only support 2D buffers
+
+    TF_DEV_AXIOM(dimensions[2] == 1);  // temp: only support 2D buffers
 
     _Deallocate();
 
@@ -39,7 +39,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     _format = format;
     _multiSampled = multiSampled;
     _fmtTokens = Np::GetFormatTokens(format);
-    
+
     const VkDeviceSize size = GetSize();
 
     if (format == HdFormatInvalid)
@@ -55,7 +55,8 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     PREPARE_UNIQUE_PTR(_pImage, NPImage,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
-    _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1], _fmtTokens.usage,
+    _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
+                       _fmtTokens.usage,
                        0  // device local
     );
 
@@ -201,14 +202,15 @@ void* NPTracerHdRenderBuffer::Map()
 
     _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
-    
+
     uint8_t* data = static_cast<uint8_t*>(_pStagingBuffer->allocInfo.pMappedData);
 
     const size_t size = GetSize();
     for (size_t i = 0; i < size; i += 4)
     {
-        if (size > 23 && i > 20) continue; // only debug log a few
-        NP_DBG("[Pixel %d] (%u, %u, %u, %u)\n", i / 4, data[i + 0], data[i + 1], data[i + 2], data[i + 3]);
+        if (size > 23 && i > 20) continue;  // only debug log a few
+        NP_DBG("[Pixel %d] (%u, %u, %u, %u)\n", i / 4, data[i + 0], data[i + 1], data[i + 2],
+               data[i + 3]);
     }
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op

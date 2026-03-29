@@ -34,11 +34,11 @@ void Scene::loadSceneAssimp(const char* path)
         for (uint32_t j = 0; j < currMesh->mNumVertices; j++)
         {
             NPVertex vertex;
-            vertex.pos = FLOAT3(currMesh->mVertices[j].x, currMesh->mVertices[j].y, currMesh->mVertices[j].z);
-            vertex.normal = currMesh->HasNormals() ? FLOAT3(currMesh->mNormals[j].x, currMesh->mNormals[j].y, currMesh->mNormals[j].z) : FLOAT3(0, 0, 0);
-            vertex.color = currMesh->HasVertexColors(0) ? FLOAT3(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g, currMesh->mColors[0][j].b) : FLOAT3(0, 0, 0);
+            vertex.pos = FLOAT4(currMesh->mVertices[j].x, currMesh->mVertices[j].y, currMesh->mVertices[j].z, 1.0f);
+            vertex.normal = currMesh->HasNormals() ? FLOAT4(currMesh->mNormals[j].x, currMesh->mNormals[j].y, currMesh->mNormals[j].z, 1.0f) : FLOAT4(0, 0, 0, 0);
+            vertex.color = currMesh->HasVertexColors(0) ? FLOAT4(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g, currMesh->mColors[0][j].b, 1.0f) : FLOAT4(0, 0, 0, 0);
             vertex.uv = currMesh->HasTextureCoords(0) ? FLOAT2(currMesh->mTextureCoords[0][j].x, currMesh->mTextureCoords[0][j].y) : FLOAT2(0, 0);
-            
+            vertex.pad0 = FLOAT2(0, 0);
             mesh->vertices.push_back(vertex);
         }
         
@@ -56,17 +56,55 @@ void Scene::loadSceneAssimp(const char* path)
         _meshes.push_back(std::move(mesh));
     }
         
-    // TODO REPLACE
-    NPCameraRecord cameraRecord;
-    cameraRecord.model = rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-    cameraRecord.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-               glm::vec3(0.0f, 0.0f, 1.0f)),
-    cameraRecord.proj = glm::perspective(glm::radians(45.0f),
-                         static_cast<float>(2560)
-                             / static_cast<float>(1440),
-                         0.1f, 10.0f);
-    
-    _camera = cameraRecord;
+    if (scene->HasCameras())
+    {
+        aiCamera* aiCam = scene->mCameras[0];
+
+        aiVector3D pos = aiCam->mPosition;
+        aiVector3D look = aiCam->mLookAt;
+        aiVector3D up = aiCam->mUp;
+
+        glm::vec3 eye(pos.x, pos.y, pos.z);
+        glm::vec3 center = eye + glm::vec3(look.x, look.y, look.z);
+        glm::vec3 upVec(up.x, up.y, up.z);
+
+        NPCameraRecord cameraRecord{};
+        cameraRecord.model = glm::mat4(1.0f);
+        cameraRecord.view = glm::lookAt(eye, center, upVec);
+
+        float aspect = aiCam->mAspect != 0.0f ? aiCam->mAspect : (2560.0f / 1440.0f);
+        cameraRecord.proj = glm::perspective(aiCam->mHorizontalFOV,
+                                             aspect,
+                                             aiCam->mClipPlaneNear,
+                                             aiCam->mClipPlaneFar);
+        cameraRecord.proj[1][1] *= -1.0f;
+
+        _camera = cameraRecord;
+    }
+    else
+    {
+        NPCameraRecord cameraRecord{};
+
+        cameraRecord.model = glm::mat4(1.0f);
+
+        cameraRecord.view = glm::lookAt(
+            glm::vec3(0.0f, 1.0f, 3.0f),   // eye
+            glm::vec3(0.0f, 0.0f, 0.0f),   // center
+            glm::vec3(0.0f, -1.0f, 0.0f)    // up
+        );
+
+        cameraRecord.proj = glm::perspective(
+            glm::radians(75.0f),
+            2560.0f / 1440.0f,
+            0.1f,
+            100.0f
+        );
+        cameraRecord.proj[1][1] *= -1.0f;
+
+        _camera = cameraRecord;
+
+        _camera = cameraRecord;
+    }
 }
 
 NPMesh* Scene::addMesh()

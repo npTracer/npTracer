@@ -65,16 +65,33 @@ target_include_directories(${PROJECT_NAME}
 ) # set the include directories based on interface
 
 find_program(SLANGC_EXECUTABLE slangc REQUIRED)
-foreach(shader_spec ${CURR_SHADER_SPECS})
+
+foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
-    AddSlangShaderTarget(${COMPILE_SHADERS_TARGET} "${CURR_SHADER_FILE}" "${CURR_SHADER_STAGES}" "${SHADER_OUTPUT_DIR}" ${PROJECT_NAME})
+    AddSlangShaderTarget(
+        ${COMPILE_SHADERS_TARGET}
+        "${CURR_SHADER_FILE}"
+        "${CURR_SHADER_STAGES}"
+        "${SHADER_OUTPUT_DIR}"
+        "${PROJECT_NAME}"
+    )
 endforeach()
 
+# Incremental target: only rebuilds when outputs are stale
 get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
 add_custom_target(${COMPILE_SHADERS_TARGET} DEPENDS ${ALL_SPV_OUTPUTS})
 
+# Manual target: always runs the shader compiler commands when invoked
+get_property(ALL_SHADER_COMMANDS GLOBAL PROPERTY ALL_SHADER_COMMANDS)
+add_custom_target(CompileShadersManual
+    ${ALL_SHADER_COMMANDS}
+    COMMENT "Manually recompiling all Slang shaders"
+    VERBATIM
+)
+
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
+set_target_properties(CompileShadersManual PROPERTIES FOLDER "utility")
 
 add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 

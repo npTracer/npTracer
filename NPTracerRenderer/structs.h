@@ -15,6 +15,7 @@
 
 using FLOAT2 = glm::f32vec2;
 using FLOAT3 = glm::f32vec3;
+using FLOAT4 = glm::f32vec4;
 using FLOAT4X4 = glm::f32mat4;
 
 using NPScenePath = std::string;
@@ -22,10 +23,11 @@ using NPScenePathCollection = std::vector<NPScenePath>;
 
 struct NPVertex
 {
-    FLOAT3 pos;
-    FLOAT3 normal;
-    FLOAT3 color;
+    FLOAT4 pos;
+    FLOAT4 normal;
+    FLOAT4 color;
     FLOAT2 uv;
+    FLOAT2 pad0;
 
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
@@ -184,8 +186,10 @@ struct NPCameraRecord
 
 struct NPMeshRecord
 {
-    uint32_t vbIdx;
-    uint32_t ibIdx;
+    VkDeviceAddress vbAddress;
+    VkDeviceAddress ibAddress;
+    uint32_t indexCount;
+    uint32_t pad0;
 };
 
 struct NPMesh
@@ -220,9 +224,10 @@ struct NPMesh
         for (size_t i = 0; i < count; i++)
         {
             NPVertex v{};
-            v.pos = _positions[i];
-            v.color = (i < _colors.size()) ? _colors[i] : FLOAT3{ 1.0f, 1.0f, 1.0f };
+            v.pos = FLOAT4(_positions[i], 0);
+            v.color = (i < _colors.size()) ? FLOAT4(_colors[i], 0): FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
             v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
+            v.pad0 = FLOAT2{0.0f, 0.0f};
             vertices.push_back(v);
         }
     }

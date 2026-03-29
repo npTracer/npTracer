@@ -68,6 +68,7 @@ public:
     bool createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size);
+    VkDeviceAddress getBufferDeviceAddress(NPBuffer& buffer);
 
     // images
     void createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,

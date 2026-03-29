@@ -145,7 +145,16 @@ void Context::createLogicalDeviceAndQueues()
 
         queueCreateInfos.emplace_back(queueCreateInfo);
     }
+    
+    VkPhysicalDeviceDescriptorBufferPropertiesEXT descriptorBufferProperties{};
+    descriptorBufferProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
+    
+    VkPhysicalDeviceProperties2 properties2{};
+    properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    properties2.pNext = &descriptorBufferProperties;
 
+    vkGetPhysicalDeviceProperties2(physicalDevice, &properties2);
+    
     // TODO add device features
     VkPhysicalDeviceVulkan13Features vulkan13Features{};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -157,10 +166,19 @@ void Context::createLogicalDeviceAndQueues()
     vulkan11Features.shaderDrawParameters = VK_TRUE;
     vulkan11Features.pNext = &vulkan13Features;
     
-
+    VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeatures{};
+    bdaFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+    bdaFeatures.bufferDeviceAddress = VK_TRUE;
+    bdaFeatures.pNext = &vulkan11Features;
+    
+    VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferFeatures{};
+    descriptorBufferFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
+    descriptorBufferFeatures.descriptorBuffer = VK_TRUE;
+    descriptorBufferFeatures.pNext = &bdaFeatures;
+    
     VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
     indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    indexingFeatures.pNext = &vulkan11Features;
+    indexingFeatures.pNext = &descriptorBufferFeatures;
     indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     indexingFeatures.runtimeDescriptorArray = VK_TRUE;
     indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
@@ -168,11 +186,12 @@ void Context::createLogicalDeviceAndQueues()
     VkPhysicalDeviceFeatures2 features2{};
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &indexingFeatures;
+    features2.features.shaderInt64 = VK_TRUE;
     features2.features.samplerAnisotropy = true;
 
     // TODO add more device extensions
     std::vector<const char*> requiredDeviceExtensions = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME
     };
 
     VkDeviceCreateInfo createInfo{};
@@ -236,6 +255,7 @@ void Context::createAllocator()
     allocatorInfo.device = device;
     allocatorInfo.instance = instance;
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 
     if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
     {
@@ -504,6 +524,7 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
                       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                           | VMA_ALLOCATION_CREATE_MAPPED_BIT))
     {
+        std::cout << "createDeviceLocalBuffer: failed to create staging buffer\n";
         return false;
     }
 
@@ -511,6 +532,8 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
 
     if (!createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0))
     {
+        std::cout << "createDeviceLocalBuffer: failed to create device-local buffer\n";
+        vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
         return false;
     }
 
@@ -531,6 +554,15 @@ void Context::copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size)
     vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
 
     endCommandBuffer(transferCommandBuffer, NPQueueType::TRANSFER);
+}
+
+VkDeviceAddress Context::getBufferDeviceAddress(NPBuffer& buffer)
+{
+    VkBufferDeviceAddressInfo addressInfo{};
+    addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    addressInfo.buffer = buffer.buffer;
+    
+    return vkGetBufferDeviceAddress(device, &addressInfo);
 }
 
 // IMAGES
@@ -673,19 +705,6 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
                           VK_IMAGE_ASPECT_DEPTH_BIT);
 
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
-
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = depthImage.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = depthFormat;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-
-    vkCreateImageView(device, &viewInfo, nullptr, &depthImage.view);
 }
 
 void Context::createTextureSampler(VkSampler& sampler)

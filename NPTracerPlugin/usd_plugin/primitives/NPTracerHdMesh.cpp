@@ -238,7 +238,7 @@ void NPTracerHdMesh::_RemoveFromScene()
         bool removed = scene->removeMesh(_pMesh->objectId);
         _pMesh = nullptr;
 
-        NP_DBG("Removed mesh '%s' from scene: %b\n", GetId().GetAsString().c_str(), removed);
+        NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
     }
 }
 

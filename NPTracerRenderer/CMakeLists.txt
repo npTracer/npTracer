@@ -63,6 +63,7 @@ find_program(SLANGC_EXECUTABLE slangc REQUIRED)
 foreach(shader_spec ${CURR_SHADER_SPECS})
     ParseShaderSpec("${shader_spec}")
     AddSlangShaderTarget(${COMPILE_SHADERS_TARGET} "${CURR_SHADER_FILE}" "${CURR_SHADER_STAGES}" "${SHADER_OUTPUT_DIR}" ${PROJECT_NAME})
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
 endforeach()
 
 get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)

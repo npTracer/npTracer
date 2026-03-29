@@ -1,6 +1,6 @@
 #include "scene.h"
 
-Scene::Scene() {}
+Scene::Scene() : _camera({}), _settings({}) {}
 
 Scene::~Scene() {}
 

@@ -6,12 +6,9 @@
 
 #include "utils.h"
 
-#include <glm/glm.hpp>
 #include <stb_image.h>
-
-#include <algorithm>
+#include <unordered_set>
 #include <optional>
-#include <iostream>
 
 // VULKAN
 void Context::createInstance(bool enableDebug)
@@ -26,10 +23,10 @@ void Context::createInstance(bool enableDebug)
     }
 
     // layers
-    std::vector<char const*> layers;
+    std::vector<const char*> layers;
     if (enableDebug)
     {
-        const std::vector<char const*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+        const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
         layers.assign(validationLayers.begin(), validationLayers.end());
     }
 
@@ -57,7 +54,7 @@ void Context::createInstance(bool enableDebug)
         createInfo.ppEnabledLayerNames = layers.data();
 
         sPopulateDebugMessengerCreateInfo(debugCreateInfo);
-        createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+        createInfo.pNext = &debugCreateInfo;
     }
     else
     {
@@ -65,10 +62,7 @@ void Context::createInstance(bool enableDebug)
         createInfo.pNext = nullptr;
     }
 
-    if (VkResult result = vkCreateInstance(&createInfo, nullptr, &instance); result != VK_SUCCESS)
-    {
-        throw std::runtime_error("instance creation failed");
-    }
+    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance), "instance creation failed\n");
 
     if (enableDebug)
     {  // create debug messenger after instance creation
@@ -185,11 +179,8 @@ void Context::createLogicalDeviceAndQueues()
     createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
     createInfo.pEnabledFeatures = nullptr;
 
-    if (VkResult result = vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
-        result != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create logical device");
-    }
+    VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device),
+             "failed to create logical device\n");
 
     for (auto& [type, queue] : queues)
     {
@@ -204,7 +195,7 @@ void Context::createLogicalDeviceAndQueues()
 
             if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
             {
-                throw std::runtime_error("Failed to create command pool");
+                throw std::runtime_error("Failed to create command pool\n");
             }
         }
     }
@@ -220,7 +211,7 @@ void Context::createAllocator()
 
     if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create vma allocator!");
+        throw std::runtime_error("failed to create vma allocator!\n");
     }
 }
 
@@ -262,10 +253,8 @@ void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType qu
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
 
-    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate command buffer");
-    }
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer),
+             "failed to allocate command buffer\n");
 }
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
@@ -275,22 +264,30 @@ void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferU
     beginInfo.flags = flags;
     beginInfo.pInheritanceInfo = nullptr;
 
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to begin recording command buffer");
-    }
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo),
+             "failed to begin recording command buffer\n");
 }
 
-void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily)
+void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily,
+                               VkPipelineStageFlags waitDstFlags, VkFence fence)
 {
     vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
+    submitInfo.pWaitDstStageMask = &waitDstFlags;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, nullptr);
+    VK_CHECK(vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, fence),
+             "failed to submit command buffer\n");
+}
+
+void Context::freeCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily)
+{
+    if (commandBuffer == VK_NULL_HANDLE) return;
+
+    vkFreeCommandBuffers(device, queues[queueFamily].commandPool, 1, &commandBuffer);
 }
 
 // BUFFERS
@@ -306,13 +303,15 @@ bool Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFla
     bufferInfo.pQueueFamilyIndices = queueFamilyIndices.data();
 
     VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.flags = allocationFlags;
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    // `VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT` required with `VMA_MEMORY_USAGE_AUTO`
+    allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | allocationFlags;
 
     if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
                         &handle.allocation, &handle.allocInfo)
         != VK_SUCCESS)
     {
+        DBG_PRINT("failed to create device local buffer!\n");
         return false;
     }
 
@@ -334,13 +333,14 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
 
     if (!createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0))
     {
+        DBG_PRINT("failed to create device local buffer!\n");
         return false;
     }
 
     copyBuffer(stagingBuffer, handle, size);
 
     vkQueueWaitIdle(queues[NPQueueType::TRANSFER].queue);
-    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+    stagingBuffer.destroy(allocator);
 
     return true;
 }
@@ -381,7 +381,7 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
                        &handle.allocInfo)
         != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create image!");
+        throw std::runtime_error("failed to create image!\n");
     }
 
     handle.width = width;
@@ -414,10 +414,7 @@ void Context::createTextureImage(NPImage& handle)
     auto path = TEXTURE("coconut.jpg");
     stbi_uc* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
 
-    if (!pixels)
-    {
-        throw std::runtime_error("failed to load texture image!");
-    }
+    DEV_ASSERT(pixels, "failed to load texture image!\n");
 
     NPBuffer stagingBuffer;
     VkDeviceSize size = width * height * 4;
@@ -436,24 +433,25 @@ void Context::createTextureImage(NPImage& handle)
     createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     beginCommandBuffer(commandBuffer);
 
-    transitionImageLayout(commandBuffer, handle.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+    handle.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                            VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+
     copyBufferToImage(commandBuffer, stagingBuffer, handle, width, height);
 
-    transitionImageLayout(commandBuffer, handle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                          VK_ACCESS_2_SHADER_SAMPLED_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+    handle.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                            VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                            VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
 
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+
+    vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
+    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 
     handle.width = width;
     handle.height = height;
     handle.format = VK_FORMAT_R8G8B8A8_SRGB;
-
-    vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
-    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
 void Context::createDepthImage(uint32_t width, uint32_t height)
@@ -474,10 +472,7 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
         }
     }
 
-    if (depthFormat == VK_FORMAT_UNDEFINED)
-    {
-        throw std::runtime_error("failed to find supported depth format");
-    }
+    DEV_ASSERT(depthFormat != VK_FORMAT_UNDEFINED, "failed to create depth image!\n");
 
     createImage(depthImage, VK_IMAGE_TYPE_2D, depthFormat, width, height,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0);
@@ -649,22 +644,18 @@ void Context::createDebugMessenger(bool enableDebug)
     // `vkCreateDebugUtilsMessengerEXT` extension relies on a valid instance to have been created
     auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
         vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (fn)
-    {
-        fn(instance, &createInfo, nullptr, &debugMessenger);
-        fn(instance, &createInfo, nullptr, &debugMessenger);
-    }
-    else
-    {
-        throw std::runtime_error("debug layer function proc addr not found");
-    }
+
+    DEV_ASSERT(fn, "debug layer function proc addr not found\n");
+
+    fn(instance, &createInfo, nullptr, &debugMessenger);
+    fn(instance, &createInfo, nullptr, &debugMessenger);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Context::sDebugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 {
-    std::cerr << "validation: " << pCallbackData->pMessage << std::endl;
+    DBG_PRINT("validation error: %s\n", pCallbackData->pMessage);
     return VK_FALSE;
 }
 
@@ -711,6 +702,11 @@ void Context::destroy()
     }
 
     depthImage.destroy(device, allocator);
+
+    if (transferCommandBuffer != VK_NULL_HANDLE)
+    {
+        freeCommandBuffer(transferCommandBuffer, NPQueueType::TRANSFER);
+    }
 
     for (auto& queue : queues)
     {

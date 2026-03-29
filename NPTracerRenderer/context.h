@@ -8,7 +8,6 @@
 
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
 
 #include "structs.h"
 
@@ -33,7 +32,7 @@ public:
     std::vector<uint32_t> queueFamilyIndices;  // stored indices based on if they are supported
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
-    inline void setFrameCount(const int frameCount)
+    void setFrameCount(const int frameCount)
     {
         kFrameCount = frameCount;
     }
@@ -47,7 +46,9 @@ public:
     // command buffers
     void createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType queueFamily);
     void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
-    void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
+    void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily,
+                          VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE);
+    void freeCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
 
     // buffers
     bool createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
@@ -91,6 +92,6 @@ private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL sDebugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-    
+
     static void sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 };

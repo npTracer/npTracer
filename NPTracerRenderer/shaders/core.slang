@@ -35,18 +35,18 @@ struct VertexOutput
 };
 
 // set 0
-[[vk::binding(0, 0)]]
-StructuredBuffer<MeshRecord> meshRecords;
-
-[[vk::binding(1, 0)]]
-StructuredBuffer<Vertex> vertexBuffers[MAX_RESOURCE_COUNT];
-
-[[vk::binding(2, 0)]]
-StructuredBuffer<uint> indexBuffers[MAX_RESOURCE_COUNT];
+[[vk::binding(0, 1)]]
+ConstantBuffer<Camera> cam;
 
 // set 1
 [[vk::binding(0, 1)]]
-ConstantBuffer<Camera> cam;
+StructuredBuffer<MeshRecord> meshRecords;
+
+[[vk::binding(1, 1)]]
+StructuredBuffer<Vertex> vertexBuffers[MAX_RESOURCE_COUNT];
+
+[[vk::binding(2, 1)]]
+StructuredBuffer<uint> indexBuffers[MAX_RESOURCE_COUNT];
 
 // set 2
 //[[vk::binding(0, 2)]]
@@ -67,9 +67,10 @@ VertexOutput vertMain(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID
     float4 worldPos = mul(cam.model, float4(vertex.pos, 1.0));
     float4 viewPos = mul(cam.view, worldPos);
     output.pos = mul(cam.proj, viewPos);
-
+    
     output.color = vertex.color;
     output.uv = vertex.uv;
+
     return output;
 }
 

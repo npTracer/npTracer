@@ -45,7 +45,7 @@ private:
 
     std::vector<std::unique_ptr<NPLight>> _lights;
 
-    NPCameraRecord _camera = {};
+    NPCameraRecord _camera;
 
-    NPRenderSettings _settings = {};
+    NPRenderSettings _settings;
 };

@@ -18,12 +18,12 @@ class App
     static constexpr uint32_t HEIGHT = 1440;
 
 public:
-    inline Context* getContext()
+    Context* getContext()
     {
         return &context;
     }
 
-    inline Scene* getScene() const
+    Scene* getScene() const
     {
         return scene.get();
     }
@@ -56,6 +56,7 @@ private:
     NPBuffer meshRecordBuffer;
     NPBuffer lightRecordBuffer;
     NPBuffer cameraRecordBuffer;
+    NPBuffer dummyRecordBuffer;
     std::vector<NPBuffer> vertexBuffers;
     std::vector<NPBuffer> indexBuffers;
 
@@ -64,5 +65,5 @@ private:
     void createGraphicsPipeline(NPPipeline& pipeline,
                                 std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
                                 NPRendererAovs& aovs);
-    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
+    void populateDrawCall(NPFrame& frame, NPImage* renderTarget);
 };

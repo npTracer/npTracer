@@ -28,6 +28,7 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     App* app = _pCreator->GetRendererApp();
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
+    TF_DEV_AXIOM(!aovBindings.empty());
 
     NPRendererAovs payload;
 
@@ -41,7 +42,8 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
         {
             continue;
         }
-        buffer->SetConverged(false);
+        
+        TF_DEV_AXIOM(buffer->IsConverged() && !buffer->IsMapped());
 
         if (binding.aovName == HdAovTokens->color)
         {
@@ -53,7 +55,6 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
         }
         else
         {
-            buffer->SetConverged(true);
             continue;  // skip pushing onto buffer vector
         }
 

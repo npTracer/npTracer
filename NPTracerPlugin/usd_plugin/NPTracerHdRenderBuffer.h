@@ -22,6 +22,7 @@ public:
     unsigned int GetHeight() const override;
     unsigned int GetDepth() const override;
     HdFormat GetFormat() const override;
+    size_t GetSize() const;
     bool IsMultiSampled() const override;
 
     // map the buffer for reading/writing
@@ -67,6 +68,8 @@ private:
 
     Context* _pCtx;
     VkCommandBuffer _transferCmdBuffer = VK_NULL_HANDLE;
+
+    std::vector<uint8_t> _cpuDebugBuffer;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

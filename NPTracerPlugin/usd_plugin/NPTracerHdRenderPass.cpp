@@ -21,6 +21,8 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPassState,
                                     TfTokenVector const& renderTags)
 {
+    NP_DBG("Render pass executed.\n");
+
     this->SetConverged(false);
 
     App* app = _pCreator->GetRendererApp();

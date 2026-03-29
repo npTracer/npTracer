@@ -45,18 +45,33 @@ void Context::createInstance(bool enableDebug)
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
-    createInfo.ppEnabledLayerNames = layers.data();
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
 
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
+    // declare `debugCreateInfo` outside of if statement so it stays alive until `vkCreateInstance`
+    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+    if (enableDebug)
+    {  // create a separate debug messenger for instance creation, as debug messenger creation depends on instance creation
+
+        createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
+        createInfo.ppEnabledLayerNames = layers.data();
+
+        sPopulateDebugMessengerCreateInfo(debugCreateInfo);
+        createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+    }
+    else
+    {
+        createInfo.enabledLayerCount = 0;
+        createInfo.pNext = nullptr;
+    }
+
+    if (VkResult result = vkCreateInstance(&createInfo, nullptr, &instance); result != VK_SUCCESS)
     {
         throw std::runtime_error("instance creation failed");
     }
 
     if (enableDebug)
-    {
+    {  // create debug messenger after instance creation
         createDebugMessenger(enableDebug);
     }
 }
@@ -170,7 +185,8 @@ void Context::createLogicalDeviceAndQueues()
     createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
     createInfo.pEnabledFeatures = nullptr;
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
+    if (VkResult result = vkCreateDevice(physicalDevice, &createInfo, nullptr, &device);
+        result != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create logical device");
     }
@@ -628,33 +644,42 @@ void Context::createDebugMessenger(bool enableDebug)
     }
 
     VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    createInfo.pfnUserCallback = debugCallback;
-    createInfo.pUserData = nullptr;
+    sPopulateDebugMessengerCreateInfo(createInfo);
 
+    // `vkCreateDebugUtilsMessengerEXT` extension relies on a valid instance to have been created
     auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
         vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
     if (fn)
     {
         fn(instance, &createInfo, nullptr, &debugMessenger);
+        fn(instance, &createInfo, nullptr, &debugMessenger);
     }
     else
     {
-        throw std::runtime_error("debug layer not function proc addr not found");
+        throw std::runtime_error("debug layer function proc addr not found");
     }
 }
 
-VKAPI_ATTR VkBool32 VKAPI_CALL Context::debugCallback(
+VKAPI_ATTR VkBool32 VKAPI_CALL Context::sDebugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 {
     std::cerr << "validation: " << pCallbackData->pMessage << std::endl;
     return VK_FALSE;
+}
+
+void Context::sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
+{
+    createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.pfnUserCallback = sDebugCallback;
+    createInfo.pUserData = nullptr;
 }
 
 void Context::destroyDebugMessenger()
@@ -676,6 +701,10 @@ void Context::destroyDebugMessenger()
 
 void Context::destroy()
 {
+    if (device != VK_NULL_HANDLE)
+    {
+        vkDeviceWaitIdle(device);  // wait until device is done with all work
+    }
     for (int i = 0; i < kFrameCount; i++)
     {
         frames[i].destroy(device, allocator);
@@ -688,7 +717,11 @@ void Context::destroy()
         queue.second.destroy(device);
     }
 
-    vmaDestroyAllocator(allocator);
+    if (allocator != VK_NULL_HANDLE)
+    {
+        vmaDestroyAllocator(allocator);
+        allocator = VK_NULL_HANDLE;
+    }
 
     if (device != VK_NULL_HANDLE)
     {

@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-set(CMAKE_VS_JUST_MY_CODE_DEBUGGING ON)
 add_compile_options(
     $<$<CONFIG:RelWithDebInfo>:/Od> # prevent compiler optimization
 )

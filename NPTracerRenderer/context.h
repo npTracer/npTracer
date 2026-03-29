@@ -26,7 +26,15 @@ public:
     NPImage depthImage;
     VkFormat depthFormat;
     std::vector<NPFrame> frames;
+    std::vector<VkFence> imageFences;
 
+    // swapchain
+    VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+    SwapchainParams swapchainParams;
+    std::vector<VkImage> swapchainImages;
+    std::vector<VkImageView> swapchainImageViews;
+    std::vector<VkSemaphore> doneRenderingSemaphores;
+    
     // queues
     std::unordered_map<NPQueueType, NPQueue> queues;
     std::array<uint32_t, 2> queueFamilyIndices;
@@ -37,11 +45,18 @@ public:
         FRAME_COUNT = frameCount;
     }
 
+    void createWindow(GLFWwindow*& window, int width, int height);
     void createInstance(bool enableDebug);
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
     void createAllocator();
     void createSyncAndFrameObjects();
+    
+    // swapchain
+    void createSurface(GLFWwindow* window);
+    void createSwapchain(GLFWwindow* window);
+    void recreateSwapchain(GLFWwindow* window);
+    void cleanupSwapchain();
 
     // command buffers
     void createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType queueFamily);
@@ -58,7 +73,7 @@ public:
     // images
     void createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                      uint32_t height, VkImageUsageFlags usage,
-                     VmaAllocationCreateFlags allocationFlags, bool shouldCreateView = true) const;
+                     VmaAllocationCreateFlags allocationFlags,  VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT, bool shouldCreateView = true) const;
     void createTextureImage(NPImage& handle);
     void createDepthImage(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);
@@ -82,6 +97,8 @@ public:
     void destroy();
 
 private:
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+    
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 

@@ -207,7 +207,7 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
 void NPTracerHdRenderDelegate::_Initialize()
 {
     _pApp = std::make_unique<App>();
-    _pApp->create();
+    //_pApp->create();
 
     _pRenderParam = std::make_unique<NPTracerHdRenderParam>();
     _pResourceRegistry = std::make_shared<HdResourceRegistry>();

@@ -29,7 +29,7 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
 
-    NPRendererAovs payload;
+    auto payload = std::make_unique<NPRendererAovs>();
 
     std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
     dirtyBuffers.clear();
@@ -45,11 +45,11 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
         if (binding.aovName == HdAovTokens->color)
         {
-            payload.color = buffer->GetImage();
+            payload->color = buffer->GetImage();
         }
         else if (binding.aovName == HdAovTokens->depth)
         {
-            payload.depth = buffer->GetImage();
+            payload->depth = buffer->GetImage();
         }
         else
         {
@@ -59,8 +59,10 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
         dirtyBuffers.push_back(buffer);
     }
-
-    app->executeDrawCall(payload);
+    
+    app->setAov(std::move(payload));
+    app->createRenderingResources(); // TODO find better place to create resources
+    app->executeDrawCallCallable();
 
     for (NPTracerHdRenderBuffer* buffer : dirtyBuffers)
     {
@@ -68,6 +70,8 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     }
 
     this->SetConverged(true);
+    
+    payload.reset();
 }
 
 bool NPTracerHdRenderPass::IsConverged() const

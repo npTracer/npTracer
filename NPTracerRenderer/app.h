@@ -7,16 +7,14 @@
 
 class App
 {
-    static constexpr bool enableDebug =
-#ifdef NDEBUG
-        false;
-#else
-        true;
-#endif
-
+    static constexpr bool enableDebug = NPTRACER_DEBUG;
+    static constexpr bool standalone = NPTRACER_STANDALONE;
+    
     static constexpr uint32_t WIDTH = 2560;
     static constexpr uint32_t HEIGHT = 1440;
-
+    
+    std::unique_ptr<NPRendererAovs> m_aovs = nullptr;
+    
 public:
     inline Context* getContext()
     {
@@ -27,14 +25,23 @@ public:
     {
         return scene.get();
     }
+    
+    void setAov(std::unique_ptr<NPRendererAovs> aovs)
+    {
+        m_aovs = std::move(aovs);
+    }
 
     // interface
     void create();
     void destroy();
 
-    void executeDrawCall(NPRendererAovs& aovs);
-
+    void loadScene(const char* path);
+    
+    void createRenderingResources();
+    void executeDrawCallCallable(NPRendererAovs* aovs = nullptr);
+    
     void run();
+    void render();
 
 private:
     static constexpr int FRAME_COUNT = 2;
@@ -60,9 +67,12 @@ private:
     std::vector<NPBuffer> indexBuffers;
 
     // resource creation
-    void createRenderingResources(NPRendererAovs& aovs);
-    void createGraphicsPipeline(NPPipeline& pipeline,
-                                std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
-                                NPRendererAovs& aovs);
-    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
+    void createGraphicsPipeline();
+    
+    // render commands recording
+    void populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
+    void populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
+    
+    // private execute draw call standalone
+    void executeDrawCallSwapchain();
 };

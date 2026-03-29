@@ -6,12 +6,20 @@
 #include <memory>
 #include <mutex>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 class Scene
 {
 public:
     Scene();
     ~Scene();
 
+    
+    // assimp loading
+    void loadSceneAssimp(const char *path);
+    
     NPMesh* addMesh();
     bool removeMesh(const uint32_t& objectId);
 

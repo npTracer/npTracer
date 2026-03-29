@@ -5,19 +5,27 @@ void App::create()
 {
     // define `scene`
     scene = std::make_unique<Scene>();
-
+    
     // create vulkan basics
     context.setFrameCount(FRAME_COUNT);
+    if (standalone) context.createWindow(window, WIDTH, HEIGHT);
+    
     context.createInstance(enableDebug);
+    
+    if (standalone) context.createSurface(window);
+    
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
     context.createAllocator();
+    
+    if (standalone) context.createSwapchain(window);
+    
     context.createSyncAndFrameObjects();
     context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(NPRendererAovs& aovs)
+void App::createRenderingResources()
 {
     uint32_t vbCount = 0;
     uint32_t ibCount = 0;
@@ -361,11 +369,11 @@ void App::createRenderingResources(NPRendererAovs& aovs)
         vkUpdateDescriptorSets(context.device, 1, &lightWrite, 0, nullptr);
         descriptorSets.push_back(lightDescriptorSet);
     }
+    
+    createGraphicsPipeline();
 }
 
-void App::createGraphicsPipeline(NPPipeline& pipeline,
-                                 std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
-                                 NPRendererAovs& aovs)
+void App::createGraphicsPipeline()
 {
     // shader creation
     VkShaderModule coreVertModule = context.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
@@ -394,28 +402,27 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     dynamicInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicInfo.pDynamicStates = dynamicStates.data();
 
-    VkVertexInputBindingDescription bindingDescription = NPVertex::getBindingDescription();
-    auto attributeDescriptions = NPVertex::getAttributeDescriptions();
-
     VkPipelineVertexInputStateCreateInfo vertexInfo{};
     vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInfo.vertexBindingDescriptionCount = 1;
-    vertexInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-    vertexInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    vertexInfo.vertexBindingDescriptionCount = 0;
+    vertexInfo.pVertexBindingDescriptions = nullptr;
+    vertexInfo.vertexAttributeDescriptionCount = 0;
+    vertexInfo.pVertexAttributeDescriptions = nullptr;
 
     VkPipelineInputAssemblyStateCreateInfo inputInfo{};
     inputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     VkViewport viewport{
-        0.0f, 0.0f, static_cast<float>(aovs.color->width), static_cast<float>(aovs.color->height),
+        0.0f, 0.0f, 0, 0,
         0.0f, 1.0f
     };
+    viewport.width = m_aovs ? m_aovs->color->width : context.swapchainParams.extent.width;
+    viewport.height = m_aovs ? m_aovs->color->height : context.swapchainParams.extent.height;
 
     VkExtent2D extent{};
-    extent.width = aovs.color->width;
-    extent.height = aovs.color->height;
+    extent.width = m_aovs ? m_aovs->color->width : context.swapchainParams.extent.width;
+    extent.height = m_aovs ? m_aovs->color->height : context.swapchainParams.extent.height;
     VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
 
     VkPipelineViewportStateCreateInfo viewportState{};
@@ -483,7 +490,7 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = &aovs.color->format;
+    renderingInfo.pColorAttachmentFormats = m_aovs ? &m_aovs->color->format : &context.swapchainParams.format.format;
     renderingInfo.depthAttachmentFormat = context.depthFormat;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -513,21 +520,18 @@ void App::createGraphicsPipeline(NPPipeline& pipeline,
     vkDestroyShaderModule(context.device, coreFragModule, nullptr);
 }
 
-// DRAW CALL
-void App::executeDrawCall(NPRendererAovs& aovs)
+// CALLABLE DRAW CALL
+void App::executeDrawCallCallable(NPRendererAovs* aovs)
 {
-    createRenderingResources(aovs);
-    createGraphicsPipeline(pipeline, descriptorSetLayouts, aovs);
-
     // grab a frame
     NPFrame& frame = context.getCurrentFrame(currentFrame);
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    NPImage* renderTarget = aovs.color;
+    NPImage* renderTarget = aovs->color;
 
-    populateDrawCall(frame.commandBuffer, renderTarget);
+    populateDrawCallCallable(frame.commandBuffer, renderTarget);
 
     vkResetFences(context.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
@@ -550,7 +554,7 @@ void App::executeDrawCall(NPRendererAovs& aovs)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
+void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
 {
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);
@@ -627,6 +631,151 @@ void App::populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget
     vkEndCommandBuffer(commandBuffer);
 }
 
+// SWAPCHAIN DRAW CALL
+void App::executeDrawCallSwapchain()
+{
+    // grab a frame
+    NPFrame& frame = context.frames[currentFrame];
+
+    // wait until this frame has finished executing its commands
+    vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
+
+    // acquire image when it is done being presented
+    uint32_t imageIndex;
+    if (vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, frame.donePresentingSemaphore, nullptr,
+        &imageIndex) == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        context.recreateSwapchain(window);
+        return;
+    }
+    
+    if (context.imageFences[imageIndex] != VK_NULL_HANDLE)
+    {
+        vkWaitForFences(context.device, 1, &context.imageFences[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+    context.imageFences[imageIndex] = frame.doneExecutingFence;
+
+    populateDrawCallSwapchain(frame.commandBuffer, imageIndex); // record commands into frame's command buffer 
+    vkResetFences(context.device, 1, &frame.doneExecutingFence); // signal that fence is ready to be associated with a new queue submission
+    
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &frame.donePresentingSemaphore; // wait until image is no longer being presented
+    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &frame.commandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &frame.doneRenderingSemaphore; // signal when rendering finishes
+
+    vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
+                  frame.doneExecutingFence);
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &frame.doneRenderingSemaphore; // present after rendering finishes
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &context.swapchain;
+    presentInfo.pImageIndices = &imageIndex;
+
+    VkResult result = vkQueuePresentKHR(context.queues[NPQueueType::GRAPHICS].queue, &presentInfo);
+    if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR) || context.framebufferResized)
+    {
+        context.framebufferResized = false;
+        context.recreateSwapchain(window);
+    }
+
+    // increment frame (within ring)
+    currentFrame = (currentFrame + 1) % FRAME_COUNT;
+}
+
+void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex)
+{
+    vkResetCommandBuffer(commandBuffer, 0);
+    context.beginCommandBuffer(commandBuffer);
+
+    context.transitionImageLayout(
+        commandBuffer,
+        context.swapchainImages[imageIndex],
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        0,
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+    VkClearValue clearColor{ { { 0.0f, 0.0f, 0.0f, 1.0f } } };
+    VkClearValue clearDepth{ { 1.0f, 0 } };
+
+    VkRenderingAttachmentInfo colorAttachmentInfo{};
+    colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachmentInfo.imageView = context.swapchainImageViews[imageIndex];
+    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentInfo.clearValue = clearColor;
+
+    VkRenderingAttachmentInfo depthAttachmentInfo{};
+    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depthAttachmentInfo.imageView = context.depthImage.view;
+    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachmentInfo.clearValue = clearDepth;
+
+    VkRenderingInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+
+    renderingInfo.renderArea.offset.x = 0;
+    renderingInfo.renderArea.offset.y = 0;
+    renderingInfo.renderArea.extent = context.swapchainParams.extent;
+
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachmentInfo;
+    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+
+    // record commands
+    vkCmdBeginRendering(commandBuffer, &renderingInfo);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+
+    VkViewport viewport{
+        0.0f, 0.0f, (float)context.swapchainParams.extent.width, (float)context.swapchainParams.extent.height,
+        0.0f, 1.0f
+    };
+
+    VkRect2D scissor{ { 0, 0 }, context.swapchainParams.extent };
+
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+    VkDeviceSize offset = 0;
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
+                            descriptorSets.data(), 0, nullptr);
+
+    for (size_t i = 0; i < indexCounts.size(); i++)
+    {
+        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, i);
+    }
+
+    vkCmdEndRendering(commandBuffer);
+
+    context.transitionImageLayout(
+        commandBuffer,
+        context.swapchainImages[imageIndex],
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        0,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+
+    vkEndCommandBuffer(commandBuffer);
+}
+
 void App::destroy()
 {
     for (auto& descriptorSetLayout : descriptorSetLayouts)
@@ -675,8 +824,26 @@ void App::destroy()
     glfwTerminate();
 }
 
+void App::loadScene(const char* path)
+{
+    scene->loadSceneAssimp(path);
+    createRenderingResources();
+}
+
+void App::render()
+{
+    while (!glfwWindowShouldClose(window))
+    {
+        glfwPollEvents();
+        executeDrawCallSwapchain();
+    }
+
+    context.waitIdle();
+}
+
 void App::run()
 {
-    create();
+    if (standalone) render();
+    
     destroy();
 }

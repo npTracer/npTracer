@@ -13,6 +13,18 @@
 #include <optional>
 #include <iostream>
 
+#include "../../../../../../../Program Files/Side Effects Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
+
+void Context::createWindow(GLFWwindow*& window, int width, int height)
+{
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    window = glfwCreateWindow(width, height, "Engine", nullptr, nullptr);
+
+    glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+}
+
 // VULKAN
 void Context::createInstance(bool enableDebug)
 {
@@ -139,12 +151,19 @@ void Context::createLogicalDeviceAndQueues()
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.synchronization2 = VK_TRUE;
     vulkan13Features.dynamicRendering = VK_TRUE;
+    
+    VkPhysicalDeviceVulkan11Features vulkan11Features{};
+    vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    vulkan11Features.shaderDrawParameters = VK_TRUE;
+    vulkan11Features.pNext = &vulkan13Features;
+    
 
     VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
     indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    indexingFeatures.pNext = &vulkan13Features;
+    indexingFeatures.pNext = &vulkan11Features;
     indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+    indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
 
     VkPhysicalDeviceFeatures2 features2{};
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -224,6 +243,155 @@ void Context::createAllocator()
     }
 }
 
+void Context::createSwapchain(GLFWwindow* window)
+{
+     VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
+
+    uint32_t formatCount = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+    std::vector<VkSurfaceFormatKHR> availableFormats(formatCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount,
+                                         availableFormats.data());
+
+    uint32_t presentCount = 0;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentCount, nullptr);
+    std::vector<VkPresentModeKHR> presentModes(presentCount);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentCount,
+                                              presentModes.data());
+
+    // format selection
+    auto is_format = [](const VkSurfaceFormatKHR& format)
+    {
+        return format.format == VK_FORMAT_B8G8R8_SRGB
+            && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+    };
+
+    auto formatIt = std::find_if(availableFormats.begin(), availableFormats.end(), is_format);
+
+    VkSurfaceFormatKHR format = formatIt != availableFormats.end()
+        ? *formatIt
+        : availableFormats[0];
+
+    // present selection
+    auto presentIt = std::find(presentModes.begin(), presentModes.end(), VK_PRESENT_MODE_MAILBOX_KHR);
+
+    VkPresentModeKHR presentMode = presentIt != presentModes.end()
+        ? *presentIt
+        : VK_PRESENT_MODE_FIFO_KHR;
+
+    // extent configuration
+    VkExtent2D extent;
+
+    if (surfaceCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+    {
+        extent = surfaceCapabilities.currentExtent;
+    }
+    else
+    {
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+
+        extent = { std::clamp<uint32_t>(width, surfaceCapabilities.minImageExtent.width,
+                                        surfaceCapabilities.maxImageExtent.width),
+                   std::clamp<uint32_t>(height, surfaceCapabilities.minImageExtent.height,
+                                        surfaceCapabilities.maxImageExtent.height) };
+    }
+
+    // swapchain creation
+    uint32_t minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
+
+    if ((0 < surfaceCapabilities.minImageCount)
+        && (surfaceCapabilities.maxImageCount < minImageCount))
+    {
+        minImageCount = surfaceCapabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfo{};
+    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfo.surface = surface;
+    swapchainCreateInfo.minImageCount = minImageCount;
+    swapchainCreateInfo.imageFormat = format.format;
+    swapchainCreateInfo.imageColorSpace = format.colorSpace;
+    swapchainCreateInfo.imageExtent = extent;
+    swapchainCreateInfo.imageArrayLayers = 1;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchainCreateInfo.presentMode = presentMode;
+    swapchainCreateInfo.clipped = VK_TRUE;
+    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+    if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain))
+    {
+        throw std::runtime_error("failed to create swapchain");
+    }
+
+    uint32_t swapchainImageCount;
+    vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
+    swapchainImages.resize(swapchainImageCount);
+    vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
+
+    // save for later
+    swapchainParams = { format, presentMode, extent };
+    
+    VkImageViewCreateInfo imageViewCreateInfo{};
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = swapchainParams.format.format;
+
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = 1;
+
+    for (auto& image : swapchainImages)
+    {
+        imageViewCreateInfo.image = image;
+        VkImageView view;
+        vkCreateImageView(device, &imageViewCreateInfo, nullptr, &view);
+        swapchainImageViews.emplace_back(view);
+    }
+}
+
+void Context::recreateSwapchain(GLFWwindow* window)
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(device);
+    cleanupSwapchain();
+    createSwapchain(window);
+    createDepthImage(width, height);
+}
+
+void Context::cleanupSwapchain()
+{
+    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
+    {
+        vkDestroyImageView(device, swapchainImageViews[i], nullptr);
+    }
+    swapchainImageViews.clear();
+
+    if (depthImage.image != VK_NULL_HANDLE)
+    {
+        depthImage.destroy(device, allocator);
+    }
+    
+    if (swapchain != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
+        swapchain = VK_NULL_HANDLE;
+    }
+}
+
 void Context::createSyncAndFrameObjects()
 {
     VkSemaphoreCreateInfo semInfo{};
@@ -232,12 +400,15 @@ void Context::createSyncAndFrameObjects()
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
+    
+    imageFences.assign(static_cast<uint32_t>(swapchainImages.size()), VK_NULL_HANDLE);
+    
     for (int i = 0; i < FRAME_COUNT; i++)
     {
         NPFrame frame;
-
+        
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
+        vkCreateSemaphore(device, &semInfo, nullptr, &frame.doneRenderingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
         createCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS);
 
@@ -251,6 +422,14 @@ void Context::createSyncAndFrameObjects()
 
     // create transfer command buffer as well
     createCommandBuffer(transferCommandBuffer, NPQueueType::TRANSFER);
+}
+
+void Context::createSurface(GLFWwindow* window)
+{
+    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
+    {
+        throw std::runtime_error("surface creation failed");
+    }
 }
 
 // COMMAND BUFFERS
@@ -359,7 +538,7 @@ void Context::copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size)
 // IMAGES
 void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                           uint32_t height, VkImageUsageFlags usage,
-                          VmaAllocationCreateFlags allocationFlags, bool shouldCreateView) const
+                          VmaAllocationCreateFlags allocationFlags, VkImageAspectFlags aspect, bool shouldCreateView) const
 {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -372,6 +551,7 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.usage = usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     VmaAllocationCreateInfo allocCreateInfo{};
     allocCreateInfo.flags = allocationFlags;
@@ -399,7 +579,7 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     viewInfo.image = handle.image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = handle.format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = aspect;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -480,7 +660,7 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
     }
 
     createImage(depthImage, VK_IMAGE_TYPE_2D, depthFormat, width, height,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0);
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0, VK_IMAGE_ASPECT_DEPTH_BIT);
 
     VkCommandBuffer commandBuffer;
     createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
@@ -724,4 +904,10 @@ void Context::destroy()
         vkDestroyInstance(instance, nullptr);
         instance = VK_NULL_HANDLE;
     }
+}
+
+void Context::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+    auto* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
+    context->framebufferResized = true;
 }

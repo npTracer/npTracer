@@ -47,7 +47,12 @@ set(STB_HEADERS
     "${NPTracer_EXTERNAL_DIR}/stb/stb_image.h"
 )
 
-add_library(${PROJECT_NAME} ${LIB_SOURCES} ${LIB_HEADERS})
+add_library(${PROJECT_NAME} STATIC ${LIB_SOURCES} ${LIB_HEADERS})
+
+# fix this later
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+)
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
@@ -73,10 +78,12 @@ set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
 
 add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 
-target_link_libraries(${PROJECT_NAME} PUBLIC 
-    glfw
-    Vulkan::Vulkan 
-    glm::glm-header-only # use header-only GLM
+target_link_libraries(${PROJECT_NAME}
+    PUBLIC
+        glfw
+        Vulkan::Vulkan
+        glm::glm-header-only
+        assimp
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")
@@ -126,4 +133,12 @@ configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
 
 install(FILES "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
+)
+
+option(NPTRACER_STANDALONE "Make NPTracer be callable rather than using swapchain" OFF)
+
+target_compile_definitions(${PROJECT_NAME}
+    PUBLIC
+        NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
+        NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
 )

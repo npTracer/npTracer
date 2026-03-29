@@ -23,6 +23,7 @@ using NPScenePathCollection = std::vector<NPScenePath>;
 struct NPVertex
 {
     FLOAT3 pos;
+    FLOAT3 normal;
     FLOAT3 color;
     FLOAT2 uv;
 
@@ -33,14 +34,16 @@ struct NPVertex
     }
 
     // tell vulkan what attributes exist within each vertex and how big they are
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
+    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
     {
         return {
             VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
                                                offsetof(NPVertex, pos) },
             VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                                   offsetof(NPVertex, normal) },
+            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT,
                                                offsetof(NPVertex, color) },
-            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32_SFLOAT,
+            VkVertexInputAttributeDescription{ 3, 0, VK_FORMAT_R32G32_SFLOAT,
                                                offsetof(NPVertex, uv) },
         };
     }
@@ -134,6 +137,7 @@ struct NPDescriptorSetLayout
 struct NPFrame
 {
     VkSemaphore donePresentingSemaphore;
+    VkSemaphore doneRenderingSemaphore;
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
 
@@ -144,6 +148,7 @@ struct NPFrame
     {
         vkDestroyFence(device, doneExecutingFence, nullptr);
         vkDestroySemaphore(device, donePresentingSemaphore, nullptr);
+        vkDestroySemaphore(device, doneRenderingSemaphore, nullptr);
         uboBuffer.destroy(allocator);
     }
 };
@@ -282,4 +287,12 @@ struct NPRendererAovs
     NPImage* color;
     NPImage* depth;
     // normals?
+};
+
+struct SwapchainParams
+{
+    VkSurfaceFormatKHR format;
+    VkPresentModeKHR presentMode;
+    VkExtent2D extent;
+    VkFormat depthFormat;
 };

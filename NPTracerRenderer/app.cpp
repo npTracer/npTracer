@@ -3,6 +3,8 @@
 
 #include <iostream>
 
+#include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
+
 void App::create()
 {
     // define `scene`
@@ -33,44 +35,38 @@ void App::createRenderingResources()
     const size_t meshCount = scene->getMeshCount();
     std::vector<NPMeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
+    
+    std::vector<NPVertex> globalVertices;
+    std::vector<uint32_t> globalIndices;
     for (int i = 0; i < meshCount; i++)
     {
         NPMesh const* mesh = scene->getMeshAtIndex(i);
-    
-        NPBuffer vertexBuffer;
-        NPBuffer indexBuffer;
-    
-        const std::vector<NPVertex>& vertices = mesh->vertices;
-        VkDeviceSize vbSize = sizeof(vertices[0]) * vertices.size();
-        bool vbCreated = context.createDeviceLocalBuffer(vertexBuffer, const_cast<NPVertex*>(vertices.data()), vbSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-        vertexBuffers.push_back(vertexBuffer);
-    
-        if (!vbCreated)
-        {
-            throw std::runtime_error("failed to create vertex buffer");
-        }
         
-        VkDeviceSize ibSize = sizeof(mesh->indices[0]) * mesh->indices.size();
-        bool ibCreated = context.createDeviceLocalBuffer(indexBuffer, (void*)mesh->indices.data(), ibSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-        indexBuffers.push_back(indexBuffer);
-    
-        if (!ibCreated)
+        NPMeshRecord meshRecord{};
+        meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
+        meshRecord.indexOffset = static_cast<uint32_t>(globalIndices.size());
+        meshRecord.indexCount = static_cast<uint32_t>(mesh->indices.size());
+        meshRecord.vertexCount = static_cast<uint32_t>(mesh->vertices.size());
+        
+        globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
+        globalIndices.reserve(globalIndices.size() + mesh->indices.size());
+        for (uint32_t idx : mesh->indices)
         {
-            throw std::runtime_error("failed to create vertex buffer");
+            globalIndices.push_back(idx + meshRecord.vertexOffset);
         }
         
         // temp
         indexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
-        
-        NPMeshRecord meshRecord{};
-        meshRecord.vbAddress = context.getBufferDeviceAddress(vertexBuffer);
-        meshRecord.ibAddress = context.getBufferDeviceAddress(indexBuffer);
-        meshRecord.indexCount = static_cast<uint32_t>(mesh->indices.size());
-        meshRecord.pad0 = 0;
-        
+
         meshRecords.push_back(meshRecord);
     }
-
+    
+    VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
+    VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
+    
+    context.createDeviceLocalBuffer(vertexBuffer, globalVertices.data(), vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    context.createDeviceLocalBuffer(indexBuffer, globalIndices.data(), indexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    
     VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
     bool meshRecordBufferCreated = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     
@@ -91,81 +87,122 @@ void App::createRenderingResources()
     {
         NPDescriptorSetLayout meshDescriptorSetLayout{};
 
-    VkDescriptorSetLayoutBinding binding0{};
-    binding0.binding = 0;
-    binding0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    binding0.descriptorCount = 1;
-    binding0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    binding0.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding binding0{};
+        binding0.binding = 0;
+        binding0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding0.descriptorCount = 1;
+        binding0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding binding1{};
+        binding1.binding = 1;
+        binding1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding1.descriptorCount = 1;
+        binding1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding binding2{};
+        binding2.binding = 2;
+        binding2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding2.descriptorCount = 1;
+        binding2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+            binding0, binding1, binding2
+        };
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+    
+        if (vkCreateDescriptorSetLayout(
+            context.device,
+            &layoutInfo,
+            nullptr,
+            &meshDescriptorSetLayout.layout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create mesh descriptor set layout");
+        }
+
+        VkDescriptorPoolSize meshPoolSize{};
+        meshPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        meshPoolSize.descriptorCount = 3;
         
-    VkDescriptorSetLayoutCreateInfo meshLayoutInfo{};
-    meshLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    meshLayoutInfo.bindingCount = 1;
-    meshLayoutInfo.pBindings = &binding0;
-    
-    if (vkCreateDescriptorSetLayout(
-        context.device,
-        &meshLayoutInfo,
-        nullptr,
-        &meshDescriptorSetLayout.layout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create mesh descriptor set layout");
-    }
+        VkDescriptorPoolCreateInfo meshPoolInfo{};
+        meshPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        meshPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        meshPoolInfo.maxSets = 1;
+        meshPoolInfo.poolSizeCount = 1;
+        meshPoolInfo.pPoolSizes = &meshPoolSize;
+        
+        if (vkCreateDescriptorPool(
+            context.device,
+            &meshPoolInfo,
+            nullptr,
+            &meshDescriptorSetLayout.pool) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create mesh descriptor pool");
+        }
+        
+        descriptorSetLayouts.push_back(meshDescriptorSetLayout);
+        
+        VkDescriptorSet meshDescriptorSet{};
+        VkDescriptorSetAllocateInfo meshAllocInfo{};
+        meshAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        meshAllocInfo.descriptorPool = meshDescriptorSetLayout.pool;
+        meshAllocInfo.descriptorSetCount = 1;
+        meshAllocInfo.pSetLayouts = &meshDescriptorSetLayout.layout;
+        
+        if (vkAllocateDescriptorSets(
+            context.device,
+            &meshAllocInfo,
+            &meshDescriptorSet) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to allocate mesh descriptor set");
+        }
+        
+        VkDescriptorBufferInfo meshRecordInfo{};
+        meshRecordInfo.buffer = meshRecordBuffer.buffer;
+        meshRecordInfo.offset = 0;
+        meshRecordInfo.range = VK_WHOLE_SIZE;
 
-    VkDescriptorPoolSize meshPoolSize{};
-    meshPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    meshPoolSize.descriptorCount = 1;
-    
-    VkDescriptorPoolCreateInfo meshPoolInfo{};
-    meshPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    meshPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    meshPoolInfo.maxSets = 1;
-    meshPoolInfo.poolSizeCount = 1;
-    meshPoolInfo.pPoolSizes = &meshPoolSize;
-    
-    if (vkCreateDescriptorPool(
-        context.device,
-        &meshPoolInfo,
-        nullptr,
-        &meshDescriptorSetLayout.pool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create mesh descriptor pool");
-    }
-    
-    //descriptorSetLayouts.push_back(meshDescriptorSetLayout);
-    
-    VkDescriptorSet meshDescriptorSet{};
-    VkDescriptorSetAllocateInfo meshAllocInfo{};
-    meshAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    meshAllocInfo.descriptorPool = meshDescriptorSetLayout.pool;
-    meshAllocInfo.descriptorSetCount = 1;
-    meshAllocInfo.pSetLayouts = &meshDescriptorSetLayout.layout;
-    
-    if (vkAllocateDescriptorSets(
-        context.device,
-        &meshAllocInfo,
-        &meshDescriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate mesh descriptor set");
-    }
-    
-    VkDescriptorBufferInfo meshRecordInfo{};
-    meshRecordInfo.buffer = meshRecordBuffer.buffer;
-    meshRecordInfo.offset = 0;
-    meshRecordInfo.range = VK_WHOLE_SIZE;
-    
-    VkWriteDescriptorSet write0{};
-    write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write0.dstSet = meshDescriptorSet;
-    write0.dstBinding = 0;
-    write0.dstArrayElement = 0;
-    write0.descriptorCount = 1;
-    write0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write0.pBufferInfo = &meshRecordInfo;
+        VkDescriptorBufferInfo globalVertexInfo{};
+        globalVertexInfo.buffer = vertexBuffer.buffer;
+        globalVertexInfo.offset = 0;
+        globalVertexInfo.range = VK_WHOLE_SIZE;
 
-    vkUpdateDescriptorSets(context.device, 1, &write0, 0, nullptr);
+        VkDescriptorBufferInfo globalIndexInfo{};
+        globalIndexInfo.buffer = indexBuffer.buffer;
+        globalIndexInfo.offset = 0;
+        globalIndexInfo.range = VK_WHOLE_SIZE;
 
-    //descriptorSets.push_back(meshDescriptorSet);
+        VkWriteDescriptorSet write0{};
+        write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write0.dstSet = meshDescriptorSet;
+        write0.dstBinding = 0;
+        write0.descriptorCount = 1;
+        write0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write0.pBufferInfo = &meshRecordInfo;
+
+        VkWriteDescriptorSet write1{};
+        write1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write1.dstSet = meshDescriptorSet;
+        write1.dstBinding = 1;
+        write1.descriptorCount = 1;
+        write1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write1.pBufferInfo = &globalVertexInfo;
+
+        VkWriteDescriptorSet write2{};
+        write2.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write2.dstSet = meshDescriptorSet;
+        write2.dstBinding = 2;
+        write2.descriptorCount = 1;
+        write2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write2.pBufferInfo = &globalIndexInfo;
+
+        std::array<VkWriteDescriptorSet, 3> writes = { write0, write1, write2 };
+        vkUpdateDescriptorSets(context.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+
+        descriptorSets.push_back(meshDescriptorSet);
     }
     
     
@@ -359,11 +396,17 @@ void App::createGraphicsPipeline()
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
     }
     
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(uint32_t);
+    
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
     pipelineLayoutInfo.pSetLayouts = vkDescriptorSetLayouts.data();
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     
     vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &pipeline.layout);
     
@@ -644,12 +687,13 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, static_cast<uint32_t>(descriptorSets.size()),
                             descriptorSets.data(), 0, nullptr);
     
-    // for (size_t i = 0; i < indexCounts.size(); i++)
-    // {
-    //     vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
-    // }
+    for (size_t i = 0; i < indexCounts.size(); i++)
+    {
+        uint32_t meshIndex = static_cast<uint32_t>(i);
+        vkCmdPushConstants(commandBuffer, pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &meshIndex);
+        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, 0);
+    }
     
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
     vkCmdEndRendering(commandBuffer);
 
     context.transitionImageLayout(
@@ -686,16 +730,10 @@ void App::destroy()
     {
         lightRecordBuffer.destroy(context.allocator);
     }
+    
+    vertexBuffer.destroy(context.allocator);
 
-    for (auto& buffer : vertexBuffers)
-    {
-        buffer.destroy(context.allocator);
-    }
-
-    for (auto& buffer : indexBuffers)
-    {
-        buffer.destroy(context.allocator);
-    }
+    indexBuffer.destroy(context.allocator);
 
     if (pipeline.pipeline != VK_NULL_HANDLE)
     {

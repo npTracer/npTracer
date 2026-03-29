@@ -110,16 +110,18 @@ struct NPPipeline
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
 
-    void destroy(VkDevice device)
+    void NPPipeline::destroy(VkDevice device)
     {
         if (pipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(device, pipeline, nullptr);
+            pipeline = VK_NULL_HANDLE;
         }
 
         if (layout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(device, layout, nullptr);
+            layout = VK_NULL_HANDLE;
         }
     }
 };
@@ -186,10 +188,10 @@ struct NPCameraRecord
 
 struct NPMeshRecord
 {
-    VkDeviceAddress vbAddress;
-    VkDeviceAddress ibAddress;
+    uint32_t vertexOffset;
+    uint32_t indexOffset;
     uint32_t indexCount;
-    uint32_t pad0;
+    uint32_t vertexCount;
 };
 
 struct NPMesh

@@ -63,8 +63,8 @@ private:
     NPBuffer meshRecordBuffer;
     NPBuffer lightRecordBuffer;
     NPBuffer cameraRecordBuffer;
-    std::vector<NPBuffer> vertexBuffers;
-    std::vector<NPBuffer> indexBuffers;
+    NPBuffer vertexBuffer;
+    NPBuffer indexBuffer;
 
     // resource creation
     void createGraphicsPipeline();
@@ -72,7 +72,7 @@ private:
     // render commands recording
     void populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
     void populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
-    
+
     // private execute draw call standalone
     void executeDrawCallSwapchain();
 };

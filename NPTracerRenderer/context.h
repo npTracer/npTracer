@@ -26,7 +26,6 @@ public:
     NPImage depthImage;
     VkFormat depthFormat;
     std::vector<NPFrame> frames;
-    std::vector<VkFence> imageFences;
 
     // swapchain
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;

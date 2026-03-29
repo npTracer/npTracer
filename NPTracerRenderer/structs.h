@@ -137,19 +137,13 @@ struct NPDescriptorSetLayout
 struct NPFrame
 {
     VkSemaphore donePresentingSemaphore;
-    VkSemaphore doneRenderingSemaphore;
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
-
-    NPBuffer uboBuffer;
-    VkDescriptorSet descriptorSet;
 
     void destroy(VkDevice device, VmaAllocator allocator)
     {
         vkDestroyFence(device, doneExecutingFence, nullptr);
         vkDestroySemaphore(device, donePresentingSemaphore, nullptr);
-        vkDestroySemaphore(device, doneRenderingSemaphore, nullptr);
-        uboBuffer.destroy(allocator);
     }
 };
 

@@ -400,24 +400,22 @@ void Context::createSyncAndFrameObjects()
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    
-    imageFences.assign(static_cast<uint32_t>(swapchainImages.size()), VK_NULL_HANDLE);
-    
+
+    doneRenderingSemaphores.resize(swapchainImages.size());
+    for (auto& sem : doneRenderingSemaphores)
+    {
+        vkCreateSemaphore(device, &semInfo, nullptr, &sem);
+    }
+
+    frames.resize(FRAME_COUNT);
+
     for (int i = 0; i < FRAME_COUNT; i++)
     {
-        NPFrame frame;
-        
+        NPFrame& frame = frames[i];
+
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
-        vkCreateSemaphore(device, &semInfo, nullptr, &frame.doneRenderingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
         createCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS);
-
-        VkDeviceSize bufferSize = sizeof(NPCameraRecord);
-        createBuffer(frame.uboBuffer, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                         | VMA_ALLOCATION_CREATE_MAPPED_BIT);
-
-        frames.emplace_back(frame);
     }
 
     // create transfer command buffer as well
@@ -551,7 +549,6 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.usage = usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     VmaAllocationCreateInfo allocCreateInfo{};
     allocCreateInfo.flags = allocationFlags;
@@ -872,12 +869,18 @@ void Context::destroyDebugMessenger()
 
 void Context::destroy()
 {
+    cleanupSwapchain();
+
     for (int i = 0; i < FRAME_COUNT; i++)
     {
         frames[i].destroy(device, allocator);
     }
 
-    depthImage.destroy(device, allocator);
+    for (auto& sem : doneRenderingSemaphores)
+    {
+        vkDestroySemaphore(device, sem, nullptr);
+    }
+    doneRenderingSemaphores.clear();
 
     for (auto& queue : queues)
     {

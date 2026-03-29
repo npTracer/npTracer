@@ -142,3 +142,5 @@ target_compile_definitions(${PROJECT_NAME}
         NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
         NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
 )
+
+add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${COMPILE_SHADERS_TARGET})

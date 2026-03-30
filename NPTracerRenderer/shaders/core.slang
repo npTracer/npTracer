@@ -35,14 +35,6 @@ struct VertexOutput
     float2 uv : TEXCOORD0;
 };
 
-struct PushConstants
-{
-    uint meshIndex;
-};
-
-[[vk::push_constant]]
-ConstantBuffer<PushConstants> pushConstants;
-
 [[vk::binding(0, 0)]]
 StructuredBuffer<MeshRecord> meshRecords;
 
@@ -59,10 +51,10 @@ StructuredBuffer<float4x4> globalTransforms;
 ConstantBuffer<CameraRecord> camera;
 
 [shader("vertex")]
-VertexOutput vertMain(uint vid : SV_VertexID) {
+VertexOutput vertMain(uint vid : SV_VertexID, uint iid : SV_InstanceID) {
     VertexOutput output;
     
-    MeshRecord rec = meshRecords[pushConstants.meshIndex];
+    MeshRecord rec = meshRecords[iid];
     
     // geometry
     uint index = globalIndices[rec.indexOffset + vid];

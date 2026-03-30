@@ -289,17 +289,13 @@ void App::createGraphicsPipeline()
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
     }
     
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(uint32_t);
     
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
     pipelineLayoutInfo.pSetLayouts = vkDescriptorSetLayouts.data();
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    pipelineLayoutInfo.pushConstantRangeCount = 0;
+    pipelineLayoutInfo.pPushConstantRanges = nullptr;
     
     vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &pipeline.layout);
     
@@ -584,9 +580,7 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
     
     for (size_t i = 0; i < indexCounts.size(); i++)
     {
-        uint32_t meshIndex = static_cast<uint32_t>(i);
-        vkCmdPushConstants(commandBuffer, pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &meshIndex);
-        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, 0);
+        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
     
     vkCmdEndRendering(commandBuffer);
@@ -629,6 +623,8 @@ void App::destroy()
     vertexBuffer.destroy(context.allocator);
 
     indexBuffer.destroy(context.allocator);
+    
+    transformRecordBuffer.destroy(context.allocator);
 
     if (pipeline.pipeline != VK_NULL_HANDLE)
     {

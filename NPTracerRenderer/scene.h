@@ -25,12 +25,14 @@ public:
         std::string nodeName;
     };
 
+    std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
     std::vector<PendingMeshInstance> pendingMeshes;
     
     void loadSceneAssimp(const char *path);
-    void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& parentTransform);
+    void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);
     void processMesh(const aiMesh* currMesh, const FLOAT4X4& localTransform);
     void processCamera(const aiScene* scene);
+    void processLight(const aiLight* light);
     
     NPMesh* addMesh();
     bool removeMesh(const uint32_t& objectId);

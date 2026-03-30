@@ -59,13 +59,19 @@ private:
     std::unique_ptr<Scene> scene;
     std::vector<uint32_t> indexCounts;
 
+    // SET 0: GEOMETRY
     NPBuffer meshRecordBuffer;
-    NPBuffer lightRecordBuffer;
-    NPBuffer cameraRecordBuffer;
-    NPBuffer transformRecordBuffer;
     NPBuffer vertexBuffer;
     NPBuffer indexBuffer;
-
+    
+    // SET 1: TRANSFORMS
+    NPBuffer geometryTransformsBuffer;
+    NPBuffer lightTransformsBuffer;
+    
+    // SET 2: CAMERA & LIGHTS
+    NPBuffer cameraRecordBuffer;
+    NPBuffer lightRecordBuffer;
+    
     // resource creation
     void createGraphicsPipeline();
     

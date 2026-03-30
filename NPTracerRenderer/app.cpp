@@ -33,6 +33,7 @@ void App::create()
 // RESOURCE CREATION
 void App::createRenderingResources()
 {
+    // GEOMETRY
     const size_t meshCount = scene->getMeshCount();
     std::vector<NPMeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
@@ -81,8 +82,50 @@ void App::createRenderingResources()
     
     context.createDeviceLocalBuffer(vertexBuffer, globalVertices.data(), vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     context.createDeviceLocalBuffer(indexBuffer, globalIndices.data(), indexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    context.createDeviceLocalBuffer(transformRecordBuffer, globalTransforms.data(), transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    context.createDeviceLocalBuffer(geometryTransformsBuffer, globalTransforms.data(), transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     
+    // LIGHTS
+    const size_t lightCount = scene->getLightCount();
+    std::vector<NPLightRecord> lightRecords;
+    meshRecords.reserve(meshCount);
+    std::vector<FLOAT4X4> lightTransforms;
+    
+    if (lightCount > 0)
+    {
+        for (uint32_t i = 0; i < lightCount; i++)
+        {
+            const NPLight* light = scene->getLightAtIndex(i);
+        
+            NPLightRecord lightRecord;
+            lightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
+            lightRecord.color = FLOAT4(light->color, 1.0);
+            lightRecord.intensity = light->intensity;
+        
+            lightTransforms.push_back(light->transform);
+            lightRecords.push_back(lightRecord);
+        }
+    }
+    else
+    {
+        NPLightRecord defaultLightRecord;
+        defaultLightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
+        defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
+        defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
+        
+        FLOAT4X4 transform(1.0f);
+        transform[3] = FLOAT4(2.0f, 3.0f, 1.0f, 1.0f);
+        
+        lightTransforms.push_back(transform);
+        lightRecords.push_back(defaultLightRecord);
+    }
+    
+    VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
+    VkDeviceSize lightTransformsSize = sizeof(lightTransforms[0]) * lightTransforms.size();
+    
+    context.createDeviceLocalBuffer(lightRecordBuffer, lightRecords.data(), lightRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    context.createDeviceLocalBuffer(lightTransformsBuffer, lightTransforms.data(), lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    
+    // CAMERA
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
     bool cameraRecordBufferCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     
@@ -93,38 +136,34 @@ void App::createRenderingResources()
     
     // SET 0: Mesh Records
     {
-        // create descriptor set layout
         NPDescriptorSetLayout descriptorSetLayout{};
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        
+        // mesh record buffer
         VkDescriptorSetLayoutBinding b0{};
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b0.descriptorCount = 1;
         b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+        // vertex ssbo
         VkDescriptorSetLayoutBinding b1{};
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b1.descriptorCount = 1;
         b1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+        // index ssbo
         VkDescriptorSetLayoutBinding b2{};
         b2.binding = 2;
         b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b2.descriptorCount = 1;
         b2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         
-        VkDescriptorSetLayoutBinding b3{};
-        b3.binding = 3;
-        b3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b3.descriptorCount = 1;
-        b3.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
         bindings[0] = b0;
         bindings[1] = b1;
         bindings[2] = b2;
-        bindings[3] = b3;
         
         context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -137,32 +176,73 @@ void App::createRenderingResources()
         bindingBufferMap[0] = &meshRecordBuffer;
         bindingBufferMap[1] = &vertexBuffer;
         bindingBufferMap[2] = &indexBuffer;
-        bindingBufferMap[3] = &transformRecordBuffer;
         
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
         
         descriptorSets.push_back(descriptorSet);
     }
     
-    // SET 1: Camera
+    // SET 1 : TRANSFORMS
     {
-        // create descriptor set layout
         NPDescriptorSetLayout descriptorSetLayout{};
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding binding0{};
-        binding0.binding = 0;
-        binding0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        binding0.descriptorCount = 1;
-        binding0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        binding0.pImmutableSamplers = nullptr;
         
-        bindings[0] = binding0;
-            
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &binding0;
+        // geometry transforms
+        VkDescriptorSetLayoutBinding b0{}; 
+        b0.binding = 0;
+        b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b0.descriptorCount = 1;
+        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        // light transforms
+        VkDescriptorSetLayoutBinding b1{};
+        b1.binding = 1;
+        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b1.descriptorCount = 1;
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[0] = b0;
+        bindings[1] = b1;
+        
+        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        descriptorSetLayouts.push_back(descriptorSetLayout);
+        
+        // allocate descriptors
+        VkDescriptorSet descriptorSet{};
+        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        
+        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        bindingBufferMap[0] = &geometryTransformsBuffer;
+        bindingBufferMap[1] = &lightTransformsBuffer;
+        
+        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        
+        descriptorSets.push_back(descriptorSet);
+    }
+    
+    // SET 2: CAMERA AND LIGHTS
+    {
+        NPDescriptorSetLayout descriptorSetLayout{};
+
+        // camera buffer
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        VkDescriptorSetLayoutBinding b0{};
+        b0.binding = 0;
+        b0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        b0.descriptorCount = 1;
+        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b0.pImmutableSamplers = nullptr;
+        
+        VkDescriptorSetLayoutBinding b1{};
+        b1.binding = 1;
+        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b1.descriptorCount = 1;
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b1.pImmutableSamplers = nullptr;
+        
+        bindings[0] = b0;
+        bindings[1] = b1;
         
         context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -174,6 +254,7 @@ void App::createRenderingResources()
         // create descriptor set
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
         bindingBufferMap[0] = &cameraRecordBuffer;
+        bindingBufferMap[1] = &lightRecordBuffer;
         
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
@@ -611,11 +692,34 @@ void App::destroy()
         descriptorSetLayout.destroy(context.device);
     }
 
+    // SET 0 : GEOMETRY
     if (meshRecordBuffer.buffer != VK_NULL_HANDLE)
     {
         meshRecordBuffer.destroy(context.allocator);
     }
 
+    if (vertexBuffer.buffer != VK_NULL_HANDLE)
+    {
+        vertexBuffer.destroy(context.allocator);
+    }
+
+    if (indexBuffer.buffer != VK_NULL_HANDLE)
+    {
+        indexBuffer.destroy(context.allocator);
+    }
+    
+    // SET 1 : TRANSFOMRS
+    if (geometryTransformsBuffer.buffer != VK_NULL_HANDLE)
+    {
+        geometryTransformsBuffer.destroy(context.allocator);
+    }
+    
+    if (lightTransformsBuffer.buffer != VK_NULL_HANDLE)
+    {
+        lightTransformsBuffer.destroy(context.allocator);
+    }
+    
+    // SET 2: CAMERA AND LIGHTS
     if (cameraRecordBuffer.buffer != VK_NULL_HANDLE)
     {
         cameraRecordBuffer.destroy(context.allocator);
@@ -626,12 +730,6 @@ void App::destroy()
         lightRecordBuffer.destroy(context.allocator);
     }
     
-    vertexBuffer.destroy(context.allocator);
-
-    indexBuffer.destroy(context.allocator);
-    
-    transformRecordBuffer.destroy(context.allocator);
-
     if (pipeline.pipeline != VK_NULL_HANDLE)
     {
         pipeline.destroy(context.device);

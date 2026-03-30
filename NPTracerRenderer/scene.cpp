@@ -43,15 +43,18 @@ void Scene::loadSceneAssimp(const char* path)
         processMesh(inst.mesh, inst.transform);
     }
     
+    for (uint32_t i = 0; i < scene->mNumLights; i++)
+    {
+        processLight(scene->mLights[i]);
+    }
+    
     processCamera(scene);
 }
 
-void Scene::processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& parentTransform)
+void Scene::processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform)
 {
-    FLOAT4X4 localTransform = parentTransform * aiToGlm(node->mTransformation);
-
-    std::cout << "Node: " << node->mName.C_Str() << "\n";
-    // print localTransform here
+    FLOAT4X4 localTransform = transform * aiToGlm(node->mTransformation);
+    nodeTransforms[node->mName.C_Str()] = localTransform; // store for light traversal
 
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
     {
@@ -95,6 +98,29 @@ void Scene::processMesh(const aiMesh* currMesh, const FLOAT4X4& localTransform)
     }
         
     _meshes.push_back(std::move(mesh));
+}
+
+void Scene::processLight(const aiLight* light)
+{
+    auto currLight = std::make_unique<NPLight>();
+
+    std::string lightName = light->mName.C_Str();
+    
+    auto it = nodeTransforms.find(lightName);
+    
+    if (it != nodeTransforms.end())
+    {
+        currLight->transform = nodeTransforms[lightName];
+    }
+    else
+    {
+        currLight->transform = FLOAT4X4(1.0);
+    }
+    
+    currLight->color = FLOAT3(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b);
+    currLight->intensity = 1.0f; // TODO update this
+    
+    _lights.push_back(std::move(currLight));
 }
 
 void Scene::processCamera(const aiScene* scene)

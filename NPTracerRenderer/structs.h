@@ -233,9 +233,8 @@ enum class NPLightType : uint8_t
 
 struct NPLightRecord
 {
-    FLOAT4X4 transform;
-
-    FLOAT3 color;
+    uint32_t lightTransformIndex;
+    FLOAT4 color;
     float intensity;
 };
 

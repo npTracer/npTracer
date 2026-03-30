@@ -86,6 +86,7 @@ void App::createRenderingResources()
     
     // LIGHTS
     const size_t lightCount = scene->getLightCount();
+    numLights = static_cast<uint32_t>(lightCount); // push constant
     std::vector<NPLightRecord> lightRecords;
     meshRecords.reserve(meshCount);
     std::vector<FLOAT4X4> lightTransforms;
@@ -107,15 +108,14 @@ void App::createRenderingResources()
     }
     else
     {
+        numLights = 1;
+        
         NPLightRecord defaultLightRecord;
         defaultLightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
         defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
         defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
         
-        FLOAT4X4 transform(1.0f);
-        transform[3] = FLOAT4(2.0f, 3.0f, 1.0f, 1.0f);
-        
-        lightTransforms.push_back(transform);
+        lightTransforms.push_back(FLOAT4X4(1.0));
         lightRecords.push_back(defaultLightRecord);
     }
     
@@ -371,9 +371,9 @@ void App::createGraphicsPipeline()
     }
     
     VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(uint32_t);
+    pushConstantRange.size = 2 * sizeof(uint32_t);
     
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -665,8 +665,8 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
     
     for (size_t i = 0; i < indexCounts.size(); i++)
     {
-        uint32_t meshIndex = static_cast<uint32_t>(i);
-        vkCmdPushConstants(commandBuffer, pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &meshIndex);
+        std::vector<uint32_t> pushConstants{static_cast<uint32_t>(i), numLights};
+        vkCmdPushConstants(commandBuffer, pipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()), pushConstants.data());
         vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
     

@@ -51,13 +51,16 @@ private:
     Context context;
     GLFWwindow* window = nullptr;
 
+    // push constants
+    std::vector<uint32_t> indexCounts;
+    uint32_t numLights = 0;
+    
     // rendering resources
+    std::unique_ptr<Scene> scene;
+    
     NPPipeline pipeline;
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkDescriptorSet> descriptorSets;
-
-    std::unique_ptr<Scene> scene;
-    std::vector<uint32_t> indexCounts;
 
     // SET 0: GEOMETRY
     NPBuffer meshRecordBuffer;

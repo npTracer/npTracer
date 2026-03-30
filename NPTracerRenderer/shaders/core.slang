@@ -46,6 +46,7 @@ struct VertexOutput
 struct PushConstants
 {
     uint meshIndex;
+    uint numLights;
 };
 
 [[vk::push_constant]]
@@ -107,18 +108,20 @@ float4 fragMain(VertexOutput input) : SV_Target
     
     float3 litColor = float3(0.0, 0.0, 0.0);
     
-    LightRecord light = lights[0]; // TODO use more than one light
-    float4x4 lightTransform = lightTransforms[light.transformIndex];
-    
-    float3 lightPos = float3(
-        lightTransform[0][3],
-        lightTransform[1][3],
-        lightTransform[2][3]
-    );
-    float3 L = normalize(lightPos - input.worldPos);
-    
-    float NdotL = max(dot(N, L), 0.0);
-    litColor += baseColor * light.color.rgb * light.intensity * NdotL;
-    
+    for (uint i = 0; i < pushConstants.numLights; i++)
+    {
+        LightRecord light = lights[i];
+        float4x4 lightTransform = lightTransforms[light.transformIndex];
+        float3 lightPos = float3(
+            lightTransform[0][3],
+            lightTransform[1][3],
+            lightTransform[2][3]
+        );
+            
+        float3 L = normalize(lightPos - input.worldPos);
+                
+        float NdotL = max(dot(N, L), 0.0);
+        litColor += baseColor * light.color.rgb * light.intensity * NdotL;
+    }
     return float4(litColor, 1.0);
 }

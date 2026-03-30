@@ -40,7 +40,7 @@ void Scene::loadSceneAssimp(const char* path)
     
     for (const auto& inst : pendingMeshes)
     {
-        processMesh(inst.mesh, inst.transform);
+        processMesh(scene, inst.mesh, inst.transform);
     }
     
     for (uint32_t i = 0; i < scene->mNumLights; i++)
@@ -68,7 +68,7 @@ void Scene::processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4
     }
 }
 
-void Scene::processMesh(const aiMesh* currMesh, const FLOAT4X4& localTransform)
+void Scene::processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4X4& localTransform)
 {
     auto mesh = std::make_unique<NPMesh>();
     mesh->objectToWorld = localTransform;
@@ -96,6 +96,57 @@ void Scene::processMesh(const aiMesh* currMesh, const FLOAT4X4& localTransform)
             mesh->indices.push_back(face->mIndices[k]);
         }
     }
+    
+    // get material
+    auto mat = std::make_unique<NPMaterial>();
+    
+    mat->ambient = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+    mat->diffuse = FLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+    mat->specular = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+    mat->emission = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+    
+    const aiMaterial* aiMat = scene->mMaterials[currMesh->mMaterialIndex];
+    
+    aiColor3D color(0.0f, 0.0f, 0.0f);
+    if (aiMat->Get(AI_MATKEY_COLOR_AMBIENT, color) == AI_SUCCESS)
+    {
+        mat->ambient = FLOAT4(color.r, color.b, color.g, 1.0f);
+    }
+    
+    if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
+    {
+        mat->diffuse = FLOAT4(color.r, color.g, color.b, 1.0f);
+    }
+    
+    if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, color) == AI_SUCCESS)
+    {
+        mat->specular = FLOAT4(color.r, color.g, color.b, 1.0f);
+    }
+    
+    if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, color) == AI_SUCCESS)
+    {
+        mat->emission = FLOAT4(color.r, color.g, color.b, 1.0f);
+    }
+    
+    // texturing
+    aiString path;
+    if (aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+    {
+        auto it = std::find(texturePaths.begin(), texturePaths.end(), path.C_Str());
+        if (it != texturePaths.end())
+        {
+            uint32_t texIdx = std::distance(texturePaths.begin(), it);
+            mat->diffuseTextureIdx = texIdx;
+        }
+        else
+        {
+            mat->diffuseTextureIdx = static_cast<uint32_t>(texturePaths.size());
+            texturePaths.push_back(path.C_Str());
+        }
+    }
+    
+    mesh->materialIndex = static_cast<uint32_t>(_materials.size());
+    _materials.push_back(std::move(mat));
         
     _meshes.push_back(std::move(mesh));
 }
@@ -211,4 +262,14 @@ NPLight const* Scene::getLightAtIndex(int idx) const
     }
 
     return _lights[idx].get();
+}
+
+NPMaterial const* Scene::getMaterialAtIndex(int idx) const
+{
+    if (idx < 0 || idx >= _materials.size())
+    {
+        return nullptr;
+    }
+    
+    return _materials[idx].get();
 }

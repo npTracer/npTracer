@@ -9,6 +9,7 @@ struct MeshRecord
     uint vertexCount;
     
     uint transformIndex;
+    uint materialIndex;
 };
 
 struct CameraRecord
@@ -24,6 +25,15 @@ struct LightRecord
     float4 color;
     float intensity;
 };
+
+struct MaterialRecord
+{
+    float4 ambient;
+    float4 diffuse;
+    float4 specular;
+    float4 emissive;
+    uint textureIndex;
+}
 
 struct Vertex
 {
@@ -73,6 +83,9 @@ ConstantBuffer<CameraRecord> camera;
 [[vk::binding(1, 2)]]
 StructuredBuffer<LightRecord> lights;
 
+[[vk::binding(0, 3)]]
+StructuredBuffer<MaterialRecord> materials;
+
 [shader("vertex")]
 VertexOutput vertMain(uint vid : SV_VertexID) {
     VertexOutput output;
@@ -103,8 +116,11 @@ VertexOutput vertMain(uint vid : SV_VertexID) {
 [shader("fragment")]
 float4 fragMain(VertexOutput input) : SV_Target
 {
+    MeshRecord rec = meshRecords[pushConstants.meshIndex]; // TODO don't fetch twice
+    MaterialRecord material = materials[rec.materialIndex];
+
     float3 N = normalize(input.worldNormal);
-    float3 baseColor = input.color;
+    float3 baseColor = material.diffuse.xyz;
     
     float3 litColor = float3(0.0, 0.0, 0.0);
     

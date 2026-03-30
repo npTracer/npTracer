@@ -618,11 +618,10 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
-void Context::createTextureImage(NPImage& handle)
+void Context::createTextureImage(NPImage& handle, const char* path)
 {
     int width, height, channels;
-    auto path = TEXTURE("coconut.jpg");
-    stbi_uc* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
 
     if (!pixels)
     {
@@ -899,6 +898,40 @@ void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
         writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
         writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
         writeDescriptorSet.pBufferInfo = &bindingInfoMap[binding];
+        
+        writeDescriptorSets.push_back(writeDescriptorSet);
+    }
+    
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+}
+
+void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet,
+    std::unordered_map<uint32_t, NPImage*>& bindingImagesMap,
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap, VkSampler& sampler)
+{
+    std::unordered_map<uint32_t, VkDescriptorImageInfo> bindingInfoMap;
+    for (auto& pair : bindingImagesMap)
+    {
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageView = pair.second->view;
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.sampler = sampler;
+        
+        bindingInfoMap[pair.first] = imageInfo;
+    }
+    
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+    for (auto& pair : bindingInfoMap)
+    {
+        uint32_t binding = pair.first;
+        
+        VkWriteDescriptorSet writeDescriptorSet{};
+        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSet.dstSet = descriptorSet;
+        writeDescriptorSet.dstBinding = binding;
+        writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
+        writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
+        writeDescriptorSet.pImageInfo = &bindingInfoMap[binding];
         
         writeDescriptorSets.push_back(writeDescriptorSet);
     }

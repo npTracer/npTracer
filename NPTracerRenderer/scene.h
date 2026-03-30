@@ -26,11 +26,12 @@ public:
     };
 
     std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
+    std::vector<const char*> texturePaths;
     std::vector<PendingMeshInstance> pendingMeshes;
     
     void loadSceneAssimp(const char *path);
     void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);
-    void processMesh(const aiMesh* currMesh, const FLOAT4X4& localTransform);
+    void processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4X4& localTransform);
     void processCamera(const aiScene* scene);
     void processLight(const aiLight* light);
     
@@ -60,6 +61,18 @@ public:
     {
         return &_camera;
     }
+    
+    inline const std::vector<std::unique_ptr<NPMaterial>>& getMaterials() const
+    {
+        return _materials;
+    }
+    
+    inline size_t getMaterialCount() const
+    {
+        return _materials.size();
+    }
+    
+    NPMaterial const* getMaterialAtIndex(int idx) const;
 
 private:
     std::mutex _meshMutex;
@@ -67,7 +80,8 @@ private:
 
     std::vector<std::unique_ptr<NPLight>> _lights;
     std::vector<FLOAT4X4> _transforms;
-
+    std::vector<std::unique_ptr<NPMaterial>> _materials;
+    
     NPCameraRecord _camera = {};
 
     NPRenderSettings _settings = {};

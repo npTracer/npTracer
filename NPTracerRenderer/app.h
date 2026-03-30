@@ -61,6 +61,7 @@ private:
     NPPipeline pipeline;
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkDescriptorSet> descriptorSets;
+    VkSampler sampler = VK_NULL_HANDLE;
 
     // SET 0: GEOMETRY
     NPBuffer meshRecordBuffer;
@@ -74,6 +75,10 @@ private:
     // SET 2: CAMERA & LIGHTS
     NPBuffer cameraRecordBuffer;
     NPBuffer lightRecordBuffer;
+    
+    // SET 3: MATERIALS
+    NPBuffer materialRecordsBuffer;
+    std::vector<NPImage> textures;
     
     // resource creation
     void createGraphicsPipeline();

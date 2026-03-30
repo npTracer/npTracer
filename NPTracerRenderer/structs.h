@@ -182,6 +182,7 @@ struct NPMeshRecord
     uint32_t vertexCount;
     
     uint32_t transformIndex;
+    uint32_t materialIndex;
 };
 
 struct NPMesh
@@ -205,6 +206,8 @@ struct NPMesh
 
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
+    
+    uint32_t materialIndex;
 
     void populateVertices()
     {
@@ -223,6 +226,16 @@ struct NPMesh
             vertices.push_back(v);
         }
     }
+};
+
+struct NPMaterial
+{
+    FLOAT4 ambient;
+    FLOAT4 diffuse;
+    FLOAT4 specular;
+    FLOAT4 emission;
+    
+    uint32_t diffuseTextureIdx;
 };
 
 enum class NPLightType : uint8_t

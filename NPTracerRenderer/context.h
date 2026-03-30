@@ -74,7 +74,7 @@ public:
     void createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                      uint32_t height, VkImageUsageFlags usage,
                      VmaAllocationCreateFlags allocationFlags,  VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT, bool shouldCreateView = true) const;
-    void createTextureImage(NPImage& handle);
+    void createTextureImage(NPImage& handle, const char* path);
     void createDepthImage(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
@@ -93,6 +93,7 @@ public:
     void allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout);
     void writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
     std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, NPImage*>& bindingImagesMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap, VkSampler& sampler);
     
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);

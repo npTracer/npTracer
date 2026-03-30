@@ -27,6 +27,7 @@ void App::create()
     
     context.createSyncAndFrameObjects();
     context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
+    context.createTextureSampler(sampler);
     context.waitIdle();
 }
 
@@ -51,6 +52,7 @@ void App::createRenderingResources()
         meshRecord.indexCount = static_cast<uint32_t>(mesh->indices.size());
         meshRecord.vertexCount = static_cast<uint32_t>(mesh->vertices.size());
         meshRecord.transformIndex = static_cast<uint32_t>(globalTransforms.size());
+        meshRecord.materialIndex = mesh->materialIndex;
         
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());
@@ -136,6 +138,26 @@ void App::createRenderingResources()
         throw std::runtime_error("failed to create camera record buffer");
     }
     
+    // MATERIALS
+    
+    const size_t materialCount = scene->getMaterialCount();
+    std::vector<NPMaterial> materialRecords;
+    materialRecords.reserve(materialCount);
+    
+    for (uint32_t i = 0; i < materialCount; i++)
+    {
+        // right now NPMaterial and record are identical so just use the same struct here (still looping for easy modification in the future)
+        NPMaterial material = *scene->getMaterialAtIndex(i);
+        
+        materialRecords.push_back(material);
+    }
+    
+    VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
+    context.createDeviceLocalBuffer(materialRecordsBuffer, materialRecords.data(), materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    
+    
+    // TEXTURES
+    
     // SET 0: Mesh Records
     {
         NPDescriptorSetLayout descriptorSetLayout{};
@@ -147,7 +169,7 @@ void App::createRenderingResources()
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b0.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
 
         // vertex ssbo
         VkDescriptorSetLayoutBinding b1{};
@@ -257,6 +279,37 @@ void App::createRenderingResources()
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
         bindingBufferMap[0] = &cameraRecordBuffer;
         bindingBufferMap[1] = &lightRecordBuffer;
+        
+        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+
+        descriptorSets.push_back(descriptorSet);
+    }
+    
+    // SET 3: MATERIALS AND TEXTURES
+    {
+        NPDescriptorSetLayout descriptorSetLayout{};
+
+        // materials buffer
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        VkDescriptorSetLayoutBinding b0{};
+        b0.binding = 0;
+        b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b0.descriptorCount = 1;
+        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b0.pImmutableSamplers = nullptr;
+        
+        bindings[0] = b0;
+        
+        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        descriptorSetLayouts.push_back(descriptorSetLayout);
+        
+        // allocate descriptors
+        VkDescriptorSet descriptorSet{};
+        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        
+        // create descriptor set
+        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        bindingBufferMap[0] = &materialRecordsBuffer;
         
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
@@ -693,6 +746,11 @@ void App::destroy()
     {
         descriptorSetLayout.destroy(context.device);
     }
+    
+    if (sampler != VK_NULL_HANDLE)
+    {
+        vkDestroySampler(context.device, sampler, nullptr);
+    }
 
     // SET 0 : GEOMETRY
     if (meshRecordBuffer.buffer != VK_NULL_HANDLE)
@@ -730,6 +788,12 @@ void App::destroy()
     if (lightRecordBuffer.buffer != VK_NULL_HANDLE)
     {
         lightRecordBuffer.destroy(context.allocator);
+    }
+    
+    // SET 3: MATERIAL AND TEXTURES
+    if (materialRecordsBuffer.buffer != VK_NULL_HANDLE)
+    {
+        materialRecordsBuffer.destroy(context.allocator);
     }
     
     if (pipeline.pipeline != VK_NULL_HANDLE)

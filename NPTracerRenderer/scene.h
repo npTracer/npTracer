@@ -9,15 +9,24 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <unordered_map>
 
 class Scene
 {
 public:
     Scene();
     ~Scene();
-
     
     // assimp loading
+    struct PendingMeshInstance
+    {
+        const aiMesh* mesh;
+        FLOAT4X4 transform;
+        std::string nodeName;
+    };
+
+    std::vector<PendingMeshInstance> pendingMeshes;
+    
     void loadSceneAssimp(const char *path);
     void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& parentTransform);
     void processMesh(const aiMesh* currMesh, const FLOAT4X4& localTransform);

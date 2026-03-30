@@ -1,17 +1,18 @@
 #include "scene.h"
-
+#include <iostream>
 Scene::Scene() {}
 
 Scene::~Scene() {}
 
 static FLOAT4X4 aiToGlm(const aiMatrix4x4& m)
 {
-    return glm::mat4(
-        m.a1, m.a2, m.a3, m.a4,
-        m.b1, m.b2, m.b3, m.b4,
-        m.c1, m.c2, m.c3, m.c4,
-        m.d1, m.d2, m.d3, m.d4
+    FLOAT4X4 mat = FLOAT4X4(
+        m.a1, m.b1, m.c1, m.d1,
+        m.a2, m.b2, m.c2, m.d2,
+        m.a3, m.b3, m.c3, m.d3,
+        m.a4, m.b4, m.c4, m.d4
     );
+    return mat;
 }
 
 void Scene::loadSceneAssimp(const char* path)
@@ -34,24 +35,33 @@ void Scene::loadSceneAssimp(const char* path)
     
     const aiNode* root = scene->mRootNode;
     
+    // visit all nodes
     processNode(scene, root, FLOAT4X4(1.0));
+    
+    for (const auto& inst : pendingMeshes)
+    {
+        processMesh(inst.mesh, inst.transform);
+    }
+    
     processCamera(scene);
 }
 
 void Scene::processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& parentTransform)
 {
     FLOAT4X4 localTransform = parentTransform * aiToGlm(node->mTransformation);
-    
+
+    std::cout << "Node: " << node->mName.C_Str() << "\n";
+    // print localTransform here
+
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
     {
         const aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-        processMesh(mesh, localTransform);
+        pendingMeshes.push_back({ mesh, localTransform, node->mName.C_Str() });
     }
-    
+
     for (uint32_t i = 0; i < node->mNumChildren; i++)
     {
-        const aiNode* child = node->mChildren[i];
-        processNode(scene, child, localTransform);
+        processNode(scene, node->mChildren[i], localTransform);
     }
 }
 
@@ -117,8 +127,8 @@ void Scene::processCamera(const aiScene* scene)
         cameraRecord.model = glm::mat4(1.0f);
 
         cameraRecord.view = glm::lookAt(
-            glm::vec3(0.0f, 50.0f, 100.0f),   // eye
-            glm::vec3(0.0f, 50.0f, 0.0f),   // center
+            glm::vec3(0.0f, 0.0f, 10.0f),   // eye
+            glm::vec3(0.0f, 0.0f, 0.0f),   // center
             glm::vec3(0.0f, 1.0f, 0.0f)    // up
         );
 

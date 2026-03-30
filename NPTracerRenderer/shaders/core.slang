@@ -7,6 +7,8 @@ struct MeshRecord
     uint indexOffset;
     uint indexCount;
     uint vertexCount;
+    
+    uint transformIndex;
 };
 
 struct CameraRecord
@@ -50,46 +52,26 @@ StructuredBuffer<Vertex> globalVertices;
 [[vk::binding(2, 0)]]
 StructuredBuffer<uint> globalIndices;
 
+[[vk::binding(3, 0)]]
+StructuredBuffer<float4x4> globalTransforms;
+
 [[vk::binding(0, 1)]]
 ConstantBuffer<CameraRecord> camera;
-
-static float2 positions[3] = float2[](
-    float2(0.0, -0.5),
-    float2(0.5, 0.5),
-    float2(-0.5, 0.5)
-);
-
-static float3 colors[3] = float3[](
-    float3(1.0, 0.0, 0.0),
-    float3(0.0, 1.0, 0.0),
-    float3(0.0, 0.0, 1.0)
-);
 
 [shader("vertex")]
 VertexOutput vertMain(uint vid : SV_VertexID) {
     VertexOutput output;
     
-    MeshRecord meshRecord = meshRecords[pushConstants.meshIndex];
+    MeshRecord rec = meshRecords[pushConstants.meshIndex];
     
-    if (vid >= meshRecord.indexCount)
-    {
-        output.pos = float4(1.0, 0.0, 0.0, 1.0);
-        output.color = float3(1.0, 0.0, 1.0);
-        return output;
-    }
-    
-    uint index = globalIndices[meshRecord.indexOffset + vid];
-    
-    if (index < meshRecord.vertexOffset || index >= (meshRecord.vertexOffset + meshRecord.vertexCount))
-    {
-        output.pos = float4(1.0, 0.0, 0.0, 1.0);
-        output.color = float3(1.0, 1.0, 0.0);
-        return output;
-    }
-    
+    // geometry
+    uint index = globalIndices[rec.indexOffset + vid];
     Vertex input = globalVertices[index];
     
-    float4 worldPos = mul(camera.model, input.pos);
+    // transform
+    float4x4 transform = globalTransforms[rec.transformIndex];
+    
+    float4 worldPos = mul(transform, input.pos);
     float4 viewPos  = mul(camera.view, worldPos);
     output.pos      = mul(camera.proj, viewPos);
 

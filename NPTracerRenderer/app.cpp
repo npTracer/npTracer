@@ -2,6 +2,7 @@
 #include "utils.h"
 
 #include <iostream>
+#include <cassert>
 
 #include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
 
@@ -65,6 +66,14 @@ void App::createRenderingResources()
         
         meshRecords.push_back(meshRecord);
     }
+        
+    VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
+    bool meshRecordBufferCreated = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    
+    if (!meshRecordBufferCreated)
+    {
+        throw std::runtime_error("failed to create mesh record buffer");
+    }
     
     VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
@@ -73,14 +82,6 @@ void App::createRenderingResources()
     context.createDeviceLocalBuffer(vertexBuffer, globalVertices.data(), vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     context.createDeviceLocalBuffer(indexBuffer, globalIndices.data(), indexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     context.createDeviceLocalBuffer(transformRecordBuffer, globalTransforms.data(), transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
-    VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
-    bool meshRecordBufferCreated = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
-    if (!meshRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create mesh record buffer");
-    }
     
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
     bool cameraRecordBufferCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -92,8 +93,8 @@ void App::createRenderingResources()
     
     // SET 0: Mesh Records
     {
-        // create descriptor set
-        NPDescriptorSetLayout meshDescriptorSetLayout{};
+        // create descriptor set layout
+        NPDescriptorSetLayout descriptorSetLayout{};
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
         VkDescriptorSetLayoutBinding b0{};
@@ -113,106 +114,68 @@ void App::createRenderingResources()
         b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b2.descriptorCount = 1;
         b2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        
+        VkDescriptorSetLayoutBinding b3{};
+        b3.binding = 3;
+        b3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b3.descriptorCount = 1;
+        b3.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
         bindings[0] = b0;
         bindings[1] = b1;
         bindings[2] = b2;
+        bindings[3] = b3;
         
-        context.createDescriptorSetLayout(meshDescriptorSetLayout, bindings);
-        descriptorSetLayouts.push_back(meshDescriptorSetLayout);
+        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        descriptorSetLayouts.push_back(descriptorSetLayout);
         
         // allocate descriptors
-        VkDescriptorSet meshDescriptorSet{};
-        context.allocateDesciptorSet(meshDescriptorSet, meshDescriptorSetLayout);
+        VkDescriptorSet descriptorSet{};
+        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
         
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
         bindingBufferMap[0] = &meshRecordBuffer;
         bindingBufferMap[1] = &vertexBuffer;
         bindingBufferMap[2] = &indexBuffer;
+        bindingBufferMap[3] = &transformRecordBuffer;
         
-        context.writeDescriptorSetBuffers(meshDescriptorSet, bindingBufferMap, bindings);
+        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
         
-        descriptorSets.push_back(meshDescriptorSet);
+        descriptorSets.push_back(descriptorSet);
     }
-    
     
     // SET 1: Camera
     {
+        // create descriptor set layout
         NPDescriptorSetLayout descriptorSetLayout{};
 
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
         VkDescriptorSetLayoutBinding binding0{};
         binding0.binding = 0;
         binding0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         binding0.descriptorCount = 1;
         binding0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         binding0.pImmutableSamplers = nullptr;
+        
+        bindings[0] = binding0;
             
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = 1;
         layoutInfo.pBindings = &binding0;
         
-        if (vkCreateDescriptorSetLayout(
-            context.device,
-            &layoutInfo,
-            nullptr,
-            &descriptorSetLayout.layout) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create mesh descriptor set layout");
-        }
-
-        VkDescriptorPoolSize meshPoolSize{};
-        meshPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        meshPoolSize.descriptorCount = 1;
-        
-        VkDescriptorPoolCreateInfo meshPoolInfo{};
-        meshPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        meshPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        meshPoolInfo.maxSets = 1;
-        meshPoolInfo.poolSizeCount = 1;
-        meshPoolInfo.pPoolSizes = &meshPoolSize;
-        
-        if (vkCreateDescriptorPool(
-            context.device,
-            &meshPoolInfo,
-            nullptr,
-            &descriptorSetLayout.pool) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create mesh descriptor pool");
-        }
-        
+        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
         
+        // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorSetLayout.pool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &descriptorSetLayout.layout;
+        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
         
-        if (vkAllocateDescriptorSets(
-            context.device,
-            &allocInfo,
-            &descriptorSet) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to allocate mesh descriptor set");
-        }
+        // create descriptor set
+        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        bindingBufferMap[0] = &cameraRecordBuffer;
         
-        VkDescriptorBufferInfo recordInfo{};
-        recordInfo.buffer = cameraRecordBuffer.buffer;
-        recordInfo.offset = 0;
-        recordInfo.range = VK_WHOLE_SIZE;
-        
-        VkWriteDescriptorSet write0{};
-        write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write0.dstSet = descriptorSet;
-        write0.dstBinding = 0;
-        write0.dstArrayElement = 0;
-        write0.descriptorCount = 1;
-        write0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write0.pBufferInfo = &recordInfo;
-
-        vkUpdateDescriptorSets(context.device, 1, &write0, 0, nullptr);
+        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
         descriptorSets.push_back(descriptorSet);
     }
@@ -374,6 +337,7 @@ void App::createGraphicsPipeline()
 }
 
 // CALLABLE DRAW CALL
+// WIP IGNORE FOR NOW WILL NEVER BE CALLED
 void App::executeDrawCallCallable(NPRendererAovs* aovs)
 {
     // grab a frame
@@ -407,6 +371,7 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
+// WIP IGNORE FOR NOW WILL NEVER BE CALLED
 void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
 {
     vkResetCommandBuffer(commandBuffer, 0);
@@ -684,7 +649,6 @@ void App::destroy()
 void App::loadScene(const char* path)
 {
     scene->loadSceneAssimp(path);
-    createRenderingResources();
 }
 
 void App::render()

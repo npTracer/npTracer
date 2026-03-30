@@ -1,5 +1,6 @@
 #include "scene.h"
 #include <iostream>
+#include <stb_image.h>
 Scene::Scene() {}
 
 Scene::~Scene() {}
@@ -34,6 +35,15 @@ void Scene::loadSceneAssimp(const char* path)
     if (!scene) throw std::runtime_error("failed to load scene");
     
     const aiNode* root = scene->mRootNode;
+    
+    // mark default texture in texture path vector
+    auto defaultTexture = std::make_unique<PendingTexture>();
+    auto* pixel = static_cast<uint32_t*>(malloc(sizeof(uint32_t)));
+    defaultTexture->pixels = pixel;
+    defaultTexture->width = 1;
+    defaultTexture->height = 1;
+    defaultTexture->ownership = TextureOwnership::MALLOC;
+    pendingTextures.push_back(std::move(defaultTexture));
     
     // visit all nodes
     processNode(scene, root, FLOAT4X4(1.0));
@@ -110,7 +120,7 @@ void Scene::processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOA
     aiColor3D color(0.0f, 0.0f, 0.0f);
     if (aiMat->Get(AI_MATKEY_COLOR_AMBIENT, color) == AI_SUCCESS)
     {
-        mat->ambient = FLOAT4(color.r, color.b, color.g, 1.0f);
+        mat->ambient = FLOAT4(color.r, color.g, color.b, 1.0f);
     }
     
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
@@ -130,18 +140,72 @@ void Scene::processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOA
     
     // texturing
     aiString path;
-    if (aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+    if (aiMat->GetTexture(aiTextureType_BASE_COLOR, 0, &path) == AI_SUCCESS)
     {
-        auto it = std::find(texturePaths.begin(), texturePaths.end(), path.C_Str());
-        if (it != texturePaths.end())
+        std::string key = path.C_Str();
+
+        auto it = textureIndexByKey.find(key);
+        if (it != textureIndexByKey.end())
         {
-            uint32_t texIdx = std::distance(texturePaths.begin(), it);
-            mat->diffuseTextureIdx = texIdx;
+            mat->diffuseTextureIdx = it->second;
         }
-        else
+        else // create a new texture
         {
-            mat->diffuseTextureIdx = static_cast<uint32_t>(texturePaths.size());
-            texturePaths.push_back(path.C_Str());
+            auto texture = std::make_unique<PendingTexture>();
+            uint32_t newIndex = static_cast<uint32_t>(pendingTextures.size());
+            mat->diffuseTextureIdx = newIndex;
+
+            const aiTexture* embedded = scene->GetEmbeddedTexture(path.C_Str());
+
+            if (embedded)
+            {
+                if (embedded->mHeight == 0)
+                {
+                    int width = 0, height = 0, channels = 0;
+
+                    stbi_uc* decodedPixels = stbi_load_from_memory(
+                        reinterpret_cast<const stbi_uc*>(embedded->pcData),
+                        static_cast<int>(embedded->mWidth),
+                        &width,
+                        &height,
+                        &channels,
+                        STBI_rgb_alpha);
+
+                    if (!decodedPixels)
+                    {
+                        throw std::runtime_error("failed to decode embedded texture from memory");
+                    }
+
+                    texture->pixels = decodedPixels;
+                    texture->width = static_cast<uint32_t>(width);
+                    texture->height = static_cast<uint32_t>(height);
+                    texture->ownership = TextureOwnership::STB;
+                }
+                else
+                {
+                    texture->pixels = embedded->pcData;
+                    texture->width = embedded->mWidth;
+                    texture->height = embedded->mHeight;
+                    texture->ownership = TextureOwnership::NONE;
+                }
+            }
+            else
+            {
+                int width = 0, height = 0, channels = 0;
+                stbi_uc* pixels = stbi_load(path.C_Str(), &width, &height, &channels, STBI_rgb_alpha); // TODO: store scene directory
+                if (!pixels)
+                {
+                    throw std::runtime_error(std::string("failed to load external texture: ") + path.C_Str());
+                }
+
+                texture->pixels = pixels;
+                texture->width = static_cast<uint32_t>(width);
+                texture->height = static_cast<uint32_t>(height);
+                texture->ownership = TextureOwnership::STB;
+            }
+
+            textureIndexByKey[key] = newIndex;
+            pendingTextures.push_back(std::move(texture));
         }
     }
     

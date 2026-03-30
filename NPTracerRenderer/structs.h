@@ -318,3 +318,19 @@ struct NPDescriptorSetLayout
         }
     }
 };
+
+enum class TextureOwnership
+{
+    NONE,
+    STB,
+    MALLOC
+};
+
+// TODO: move this to scene
+struct PendingTexture
+{
+    void* pixels;
+    uint32_t width;
+    uint32_t height;
+    TextureOwnership ownership = TextureOwnership::NONE;
+};

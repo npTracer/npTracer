@@ -33,7 +33,7 @@ struct MaterialRecord
     float4 specular;
     float4 emissive;
     uint textureIndex;
-}
+};
 
 struct Vertex
 {
@@ -86,6 +86,9 @@ StructuredBuffer<LightRecord> lights;
 [[vk::binding(0, 3)]]
 StructuredBuffer<MaterialRecord> materials;
 
+[[vk::binding(1, 3)]]
+Sampler2D textures[];
+
 [shader("vertex")]
 VertexOutput vertMain(uint vid : SV_VertexID) {
     VertexOutput output;
@@ -118,9 +121,13 @@ float4 fragMain(VertexOutput input) : SV_Target
 {
     MeshRecord rec = meshRecords[pushConstants.meshIndex]; // TODO don't fetch twice
     MaterialRecord material = materials[rec.materialIndex];
+    
+    // texture
+    Sampler2D texture = textures[material.textureIndex];
+    float4 texel = texture.Sample(input.uv);
 
     float3 N = normalize(input.worldNormal);
-    float3 baseColor = material.diffuse.xyz;
+    float3 baseColor = material.diffuse.rgb * texel.rgb; // TODO: make more robust
     
     float3 litColor = float3(0.0, 0.0, 0.0);
     
@@ -137,7 +144,7 @@ float4 fragMain(VertexOutput input) : SV_Target
         float3 L = normalize(lightPos - input.worldPos);
                 
         float NdotL = max(dot(N, L), 0.0);
-        litColor += baseColor * light.color.rgb * light.intensity * NdotL;
+        litColor += baseColor.xyz * light.color.rgb * light.intensity * NdotL;
     }
     return float4(litColor, 1.0);
 }

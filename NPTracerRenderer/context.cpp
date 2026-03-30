@@ -1,5 +1,4 @@
 #define VMA_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "context.h"
@@ -7,14 +6,15 @@
 #include "utils.h"
 
 #include <glm/glm.hpp>
-#include <stb_image.h>
 
 #include <algorithm>
 #include <optional>
 #include <iostream>
 #include <unordered_map>
+#include <stb_image.h>
 
 #include "../../../../../../../Program Files/Side Effects Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
+#include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
 
 void Context::createWindow(GLFWwindow*& window, int width, int height)
 {
@@ -618,16 +618,8 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
-void Context::createTextureImage(NPImage& handle, const char* path)
+void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height, TextureOwnership ownership)
 {
-    int width, height, channels;
-    stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
-
-    if (!pixels)
-    {
-        throw std::runtime_error("failed to load texture image!");
-    }
-
     NPBuffer stagingBuffer;
     VkDeviceSize size = width * height * 4;
     createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -636,8 +628,17 @@ void Context::createTextureImage(NPImage& handle, const char* path)
 
     memcpy(stagingBuffer.allocInfo.pMappedData, pixels, size);
 
-    stbi_image_free(pixels);
-
+    switch (ownership)
+    {
+        case TextureOwnership::STB:
+            stbi_image_free(pixels);
+            break;
+        case TextureOwnership::MALLOC:
+            free(pixels);
+            break;
+        case TextureOwnership::NONE:
+            break;
+    }
     createImage(handle, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 
@@ -905,38 +906,28 @@ void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
     vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 }
 
-void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet,
-    std::unordered_map<uint32_t, NPImage*>& bindingImagesMap,
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap, VkSampler& sampler)
+void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding, const std::vector<NPImage>& images, VkSampler& sampler)
 {
-    std::unordered_map<uint32_t, VkDescriptorImageInfo> bindingInfoMap;
-    for (auto& pair : bindingImagesMap)
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    for (auto& image : images)
     {
         VkDescriptorImageInfo imageInfo{};
-        imageInfo.imageView = pair.second->view;
+        imageInfo.imageView = image.view;
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.sampler = sampler;
         
-        bindingInfoMap[pair.first] = imageInfo;
+        imageInfos.push_back(imageInfo);
     }
     
-    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-    for (auto& pair : bindingInfoMap)
-    {
-        uint32_t binding = pair.first;
-        
-        VkWriteDescriptorSet writeDescriptorSet{};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSet.dstSet = descriptorSet;
-        writeDescriptorSet.dstBinding = binding;
-        writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
-        writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
-        writeDescriptorSet.pImageInfo = &bindingInfoMap[binding];
-        
-        writeDescriptorSets.push_back(writeDescriptorSet);
-    }
+    VkWriteDescriptorSet writeDescriptorSet{};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSet;
+    writeDescriptorSet.dstBinding = binding;
+    writeDescriptorSet.descriptorCount = static_cast<uint32_t>(imageInfos.size());
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // TODO: make this a param instead
+    writeDescriptorSet.pImageInfo = imageInfos.data();
     
-    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 }
 
 // UTILITY

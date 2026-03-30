@@ -1,7 +1,9 @@
 #include "app.h"
 #include "utils.h"
+#define STB_IMAGE_IMPLEMENTATION
 
 #include <iostream>
+#include <stb_image.h>
 #include <cassert>
 
 #include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
@@ -155,8 +157,18 @@ void App::createRenderingResources()
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
     context.createDeviceLocalBuffer(materialRecordsBuffer, materialRecords.data(), materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     
-    
     // TEXTURES
+    uint32_t textureCount = static_cast<uint32_t>(scene->pendingTextures.size());
+    textures.reserve(textureCount);
+    for (uint32_t i = 0; i < textureCount; i++)
+    {
+        NPImage textureImage;
+        auto texture = scene->pendingTextures[i].get();
+        
+        context.createTextureImage(textureImage, texture->pixels, texture->width, texture->height, texture->ownership);
+        
+        textures.push_back(textureImage);
+    }
     
     // SET 0: Mesh Records
     {
@@ -298,7 +310,15 @@ void App::createRenderingResources()
         b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         b0.pImmutableSamplers = nullptr;
         
+        VkDescriptorSetLayoutBinding b1{};
+        b1.binding = 1;
+        b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        b1.descriptorCount = static_cast<uint32_t>(textures.size());
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b1.pImmutableSamplers = nullptr;
+        
         bindings[0] = b0;
+        bindings[1] = b1;
         
         context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -312,6 +332,7 @@ void App::createRenderingResources()
         bindingBufferMap[0] = &materialRecordsBuffer;
         
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        context.writeDescriptorSetImages(descriptorSet, 1, textures, sampler); // write all textures
 
         descriptorSets.push_back(descriptorSet);
     }
@@ -794,6 +815,11 @@ void App::destroy()
     if (materialRecordsBuffer.buffer != VK_NULL_HANDLE)
     {
         materialRecordsBuffer.destroy(context.allocator);
+    }
+    
+    for (auto& texture : textures)
+    {
+        texture.destroy(context.device, context.allocator);
     }
     
     if (pipeline.pipeline != VK_NULL_HANDLE)

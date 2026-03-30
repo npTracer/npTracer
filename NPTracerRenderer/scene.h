@@ -26,8 +26,9 @@ public:
     };
 
     std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
-    std::vector<const char*> texturePaths;
+    std::vector<std::unique_ptr<PendingTexture>> pendingTextures;
     std::vector<PendingMeshInstance> pendingMeshes;
+    std::unordered_map<std::string, uint32_t> textureIndexByKey;
     
     void loadSceneAssimp(const char *path);
     void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);

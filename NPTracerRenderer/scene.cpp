@@ -245,30 +245,41 @@ void Scene::processCamera(const aiScene* scene)
     {
         aiCamera* aiCam = scene->mCameras[0];
 
-        aiVector3D pos = aiCam->mPosition;
-        aiVector3D look = aiCam->mLookAt;
-        aiVector3D up = aiCam->mUp;
+        FLOAT4X4 nodeTransform = FLOAT4X4(1.0f);
+        auto it = nodeTransforms.find(aiCam->mName.C_Str());
+        if (it != nodeTransforms.end())
+        {
+            nodeTransform = it->second;
+        }
 
-        glm::vec3 eye(pos.x, pos.y, pos.z);
-        glm::vec3 center = eye + glm::vec3(look.x, look.y, look.z);
-        glm::vec3 upVec(up.x, up.y, up.z);
-        
+        glm::vec4 localEye4  = glm::vec4(aiCam->mPosition.x, aiCam->mPosition.y, aiCam->mPosition.z, 1.0f);
+        glm::vec4 localLook4 = glm::vec4(aiCam->mLookAt.x,  aiCam->mLookAt.y,  aiCam->mLookAt.z,  0.0f);
+        glm::vec4 localUp4   = glm::vec4(aiCam->mUp.x,      -aiCam->mUp.y,      aiCam->mUp.z,      0.0f);
+
+        glm::vec3 eye   = glm::vec3(nodeTransform * localEye4);
+        glm::vec3 look  = glm::normalize(glm::vec3(nodeTransform * localLook4));
+        glm::vec3 upVec = glm::normalize(glm::vec3(nodeTransform * localUp4));
+
+        glm::vec3 center = eye + look;
+
         cameraRecord.model = glm::mat4(1.0f);
         cameraRecord.view = glm::lookAt(eye, center, upVec);
 
         float aspect = aiCam->mAspect != 0.0f ? aiCam->mAspect : (2560.0f / 1440.0f);
-        cameraRecord.proj = glm::perspective(aiCam->mHorizontalFOV,
-                                             aspect,
-                                             aiCam->mClipPlaneNear,
-                                             aiCam->mClipPlaneFar);
-        cameraRecord.proj[1][1] *= -1.0f;
+        cameraRecord.proj = glm::perspective(
+            aiCam->mHorizontalFOV,
+            aspect,
+            aiCam->mClipPlaneNear,
+            aiCam->mClipPlaneFar
+        );
+        cameraRecord.proj[1][1] *= 1.0f;
     }
     else
     {
         cameraRecord.model = glm::mat4(1.0f);
 
         cameraRecord.view = glm::lookAt(
-            glm::vec3(0.0f, 5.0f, -15.0f),   // eye
+            glm::vec3(0.0f, 0.0f, 5.0f),   // eye
             glm::vec3(0.0f, 0.0f, 0.0f),   // center
             glm::vec3(0.0f, -1.0f, 0.0f)    // up
         );

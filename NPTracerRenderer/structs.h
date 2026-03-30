@@ -126,18 +126,6 @@ struct NPPipeline
     }
 };
 
-struct NPDescriptorSetLayout
-{
-    VkDescriptorSetLayout layout;
-    VkDescriptorPool pool;
-
-    void destroy(VkDevice device)
-    {
-        vkDestroyDescriptorSetLayout(device, layout, nullptr);
-        vkDestroyDescriptorPool(device, pool, nullptr);
-    }
-};
-
 struct NPFrame
 {
     VkSemaphore donePresentingSemaphore;
@@ -192,6 +180,8 @@ struct NPMeshRecord
     uint32_t indexOffset;
     uint32_t indexCount;
     uint32_t vertexCount;
+    
+    uint32_t transformIndex;
 };
 
 struct NPMesh
@@ -296,4 +286,23 @@ struct SwapchainParams
     VkPresentModeKHR presentMode;
     VkExtent2D extent;
     VkFormat depthFormat;
+};
+
+struct NPDescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+    
+    void destroy(VkDevice device)
+    {
+        if (pool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(device, pool, nullptr);
+        }
+        
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        }
+    }
 };

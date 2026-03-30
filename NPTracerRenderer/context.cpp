@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <optional>
 #include <iostream>
+#include <unordered_map>
 
 #include "../../../../../../../Program Files/Side Effects Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
 
@@ -807,6 +808,102 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
     dependencyInfo.pImageMemoryBarriers = &barrier;
 
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+}
+
+void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings)
+{
+    std::vector<VkDescriptorSetLayoutBinding> bindingVec;
+    bindingVec.reserve(bindings.size());
+    
+    for (auto& binding : bindings)
+    {
+        bindingVec.push_back(binding.second);
+    }
+    
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindingVec.size());
+    layoutInfo.pBindings = bindingVec.data();
+    
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create mesh descriptor set layout");
+    }
+    
+    // get binding types and number
+    std::unordered_map<VkDescriptorType, uint32_t> countMap;
+    for (auto& binding : bindings)
+    {
+        countMap[binding.second.descriptorType] += binding.second.descriptorCount;
+    }
+    
+    std::vector<VkDescriptorPoolSize> poolSizes;
+    for (auto& pair : countMap)
+    {
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = pair.first;
+        poolSize.descriptorCount = static_cast<uint32_t>(pair.second);
+        poolSizes.push_back(poolSize);
+    }
+    
+    VkDescriptorPoolCreateInfo descriptorPoolInfo{};
+    descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    descriptorPoolInfo.pPoolSizes = poolSizes.data();
+    descriptorPoolInfo.maxSets = 1; // maybe change later
+    
+    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create mesh descriptor pool");
+    }
+}
+
+void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout)
+{
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorSetLayout.pool;
+    allocInfo.descriptorSetCount = 1; // maybe change later
+    allocInfo.pSetLayouts = &descriptorSetLayout.layout;
+    
+    if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate mesh descriptor set");
+    }
+}
+
+void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
+    std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap)
+{
+    std::unordered_map<uint32_t, VkDescriptorBufferInfo> bindingInfoMap;
+    for (auto& pair : bindingBufferMap)
+    {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = pair.second->buffer;
+        bufferInfo.offset = 0;
+        bufferInfo.range = VK_WHOLE_SIZE;
+        
+        bindingInfoMap[pair.first] = bufferInfo;
+    }
+    
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+    for (auto& pair : bindingInfoMap)
+    {
+        uint32_t binding = pair.first;
+        
+        VkWriteDescriptorSet writeDescriptorSet{};
+        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSet.dstSet = descriptorSet;
+        writeDescriptorSet.dstBinding = binding;
+        writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
+        writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
+        writeDescriptorSet.pBufferInfo = &bindingInfoMap[binding];
+        
+        writeDescriptorSets.push_back(writeDescriptorSet);
+    }
+    
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 }
 
 // UTILITY

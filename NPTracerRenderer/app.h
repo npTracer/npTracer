@@ -54,7 +54,6 @@ private:
     // rendering resources
     NPPipeline pipeline;
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
-
     std::vector<VkDescriptorSet> descriptorSets;
 
     std::unique_ptr<Scene> scene;
@@ -63,6 +62,7 @@ private:
     NPBuffer meshRecordBuffer;
     NPBuffer lightRecordBuffer;
     NPBuffer cameraRecordBuffer;
+    NPBuffer transformRecordBuffer;
     NPBuffer vertexBuffer;
     NPBuffer indexBuffer;
 

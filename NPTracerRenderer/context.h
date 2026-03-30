@@ -88,6 +88,12 @@ public:
                                VkPipelineStageFlags2 dstStageMask,
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
+    // descriptors
+    void createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
+    void allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout);
+    void writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
+    std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+    
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);
 

@@ -153,9 +153,9 @@ void Scene::processCamera(const aiScene* scene)
         cameraRecord.model = glm::mat4(1.0f);
 
         cameraRecord.view = glm::lookAt(
-            glm::vec3(0.0f, 0.0f, 10.0f),   // eye
+            glm::vec3(0.0f, 5.0f, -15.0f),   // eye
             glm::vec3(0.0f, 0.0f, 0.0f),   // center
-            glm::vec3(0.0f, 1.0f, 0.0f)    // up
+            glm::vec3(0.0f, -1.0f, 0.0f)    // up
         );
 
         cameraRecord.proj = glm::perspective(
@@ -164,7 +164,7 @@ void Scene::processCamera(const aiScene* scene)
             0.1f,
             1000.0f
         );
-        cameraRecord.proj[1][1] *= -1.0f;
+        cameraRecord.proj[1][1] *= 1.0f;
     }
     _camera = cameraRecord;
 }

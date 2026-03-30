@@ -115,7 +115,9 @@ void App::createRenderingResources()
         defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
         defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
         
-        lightTransforms.push_back(FLOAT4X4(1.0));
+        FLOAT4X4 transform = FLOAT4X4(1.0);
+        transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f); // written explicitly for debugging
+        lightTransforms.push_back(transform);
         lightRecords.push_back(defaultLightRecord);
     }
     

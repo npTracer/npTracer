@@ -15,7 +15,7 @@ int main(int argc, char** argv)
     else
     {
         std::string scenePath = argv[1];
-    
+
         try
         {
             app.loadScene(scenePath.c_str());
@@ -28,6 +28,6 @@ int main(int argc, char** argv)
             return 1;
         }
     }
-    
+
     return 0;
 }

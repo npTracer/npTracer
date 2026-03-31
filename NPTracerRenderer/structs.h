@@ -42,7 +42,7 @@ struct NPVertex
             VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
                                                offsetof(NPVertex, pos) },
             VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                   offsetof(NPVertex, normal) },
+                                               offsetof(NPVertex, normal) },
             VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT,
                                                offsetof(NPVertex, color) },
             VkVertexInputAttributeDescription{ 3, 0, VK_FORMAT_R32G32_SFLOAT,
@@ -180,7 +180,7 @@ struct NPMeshRecord
     uint32_t indexOffset;
     uint32_t indexCount;
     uint32_t vertexCount;
-    
+
     uint32_t transformIndex;
     uint32_t materialIndex;
 };
@@ -206,7 +206,7 @@ struct NPMesh
 
     FLOAT3 bboxMin;
     FLOAT3 bboxMax;
-    
+
     uint32_t materialIndex;
 
     void populateVertices()
@@ -220,9 +220,10 @@ struct NPMesh
         {
             NPVertex v{};
             v.pos = FLOAT4(_positions[i], 0);
-            v.color = (i < _colors.size()) ? FLOAT4(_colors[i], 0): FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
+            v.color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
+                                           : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
             v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
-            v.pad0 = FLOAT2{0.0f, 0.0f};
+            v.pad0 = FLOAT2{ 0.0f, 0.0f };
             vertices.push_back(v);
         }
     }
@@ -234,7 +235,7 @@ struct NPMaterial
     FLOAT4 diffuse;
     FLOAT4 specular;
     FLOAT4 emission;
-    
+
     uint32_t diffuseTextureIdx;
 };
 
@@ -304,14 +305,14 @@ struct NPDescriptorSetLayout
 {
     VkDescriptorSetLayout layout;
     VkDescriptorPool pool;
-    
+
     void destroy(VkDevice device)
     {
         if (pool != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorPool(device, pool, nullptr);
         }
-        
+
         if (layout != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorSetLayout(device, layout, nullptr);

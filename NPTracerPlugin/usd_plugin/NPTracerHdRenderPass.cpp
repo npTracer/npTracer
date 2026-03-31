@@ -59,9 +59,9 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
 
         dirtyBuffers.push_back(buffer);
     }
-    
+
     app->setAov(std::move(payload));
-    app->createRenderingResources(); // TODO find better place to create resources
+    app->createRenderingResources();  // TODO find better place to create resources
     app->executeDrawCallCallable();
 
     for (NPTracerHdRenderBuffer* buffer : dirtyBuffers)
@@ -70,7 +70,7 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
     }
 
     this->SetConverged(true);
-    
+
     payload.reset();
 }
 

@@ -146,37 +146,38 @@ void Context::createLogicalDeviceAndQueues()
 
         queueCreateInfos.emplace_back(queueCreateInfo);
     }
-    
+
     VkPhysicalDeviceDescriptorBufferPropertiesEXT descriptorBufferProperties{};
-    descriptorBufferProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
-    
+    descriptorBufferProperties.sType
+        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
+
     VkPhysicalDeviceProperties2 properties2{};
     properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     properties2.pNext = &descriptorBufferProperties;
 
     vkGetPhysicalDeviceProperties2(physicalDevice, &properties2);
-    
+
     // TODO add device features
     VkPhysicalDeviceVulkan13Features vulkan13Features{};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.synchronization2 = VK_TRUE;
     vulkan13Features.dynamicRendering = VK_TRUE;
-    
+
     VkPhysicalDeviceVulkan11Features vulkan11Features{};
     vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     vulkan11Features.shaderDrawParameters = VK_TRUE;
     vulkan11Features.pNext = &vulkan13Features;
-    
+
     VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeatures{};
     bdaFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
     bdaFeatures.bufferDeviceAddress = VK_TRUE;
     bdaFeatures.pNext = &vulkan11Features;
-    
+
     VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferFeatures{};
     descriptorBufferFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
     descriptorBufferFeatures.descriptorBuffer = VK_TRUE;
     descriptorBufferFeatures.pNext = &bdaFeatures;
-    
+
     VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
     indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
     indexingFeatures.pNext = &descriptorBufferFeatures;
@@ -191,9 +192,9 @@ void Context::createLogicalDeviceAndQueues()
     features2.features.samplerAnisotropy = true;
 
     // TODO add more device extensions
-    std::vector<const char*> requiredDeviceExtensions = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME
-    };
+    std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+                                                          VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+                                                          VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME };
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -266,7 +267,7 @@ void Context::createAllocator()
 
 void Context::createSwapchain(GLFWwindow* window)
 {
-     VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
 
     uint32_t formatCount = 0;
@@ -285,21 +286,20 @@ void Context::createSwapchain(GLFWwindow* window)
     auto is_format = [](const VkSurfaceFormatKHR& format)
     {
         return format.format == VK_FORMAT_B8G8R8_SRGB
-            && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+               && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
     };
 
     auto formatIt = std::find_if(availableFormats.begin(), availableFormats.end(), is_format);
 
-    VkSurfaceFormatKHR format = formatIt != availableFormats.end()
-        ? *formatIt
-        : availableFormats[0];
+    VkSurfaceFormatKHR format = formatIt != availableFormats.end() ? *formatIt
+                                                                   : availableFormats[0];
 
     // present selection
-    auto presentIt = std::find(presentModes.begin(), presentModes.end(), VK_PRESENT_MODE_MAILBOX_KHR);
+    auto presentIt = std::find(presentModes.begin(), presentModes.end(),
+                               VK_PRESENT_MODE_MAILBOX_KHR);
 
-    VkPresentModeKHR presentMode = presentIt != presentModes.end()
-        ? *presentIt
-        : VK_PRESENT_MODE_FIFO_KHR;
+    VkPresentModeKHR presentMode = presentIt != presentModes.end() ? *presentIt
+                                                                   : VK_PRESENT_MODE_FIFO_KHR;
 
     // extent configuration
     VkExtent2D extent;
@@ -356,7 +356,7 @@ void Context::createSwapchain(GLFWwindow* window)
 
     // save for later
     swapchainParams = { format, presentMode, extent };
-    
+
     VkImageViewCreateInfo imageViewCreateInfo{};
     imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -405,7 +405,7 @@ void Context::cleanupSwapchain()
     {
         depthImage.destroy(device, allocator);
     }
-    
+
     if (swapchain != VK_NULL_HANDLE)
     {
         vkDestroySwapchainKHR(device, swapchain, nullptr);
@@ -562,14 +562,15 @@ VkDeviceAddress Context::getBufferDeviceAddress(NPBuffer& buffer)
     VkBufferDeviceAddressInfo addressInfo{};
     addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     addressInfo.buffer = buffer.buffer;
-    
+
     return vkGetBufferDeviceAddress(device, &addressInfo);
 }
 
 // IMAGES
 void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                           uint32_t height, VkImageUsageFlags usage,
-                          VmaAllocationCreateFlags allocationFlags, VkImageAspectFlags aspect, bool shouldCreateView) const
+                          VmaAllocationCreateFlags allocationFlags, VkImageAspectFlags aspect,
+                          bool shouldCreateView) const
 {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -618,7 +619,8 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
-void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height, TextureOwnership ownership)
+void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height,
+                                 TextureOwnership ownership)
 {
     NPBuffer stagingBuffer;
     VkDeviceSize size = width * height * 4;
@@ -630,14 +632,9 @@ void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, 
 
     switch (ownership)
     {
-        case TextureOwnership::STB:
-            stbi_image_free(pixels);
-            break;
-        case TextureOwnership::MALLOC:
-            free(pixels);
-            break;
-        case TextureOwnership::NONE:
-            break;
+        case TextureOwnership::STB: stbi_image_free(pixels); break;
+        case TextureOwnership::MALLOC: free(pixels); break;
+        case TextureOwnership::NONE: break;
     }
     createImage(handle, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
@@ -810,33 +807,36 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
-void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings)
+void Context::createDescriptorSetLayout(
+    NPDescriptorSetLayout& descriptorSetLayout,
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings)
 {
     std::vector<VkDescriptorSetLayoutBinding> bindingVec;
     bindingVec.reserve(bindings.size());
-    
+
     for (auto& binding : bindings)
     {
         bindingVec.push_back(binding.second);
     }
-    
+
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindingVec.size());
     layoutInfo.pBindings = bindingVec.data();
-    
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout) != VK_SUCCESS)
+
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout)
+        != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create mesh descriptor set layout");
     }
-    
+
     // get binding types and number
     std::unordered_map<VkDescriptorType, uint32_t> countMap;
     for (auto& binding : bindings)
     {
         countMap[binding.second.descriptorType] += binding.second.descriptorCount;
     }
-    
+
     std::vector<VkDescriptorPoolSize> poolSizes;
     for (auto& pair : countMap)
     {
@@ -845,36 +845,39 @@ void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayo
         poolSize.descriptorCount = static_cast<uint32_t>(pair.second);
         poolSizes.push_back(poolSize);
     }
-    
+
     VkDescriptorPoolCreateInfo descriptorPoolInfo{};
     descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     descriptorPoolInfo.pPoolSizes = poolSizes.data();
-    descriptorPoolInfo.maxSets = 1; // maybe change later
-    
-    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool) != VK_SUCCESS)
+    descriptorPoolInfo.maxSets = 1;  // maybe change later
+
+    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool)
+        != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create mesh descriptor pool");
     }
 }
 
-void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout)
+void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
+                                   NPDescriptorSetLayout& descriptorSetLayout)
 {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = descriptorSetLayout.pool;
-    allocInfo.descriptorSetCount = 1; // maybe change later
+    allocInfo.descriptorSetCount = 1;  // maybe change later
     allocInfo.pSetLayouts = &descriptorSetLayout.layout;
-    
+
     if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate mesh descriptor set");
     }
 }
 
-void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
-    std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap)
+void Context::writeDescriptorSetBuffers(
+    VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap,
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap)
 {
     std::unordered_map<uint32_t, VkDescriptorBufferInfo> bindingInfoMap;
     for (auto& pair : bindingBufferMap)
@@ -883,15 +886,15 @@ void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
         bufferInfo.buffer = pair.second->buffer;
         bufferInfo.offset = 0;
         bufferInfo.range = VK_WHOLE_SIZE;
-        
+
         bindingInfoMap[pair.first] = bufferInfo;
     }
-    
+
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
     for (auto& pair : bindingInfoMap)
     {
         uint32_t binding = pair.first;
-        
+
         VkWriteDescriptorSet writeDescriptorSet{};
         writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writeDescriptorSet.dstSet = descriptorSet;
@@ -899,14 +902,16 @@ void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
         writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
         writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
         writeDescriptorSet.pBufferInfo = &bindingInfoMap[binding];
-        
+
         writeDescriptorSets.push_back(writeDescriptorSet);
     }
-    
-    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()),
+                           writeDescriptorSets.data(), 0, nullptr);
 }
 
-void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding, const std::vector<NPImage>& images, VkSampler& sampler)
+void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
+                                       const std::vector<NPImage>& images, VkSampler& sampler)
 {
     std::vector<VkDescriptorImageInfo> imageInfos;
     for (auto& image : images)
@@ -915,18 +920,19 @@ void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t 
         imageInfo.imageView = image.view;
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.sampler = sampler;
-        
+
         imageInfos.push_back(imageInfo);
     }
-    
+
     VkWriteDescriptorSet writeDescriptorSet{};
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = descriptorSet;
     writeDescriptorSet.dstBinding = binding;
     writeDescriptorSet.descriptorCount = static_cast<uint32_t>(imageInfos.size());
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // TODO: make this a param instead
+    writeDescriptorSet.descriptorType
+        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;  // TODO: make this a param instead
     writeDescriptorSet.pImageInfo = imageInfos.data();
-    
+
     vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 }
 

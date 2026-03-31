@@ -33,7 +33,7 @@ public:
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
     std::vector<VkSemaphore> doneRenderingSemaphores;
-    
+
     // queues
     std::unordered_map<NPQueueType, NPQueue> queues;
     std::array<uint32_t, 2> queueFamilyIndices;
@@ -50,7 +50,7 @@ public:
     void createLogicalDeviceAndQueues();
     void createAllocator();
     void createSyncAndFrameObjects();
-    
+
     // swapchain
     void createSurface(GLFWwindow* window);
     void createSwapchain(GLFWwindow* window);
@@ -73,8 +73,11 @@ public:
     // images
     void createImage(NPImage& handle, VkImageType type, VkFormat format, uint32_t width,
                      uint32_t height, VkImageUsageFlags usage,
-                     VmaAllocationCreateFlags allocationFlags,  VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT, bool shouldCreateView = true) const;
-    void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height, TextureOwnership ownership);
+                     VmaAllocationCreateFlags allocationFlags,
+                     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT,
+                     bool shouldCreateView = true) const;
+    void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height,
+                            TextureOwnership ownership);
     void createDepthImage(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
@@ -89,12 +92,17 @@ public:
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     // descriptors
-    void createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
-    void allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout);
-    void writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
-    std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
-    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding, const std::vector<NPImage>& images, VkSampler& sampler);
-    
+    void createDescriptorSetLayout(
+        NPDescriptorSetLayout& descriptorSetLayout,
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
+    void allocateDesciptorSet(VkDescriptorSet& descriptorSet,
+                              NPDescriptorSetLayout& descriptorSetLayout);
+    void writeDescriptorSetBuffers(
+        VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap,
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
+                                  const std::vector<NPImage>& images, VkSampler& sampler);
+
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);
 
@@ -105,7 +113,7 @@ public:
 
 private:
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
-    
+
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 

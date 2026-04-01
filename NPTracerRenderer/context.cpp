@@ -159,13 +159,8 @@ void Context::createLogicalDeviceAndQueues()
     };
     
     // probe for support
-    
-    VkPhysicalDeviceRayTracingValidationFeaturesNV rtValidationProbe{};
-    rtValidationProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV;
-    
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asProbe{};
     asProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    asProbe.pNext = &rtValidationProbe;
     
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtProbe{};
     rtProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
@@ -217,14 +212,9 @@ void Context::createLogicalDeviceAndQueues()
     }
     
     // enable features
-    VkPhysicalDeviceRayTracingValidationFeaturesNV rtValidationFeatures{};
-    rtValidationFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV;
-    rtValidationFeatures.rayTracingValidation = VK_TRUE;
-    
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{};
     asFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeatures.accelerationStructure = VK_TRUE;
-    asFeatures.pNext = &rtValidationFeatures;
     
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeatures{};
     rtFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
@@ -278,6 +268,8 @@ void Context::createLogicalDeviceAndQueues()
     {
         throw std::runtime_error("failed to create logical device");
     }
+    
+    loadRayTracingFunctionPointers();
 
     if (graphicsQueue)
     {
@@ -1230,6 +1222,53 @@ void Context::writeDescriptorSetAccelerationStructures(
 NPFrame& Context::getCurrentFrame(uint32_t currentFrame)
 {
     return frames[currentFrame];
+}
+
+void Context::loadRayTracingFunctionPointers()
+{
+    vkCreateAccelerationStructureKHR =
+        reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(
+            vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureKHR"));
+
+    vkDestroyAccelerationStructureKHR =
+        reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(
+            vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureKHR"));
+
+    vkGetAccelerationStructureBuildSizesKHR =
+        reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(
+            vkGetDeviceProcAddr(device, "vkGetAccelerationStructureBuildSizesKHR"));
+
+    vkCmdBuildAccelerationStructuresKHR =
+        reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(
+            vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructuresKHR"));
+
+    vkGetAccelerationStructureDeviceAddressKHR =
+        reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(
+            vkGetDeviceProcAddr(device, "vkGetAccelerationStructureDeviceAddressKHR"));
+
+    vkCreateRayTracingPipelinesKHR =
+        reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(
+            vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesKHR"));
+
+    vkGetRayTracingShaderGroupHandlesKHR =
+        reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
+            vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesKHR"));
+
+    vkCmdTraceRaysKHR =
+        reinterpret_cast<PFN_vkCmdTraceRaysKHR>(
+            vkGetDeviceProcAddr(device, "vkCmdTraceRaysKHR"));
+
+    if (!vkCreateAccelerationStructureKHR ||
+        !vkDestroyAccelerationStructureKHR ||
+        !vkGetAccelerationStructureBuildSizesKHR ||
+        !vkCmdBuildAccelerationStructuresKHR ||
+        !vkGetAccelerationStructureDeviceAddressKHR ||
+        !vkCreateRayTracingPipelinesKHR ||
+        !vkGetRayTracingShaderGroupHandlesKHR ||
+        !vkCmdTraceRaysKHR)
+    {
+        throw std::runtime_error("failed to load ray tracing Vulkan function pointers");
+    }
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const

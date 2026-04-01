@@ -654,7 +654,7 @@ void App::createRTPipeline()
     pipelineInfo.maxPipelineRayRecursionDepth = 2; // TODO: change accordingly
     pipelineInfo.layout = rtPipeline.layout;
     
-    if (vkCreateRayTracingPipelinesKHR(context.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rtPipeline.pipeline) != VK_SUCCESS)
+    if (context.vkCreateRayTracingPipelinesKHR(context.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rtPipeline.pipeline) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create ray tracing pipeline!");
     }
@@ -667,7 +667,7 @@ void App::createRTPipeline()
     properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
     properties2.pNext = &properties;
     
-    vkGetPhysicalDeviceProperties2KHR(context.physicalDevice, &properties2);
+    vkGetPhysicalDeviceProperties2(context.physicalDevice, &properties2);
     
     sbt.handleSize = properties.shaderGroupHandleSize;
     sbt.handleAlign = properties.shaderGroupHandleAlignment;
@@ -677,7 +677,7 @@ void App::createRTPipeline()
     size_t groupHandleSize = groupCount * sbt.handleSize;
     std::vector<uint8_t> shaderHandleStorage(groupHandleSize);
     
-    vkGetRayTracingShaderGroupHandlesKHR(context.device, rtPipeline.pipeline, 0, groupCount, groupHandleSize, shaderHandleStorage.data());
+    context.vkGetRayTracingShaderGroupHandlesKHR(context.device, rtPipeline.pipeline, 0, groupCount, groupHandleSize, shaderHandleStorage.data());
     
     VkDeviceSize rgenStride = alignUp(sbt.handleSize, sbt.handleAlign);
     VkDeviceSize missStride = alignUp(sbt.handleSize, sbt.handleAlign);
@@ -782,7 +782,7 @@ void App::createAccelerationStructures(
         deviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
         deviceAddressInfo.accelerationStructure = blas.accelerationStructure;
         
-        blas.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(context.device, &deviceAddressInfo);
+        blas.deviceAddress = context.vkGetAccelerationStructureDeviceAddressKHR(context.device, &deviceAddressInfo);
     }
     
     // top level
@@ -1072,7 +1072,7 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rtPipeline.layout, 0, static_cast<uint32_t>(descriptorSets.size()),
                         descriptorSets.data(), 0, nullptr);
     
-    vkCmdTraceRaysKHR(
+    context.vkCmdTraceRaysKHR(
         commandBuffer, 
         &sbt.rgen, 
         &sbt.miss, 
@@ -1185,12 +1185,17 @@ void App::destroy()
     
     for (auto& blas : blasses)
     {
-        blas.destroy(context.device, context.allocator);
+        if (blas.accelerationStructure != VK_NULL_HANDLE)
+        {
+            context.vkDestroyAccelerationStructureKHR(context.device, blas.accelerationStructure, nullptr);
+        }
+        blas.destroyBuffers(context.device, context.allocator);
     }
     
     if (tlas.accelerationStructure != VK_NULL_HANDLE)
     {
-        tlas.destroy(context.device, context.allocator);
+        context.vkDestroyAccelerationStructureKHR(context.device, tlas.accelerationStructure, nullptr);
+        tlas.destroyBuffers(context.device, context.allocator);
     }
     
     resultImage.destroy(context.device, context.allocator);

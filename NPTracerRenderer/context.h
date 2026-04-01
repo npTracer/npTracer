@@ -125,12 +125,22 @@ public:
     
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);
+    void loadRayTracingFunctionPointers();
 
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
     void waitIdle();
     void destroyDebugMessenger();
     void destroy();
 
+    PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR = nullptr;
+    PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR = nullptr;
+    PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR = nullptr;
+    PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR = nullptr;
+    PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR = nullptr;
+    PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR = nullptr;
+    PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR = nullptr;
+    PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR = nullptr;
+    
 private:
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     

@@ -362,13 +362,8 @@ struct NPAccelerationStructure
     NPBuffer scratchBuffer;
     VkDeviceAddress deviceAddress;
     
-    void destroy(VkDevice device, VmaAllocator allocator)
+    void destroyBuffers(VkDevice device, VmaAllocator allocator)
     {
-        if (accelerationStructure != VK_NULL_HANDLE)
-        {
-            vkDestroyAccelerationStructureKHR(device, accelerationStructure, nullptr);
-        }
-        
         handleBuffer.destroy(allocator);
         scratchBuffer.destroy(allocator);
     }

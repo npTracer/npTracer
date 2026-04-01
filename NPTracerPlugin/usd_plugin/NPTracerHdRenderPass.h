@@ -16,10 +16,10 @@ public:
                          NPTracerHdRenderDelegate* delegate);
 
 protected:
-    virtual void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
-                          TfTokenVector const& renderTags) override;
+    void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
+                  TfTokenVector const& renderTags) override;
 
-    virtual bool IsConverged() const override;
+    bool IsConverged() const override;
 
     // set the convergence state
     void SetConverged(bool converged);

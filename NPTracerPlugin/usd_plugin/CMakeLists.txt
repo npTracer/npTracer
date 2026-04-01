@@ -6,7 +6,6 @@ add_subdirectory(primitives)
 
 set(USD_PLUG_SOURCES
     "${NPTracerPlugin_USD_PLUG_DIR}/debugCodes.cpp"
-    "${NPTracerPlugin_USD_PLUG_DIR}/npTokens.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderPass.cpp"

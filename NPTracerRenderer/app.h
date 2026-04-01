@@ -7,25 +7,25 @@
 
 class App
 {
-    static constexpr bool enableDebug = NPTRACER_DEBUG;
-    static constexpr bool standalone = NPTRACER_STANDALONE;
-    
+    static constexpr bool kDEBUG = NPTRACER_DEBUG;
+    static constexpr bool kSTANDALONE = NPTRACER_STANDALONE;
+
     static constexpr uint32_t WIDTH = 2560;
     static constexpr uint32_t HEIGHT = 1440;
-    
+
     std::unique_ptr<NPRendererAovs> m_aovs = nullptr;
-    
+
 public:
-    inline Context* getContext()
+    Context* getContext()
     {
         return &context;
     }
 
-    inline Scene* getScene() const
+    Scene* getScene() const
     {
         return scene.get();
     }
-    
+
     void setAov(std::unique_ptr<NPRendererAovs> aovs)
     {
         m_aovs = std::move(aovs);
@@ -36,10 +36,10 @@ public:
     void destroy();
 
     void loadScene(const char* path);
-    
+
     void createRenderingResources();
     void executeDrawCallCallable(NPRendererAovs* aovs = nullptr);
-    
+
     void run();
     void render();
 
@@ -54,7 +54,7 @@ private:
     // push constants
     std::vector<uint32_t> indexCounts;
     uint32_t numLights = 0;
-    
+
     // rendering resources
     std::unique_ptr<Scene> scene;
     
@@ -70,15 +70,15 @@ private:
     NPBuffer meshRecordBuffer;
     NPBuffer vertexBuffer;
     NPBuffer indexBuffer;
-    
+
     // SET 1: TRANSFORMS
     NPBuffer geometryTransformsBuffer;
     NPBuffer lightTransformsBuffer;
-    
+
     // SET 2: CAMERA & LIGHTS
     NPBuffer cameraRecordBuffer;
     NPBuffer lightRecordBuffer;
-    
+
     // SET 3: MATERIALS
     NPBuffer materialRecordsBuffer;
     std::vector<NPImage> textures;

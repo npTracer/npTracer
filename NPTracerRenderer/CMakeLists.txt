@@ -75,6 +75,7 @@ endforeach()
 
 get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
 add_custom_target(${COMPILE_SHADERS_TARGET} ALL DEPENDS ${ALL_SPV_OUTPUTS})
+target_sources(${PROJECT_NAME} PRIVATE "${ALL_SPV_OUTPUTS}") # specify that the project depends on the output files
 
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")

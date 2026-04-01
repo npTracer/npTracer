@@ -208,9 +208,17 @@ void App::createRenderingResources()
         b2.descriptorCount = 1;
         b2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+        // transforms
+        VkDescriptorSetLayoutBinding b3{};
+        b3.binding = 3;
+        b3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        b3.descriptorCount = 1;
+        b3.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
         bindings[0] = b0;
         bindings[1] = b1;
         bindings[2] = b2;
+        bindings[3] = b3;
 
         context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -223,24 +231,25 @@ void App::createRenderingResources()
         bindingBufferMap[0] = &meshRecordBuffer;
         bindingBufferMap[1] = &vertexBuffer;
         bindingBufferMap[2] = &indexBuffer;
+        bindingBufferMap[3] = &geometryTransformsBuffer;
 
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
         descriptorSets.push_back(descriptorSet);
     }
 
-    // SET 1 : TRANSFORMS
+    // SET 1 : LIGHTS
     {
         NPDescriptorSetLayout descriptorSetLayout{};
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
 
-        // geometry transforms
         VkDescriptorSetLayoutBinding b0{};
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b0.pImmutableSamplers = nullptr;
 
         // light transforms
         VkDescriptorSetLayoutBinding b1{};
@@ -260,7 +269,7 @@ void App::createRenderingResources()
         context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
-        bindingBufferMap[0] = &geometryTransformsBuffer;
+        bindingBufferMap[0] = &lightRecordBuffer;
         bindingBufferMap[1] = &lightTransformsBuffer;
 
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
@@ -268,7 +277,7 @@ void App::createRenderingResources()
         descriptorSets.push_back(descriptorSet);
     }
 
-    // SET 2: CAMERA AND LIGHTS
+    // SET 2: CAMERA
     {
         NPDescriptorSetLayout descriptorSetLayout{};
 
@@ -281,15 +290,7 @@ void App::createRenderingResources()
         b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         b0.pImmutableSamplers = nullptr;
 
-        VkDescriptorSetLayoutBinding b1{};
-        b1.binding = 1;
-        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        b1.pImmutableSamplers = nullptr;
-
         bindings[0] = b0;
-        bindings[1] = b1;
 
         context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -301,7 +302,6 @@ void App::createRenderingResources()
         // create descriptor set
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
         bindingBufferMap[0] = &cameraRecordBuffer;
-        bindingBufferMap[1] = &lightRecordBuffer;
 
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
@@ -324,7 +324,8 @@ void App::createRenderingResources()
         VkDescriptorSetLayoutBinding b1{};
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        b1.descriptorCount = static_cast<uint32_t>(textures.size());
+        b1.descriptorCount = static_cast<uint32_t>(
+            textures.size());  // TODO: this one SHOULD be a variable size descriptor
         b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         b1.pImmutableSamplers = nullptr;
 
@@ -588,11 +589,8 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 2,
-                            descriptorSets.data(), 0, nullptr);
-
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1,
-                            descriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0,
+                            descriptorSets.size(), descriptorSets.data(), 0, nullptr);
 
     for (size_t i = 0; i < indexCounts.size(); i++)
     {

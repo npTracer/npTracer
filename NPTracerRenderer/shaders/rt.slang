@@ -176,14 +176,11 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     
     float4 pos = v0.pos * b0 + v1.pos * b1 + v2.pos * b2;
     float4 normal = v0.normal * b0 + v1.normal * b1 + v2.normal * b2;
-    float3 worldNormal = normalize(mul((float3x3)transform, normal.xyz));
     float4 color = v0.color * b0 + v1.color * b1 + v2.color * b2;
     float2 uv = v0.uv * b0 + v1.uv * b1 + v2.uv * b2;
    
-        
-    // texture
-    Sampler2D texture = textures[material.textureIndex];
-    float4 texel = texture.SampleLevel(uv, 0.0);
+    float3 worldPos = mul(transform, pos).xyz;
+    float3 worldNormal = normalize(mul((float3x3)transform, normal.xyz)); // TODO: inverse transpose
     
     float3 N = normalize(worldNormal);
     float3 baseColor = material.diffuse.rgb;
@@ -194,6 +191,25 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
     }
+    
+    float3 litColor = float3(0.0, 0.0, 0.0);
+    
+    for (uint i = 0; i < pushConstants.numLights; i++)
+    {
+        LightRecord light = lights[i];
+        float4x4 lightTransform = lightTransforms[light.transformIndex];
+        
+        float3 lightPos = float3(
+            lightTransform[0][3],
+            lightTransform[1][3],
+            lightTransform[2][3]
+        );
+        
+        float3 L = normalize(lightPos - worldPos);
+        float NdotL = max(dot(N, L), 0.0);
+        
+        litColor += baseColor * light.color.rgb * light.intensity * NdotL;
+    }
 
-    payload.color = baseColor;
+    payload.color = litColor;
 }

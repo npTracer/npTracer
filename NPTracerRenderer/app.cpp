@@ -558,7 +558,6 @@ void App::createRTPipeline()
         VK_SHADER_STAGE_RAYGEN_BIT_KHR |
         VK_SHADER_STAGE_MISS_BIT_KHR |
         VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-    
     pushConstantRange.offset = 0;
     pushConstantRange.size = 2 * sizeof(uint32_t);
     
@@ -1064,6 +1063,17 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rtPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rtPipeline.layout, 0, static_cast<uint32_t>(descriptorSets.size()),
                         descriptorSets.data(), 0, nullptr);
+    
+    std::vector<uint32_t> pushConstants{static_cast<uint32_t>(0), numLights};
+    vkCmdPushConstants(
+        commandBuffer,
+        rtPipeline.layout,
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+        VK_SHADER_STAGE_MISS_BIT_KHR |
+        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+        0,
+        sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
+        pushConstants.data());
     
     context.vkCmdTraceRaysKHR(
         commandBuffer, 

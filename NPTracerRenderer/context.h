@@ -24,7 +24,9 @@ public:
     VkDevice device = VK_NULL_HANDLE;
     VmaAllocator allocator = VK_NULL_HANDLE;
     NPImage depthImage;
+    NPImage resultImage;
     VkFormat depthFormat;
+    VkDescriptorSet rtDescriptorSet;
     std::vector<NPFrame> frames;
 
     // swapchain
@@ -76,6 +78,7 @@ public:
                      VmaAllocationCreateFlags allocationFlags,  VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT, bool shouldCreateView = true) const;
     void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height, TextureOwnership ownership);
     void createDepthImage(uint32_t width, uint32_t height);
+    void createResultImage();
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                            uint32_t width, uint32_t height);
@@ -101,7 +104,8 @@ public:
     
     void createTopLevelAccelerationStructure(
         VkCommandBuffer& commandBuffer, 
-        NPAccelerationStructure& handle, 
+        NPAccelerationStructure& handle,
+        NPBuffer& instanceBufferHandle,
         std::vector<FLOAT4X4>& transforms,
         std::vector<NPAccelerationStructure>& blasses);
     
@@ -114,7 +118,7 @@ public:
         VkDescriptorSet& descriptorSet, 
         uint32_t binding, 
         const std::vector<NPImage>& images,
-        VkSampler& sampler, 
+        VkSampler* sampler, 
         VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     void writeDescriptorSetAccelerationStructures(
@@ -122,6 +126,7 @@ public:
         std::unordered_map<uint32_t, NPAccelerationStructure*>& bindingASMap,
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap
         );
+    
     
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);

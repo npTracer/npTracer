@@ -86,7 +86,6 @@ private:
     // SET 4: RT
     std::vector<NPAccelerationStructure> blasses;
     NPAccelerationStructure tlas;
-    NPImage resultImage;
     
     // resource creation
     void createGraphicsPipeline();

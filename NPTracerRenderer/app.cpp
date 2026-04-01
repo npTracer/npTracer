@@ -3,6 +3,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 
 #include <iostream>
+#include <queue>
 #include <stb_image.h>
 
 void App::create()
@@ -26,6 +27,7 @@ void App::create()
     
     context.createSyncAndFrameObjects();
     context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
+    context.createResultImage();
     context.createTextureSampler(sampler);
     context.waitIdle();
 }
@@ -172,17 +174,6 @@ void App::createRenderingResources()
     VkDeviceAddress indexAddress = context.getBufferDeviceAddress(indexBuffer);
     
     createAccelerationStructures(meshRecords, globalTransforms, vertexAddress, indexAddress);
-    
-    // result image
-    context.createImage(
-        resultImage, 
-        VK_IMAGE_TYPE_2D, 
-        VK_FORMAT_R8G8B8A8_UNORM, 
-        context.swapchainParams.extent.width,
-        context.swapchainParams.extent.height,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-        VK_IMAGE_ASPECT_COLOR_BIT
-        );
     
     // SET 0: Mesh Records
     {
@@ -347,7 +338,7 @@ void App::createRenderingResources()
         bindingBufferMap[0] = &materialRecordsBuffer;
         
         context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
-        context.writeDescriptorSetImages(descriptorSet, 1, textures, sampler); // write all textures
+        context.writeDescriptorSetImages(descriptorSet, 1, textures, &sampler); // write all textures
 
         descriptorSets.push_back(descriptorSet);
     }
@@ -380,19 +371,18 @@ void App::createRenderingResources()
         descriptorSetLayouts.push_back(descriptorSetLayout);
         
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        context.allocateDesciptorSet(context.rtDescriptorSet, descriptorSetLayout);
         
         // create descriptor set
         std::unordered_map<uint32_t, NPAccelerationStructure*> bindingASMap;
         bindingASMap[0] = &tlas;
 
-        context.writeDescriptorSetAccelerationStructures(descriptorSet, bindingASMap, bindings);
+        context.writeDescriptorSetAccelerationStructures(context.rtDescriptorSet, bindingASMap, bindings);
         
-        std::vector<NPImage> resultImages{resultImage};
-        context.writeDescriptorSetImages(descriptorSet, 1, resultImages, sampler, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        std::vector<NPImage> resultImages{context.resultImage};
+        context.writeDescriptorSetImages(context.rtDescriptorSet, 1, resultImages, &sampler, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
         
-        descriptorSets.push_back(descriptorSet);
+        descriptorSets.push_back(context.rtDescriptorSet);
     }
     
     createRTPipeline();
@@ -786,12 +776,15 @@ void App::createAccelerationStructures(
     }
     
     // top level
-    context.createTopLevelAccelerationStructure(commandBuffer, tlas, transforms, blasses);
+    NPBuffer instanceBufferHandle{};
+    context.createTopLevelAccelerationStructure(commandBuffer, tlas, instanceBufferHandle, transforms, blasses);
     
     // barrier
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
     
     context.endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    
+    instanceBufferHandle.destroy(context.allocator);
 }
 
 // CALLABLE DRAW CALL
@@ -1095,11 +1088,11 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex
     VkImageCopy region{};
     region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
     region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.extent = {context.swapchainParams.extent.width, context.swapchainParams.extent.height};
+    region.extent = {context.swapchainParams.extent.width, context.swapchainParams.extent.height, 1};
     
     vkCmdCopyImage(
         commandBuffer, 
-        resultImage.image, 
+        context.resultImage.image, 
         VK_IMAGE_LAYOUT_GENERAL, 
         context.swapchainImages[imageIndex], 
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
@@ -1197,8 +1190,6 @@ void App::destroy()
         context.vkDestroyAccelerationStructureKHR(context.device, tlas.accelerationStructure, nullptr);
         tlas.destroyBuffers(context.device, context.allocator);
     }
-    
-    resultImage.destroy(context.device, context.allocator);
     
     // PIPELINES
     if (rasterPipeline.pipeline != VK_NULL_HANDLE)

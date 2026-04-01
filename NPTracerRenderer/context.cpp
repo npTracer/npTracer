@@ -398,7 +398,7 @@ void Context::createSwapchain(GLFWwindow* window)
     swapchainCreateInfo.imageColorSpace = format.colorSpace;
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
     swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -453,6 +453,10 @@ void Context::recreateSwapchain(GLFWwindow* window)
     cleanupSwapchain();
     createSwapchain(window);
     createDepthImage(width, height);
+    createResultImage();
+    
+    std::vector<NPImage> resultImages{resultImage};
+    writeDescriptorSetImages(rtDescriptorSet, 1, resultImages, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void Context::cleanupSwapchain()
@@ -466,6 +470,11 @@ void Context::cleanupSwapchain()
     if (depthImage.image != VK_NULL_HANDLE)
     {
         depthImage.destroy(device, allocator);
+    }
+    
+    if (resultImage.image != VK_NULL_HANDLE)
+    {
+        resultImage.destroy(device, allocator);
     }
     
     if (swapchain != VK_NULL_HANDLE)
@@ -770,6 +779,39 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
 }
 
+void Context::createResultImage()
+{
+    // result image
+    createImage(
+        resultImage, 
+        VK_IMAGE_TYPE_2D, 
+        VK_FORMAT_R8G8B8A8_UNORM, 
+        swapchainParams.extent.width,
+        swapchainParams.extent.height,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+        VK_IMAGE_ASPECT_COLOR_BIT
+        );
+    
+    VkCommandBuffer commandBuffer;
+    createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    beginCommandBuffer(commandBuffer);
+    
+    transitionImageLayout(
+        commandBuffer,
+        resultImage.image,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_GENERAL,
+        0,
+        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        VK_IMAGE_ASPECT_COLOR_BIT
+    );
+    
+    endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
+}
+
 void Context::createTextureSampler(VkSampler& sampler)
 {
     VkPhysicalDeviceProperties properties;
@@ -963,6 +1005,7 @@ void Context::createBottomLevelAccelerationStructure(
 void Context::createTopLevelAccelerationStructure(
     VkCommandBuffer& commandBuffer, 
     NPAccelerationStructure& handle, 
+    NPBuffer& instanceBufferHandle,
     std::vector<FLOAT4X4>& transforms,
     std::vector<NPAccelerationStructure>& blasses)
 {
@@ -981,16 +1024,15 @@ void Context::createTopLevelAccelerationStructure(
         instances.push_back(instance);
     }
     
-    NPBuffer instanceBuffer;
     const uint32_t instanceCount = static_cast<uint32_t>(instances.size());
     VkDeviceSize instanceBufferSize = sizeof(VkAccelerationStructureInstanceKHR) * instanceCount;
     
-    if (!createDeviceLocalBuffer(instanceBuffer, instances.data(), instanceBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))
+    if (!createDeviceLocalBuffer(instanceBufferHandle, instances.data(), instanceBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))
     {
         throw std::runtime_error("failed to create device local memory buffer!");
     }
     
-    VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(instanceBuffer);
+    VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(instanceBufferHandle);
     
     VkAccelerationStructureGeometryDataKHR geometry{};
     geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
@@ -1152,7 +1194,7 @@ void Context::writeDescriptorSetImages(
     VkDescriptorSet& descriptorSet, 
     uint32_t binding, 
     const std::vector<NPImage>& images, 
-    VkSampler& sampler, 
+    VkSampler* sampler, 
     VkDescriptorType type,
     VkImageLayout layout)
 {
@@ -1165,7 +1207,7 @@ void Context::writeDescriptorSetImages(
         
         if (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
         {
-            imageInfo.sampler = sampler;
+            imageInfo.sampler = *sampler;
         }
         
         imageInfos.push_back(imageInfo);

@@ -61,21 +61,24 @@ target_include_directories(${PROJECT_NAME}
 
 find_program(SLANGC_EXECUTABLE slangc REQUIRED)
 
+set(ALL_SPV_OUTPUTS "")
 foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}") # add as source beforehand
     AddSlangShaderTarget(
-        ${COMPILE_SHADERS_TARGET}
         "${CURR_SHADER_FILE}"
         "${CURR_SHADER_STAGES}"
         "${SHADER_OUTPUT_DIR}"
         "${PROJECT_NAME}"
     )
-    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
+    list(APPEND ALL_SPV_OUTPUTS ${CURR_SPV_OUTPUTS})
 endforeach()
 
-get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
-add_custom_target(${COMPILE_SHADERS_TARGET} ALL DEPENDS ${ALL_SPV_OUTPUTS})
-target_sources(${PROJECT_NAME} PRIVATE "${ALL_SPV_OUTPUTS}") # specify that the project depends on the output files
+target_sources(${PROJECT_NAME} PRIVATE ${ALL_SPV_OUTPUTS})
+add_custom_target(${COMPILE_SHADERS_TARGET} 
+    DEPENDS ${ALL_SPV_OUTPUTS}
+    COMMENT "Compiling all shaders."
+)
 
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
@@ -143,5 +146,3 @@ target_compile_definitions(${PROJECT_NAME}
         NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
         NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
 )
-
-add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${COMPILE_SHADERS_TARGET})

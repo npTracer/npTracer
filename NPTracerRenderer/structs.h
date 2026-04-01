@@ -110,7 +110,7 @@ struct NPPipeline
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
 
-    void NPPipeline::destroy(VkDevice device)
+    void destroy(VkDevice device)
     {
         if (pipeline != VK_NULL_HANDLE)
         {

@@ -13,7 +13,8 @@
 #include <unordered_map>
 #include <stb_image.h>
 
-#include "../../../../../../../Program Files/Side Effects Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
+// #include "../../../../../../../Program Files/Side Effects
+// Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
 #include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
 
 void Context::createWindow(GLFWwindow*& window, int width, int height)
@@ -33,6 +34,8 @@ void Context::createInstance(bool enableDebug)
     uint32_t glfwExtensionCount = 0;
     auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);  // required for swapchain extension
+
     if (enableDebug)
     {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -842,7 +845,7 @@ void Context::createDescriptorSetLayout(
     {
         VkDescriptorPoolSize poolSize{};
         poolSize.type = pair.first;
-        poolSize.descriptorCount = static_cast<uint32_t>(pair.second);
+        poolSize.descriptorCount = pair.second;
         poolSizes.push_back(poolSize);
     }
 

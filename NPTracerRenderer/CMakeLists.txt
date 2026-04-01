@@ -75,6 +75,7 @@ foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
         "${SHADER_OUTPUT_DIR}"
         "${PROJECT_NAME}"
     )
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
 endforeach()
 
 # Incremental target: only rebuilds when outputs are stale
@@ -95,12 +96,11 @@ set_target_properties(CompileShadersManual PROPERTIES FOLDER "utility")
 
 add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 
-target_link_libraries(${PROJECT_NAME}
-    PUBLIC
-        glfw
-        Vulkan::Vulkan
-        glm::glm-header-only
-        assimp
+target_link_libraries(${PROJECT_NAME} PUBLIC 
+    glfw
+    Vulkan::Vulkan 
+    glm::glm-header-only # use header-only GLM
+    assimp
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")
@@ -140,8 +140,6 @@ install(EXPORT ${PROJECT_TARGETS_NAME}
         NAMESPACE ${PROJECT_NAME}::
         DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
-
-include(CMakePackageConfigHelpers)
 
 configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
   "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"

@@ -55,7 +55,7 @@ void App::createRenderingResources()
     std::vector<FLOAT4X4> globalTransforms;
     for (int i = 0; i < meshCount; i++)
     {
-        NPMesh const* mesh = scene->getMeshAtIndex(i);
+        const NPMesh* mesh = scene->getMeshAtIndex(i);
 
         NPMeshRecord meshRecord{};
         meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
@@ -86,10 +86,7 @@ void App::createRenderingResources()
         = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize,
                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    if (!meshRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create mesh record buffer");
-    }
+    DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.");
 
     VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
@@ -133,7 +130,7 @@ void App::createRenderingResources()
         defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
         defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
 
-        FLOAT4X4 transform = FLOAT4X4(1.0);
+        auto transform = FLOAT4X4(1.0);
         transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
         lightTransforms.push_back(transform);
         lightRecords.push_back(defaultLightRecord);
@@ -153,10 +150,7 @@ void App::createRenderingResources()
         = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize,
                                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    if (!cameraRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create camera record buffer");
-    }
+    DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.");
 
     // MATERIALS
 
@@ -502,12 +496,9 @@ void App::createGraphicsPipeline()
     pipelineInfo.layout = pipeline.layout;
     pipelineInfo.renderPass = nullptr;
 
-    if (vkCreateGraphicsPipelines(context.device, nullptr, 1, &pipelineInfo, nullptr,
-                                  &pipeline.pipeline)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create pipeline");
-    }
+    VK_CHECK(vkCreateGraphicsPipelines(context.device, nullptr, 1, &pipelineInfo, nullptr,
+                                       &pipeline.pipeline),
+             "failed to create graphics pipeline");
 
     vkDestroyShaderModule(context.device, coreVertModule, nullptr);
     vkDestroyShaderModule(context.device, coreFragModule, nullptr);
@@ -525,7 +516,7 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 
     NPImage* renderTarget = aovs->color;
 
-    populateDrawCallCallable(frame.commandBuffer, renderTarget);
+    populateDrawCallCallable(frame, renderTarget);
 
     vkResetFences(context.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
@@ -533,32 +524,25 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-
-    // signal that rendering is finished once execution is finished
-    vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
-                  frame.doneExecutingFence);  // signal that execution has been completed on frame
-    // once it is done
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence);
 
     // increment frame (within ring)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
-void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
+void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 {
+    VkCommandBuffer& commandBuffer = frame.commandBuffer;
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
+    /*context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);*/
 
     VkClearValue clearColor{};
     clearColor.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
@@ -566,26 +550,26 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
     VkClearValue clearDepth{};
     clearDepth.depthStencil = { 1.0f, 0 };
 
-    // TODO pass in image params
+    // TODO: pass in image params
     VkExtent2D extent{};
-    extent.width = WIDTH;
-    extent.height = HEIGHT;
+    extent.width = renderTarget->width;
+    extent.height = renderTarget->height;
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachmentInfo.imageView = renderTarget->view;
-    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachmentInfo.imageLayout = renderTarget->layout;
     colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachmentInfo.clearValue = clearColor;
 
-    VkRenderingAttachmentInfo depthAttachmentInfo{};
-    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = context.depthImage.view;
-    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentInfo.clearValue = clearDepth;
+    // VkRenderingAttachmentInfo depthAttachmentInfo{};
+    // depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    // depthAttachmentInfo.imageView = context.depthImage.view;
+    // depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    // depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // depthAttachmentInfo.clearValue = clearDepth;
 
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -594,12 +578,13 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachmentInfo;
-    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
 
-    VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
+    VkViewport viewport{
+        0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f
+    };
 
     VkRect2D scissor{ { 0, 0 }, extent };
 
@@ -620,13 +605,15 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
 
     vkCmdEndRendering(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image,
+    /*context.transitionImageLayout(commandBuffer, renderTarget->image,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);*/
 
-    vkEndCommandBuffer(commandBuffer);
+    context.endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             frame.doneExecutingFence);
 }
 
 // SWAPCHAIN DRAW CALL
@@ -652,29 +639,13 @@ void App::executeDrawCallSwapchain()
                               imageIndex);  // record commands into frame's command buffer
     vkResetFences(context.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
-                                               // new queue submission
+    // new queue submission
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores
-        = &frame.donePresentingSemaphore;  // wait until image is no longer being presented
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores
-        = &context.doneRenderingSemaphores[imageIndex];  // signal when rendering finishes
-
-    VkResult submitResult = vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1,
-                                          &submitInfo, frame.doneExecutingFence);
-    if (submitResult != VK_SUCCESS)
-    {
-        std::cout << "vkQueueSubmit failed with code: " << submitResult << "\n";
-        throw std::runtime_error("vkQueueSubmit failed");
-    }
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence, frame.donePresentingSemaphore,
+                             context.doneRenderingSemaphores[imageIndex]);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -746,8 +717,8 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
 
     VkViewport viewport{ 0.0f,
                          0.0f,
-                         (float)context.swapchainParams.extent.width,
-                         (float)context.swapchainParams.extent.height,
+                         static_cast<float>(context.swapchainParams.extent.width),
+                         static_cast<float>(context.swapchainParams.extent.height),
                          0.0f,
                          1.0f };
 
@@ -854,9 +825,8 @@ void App::destroy()
     {
         glfwDestroyWindow(window);
         window = nullptr;
+        glfwTerminate();
     }
-
-    glfwTerminate();
 }
 
 void App::loadScene(const char* path)

@@ -2,18 +2,19 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "context.h"
-
 #include "utils.h"
 
 #include <glm/glm.hpp>
+#include <stb_image.h>
 
 #include <algorithm>
 #include <optional>
 #include <iostream>
 #include <unordered_map>
-#include <stb_image.h>
+#include <unordered_set>
 
-#include "../../../../../../../Program Files/Side Effects Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
+// #include "../../../../../../../Program Files/Side Effects
+// Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
 #include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
 
 void Context::createWindow(GLFWwindow*& window, int width, int height)
@@ -23,7 +24,7 @@ void Context::createWindow(GLFWwindow*& window, int width, int height)
     window = glfwCreateWindow(width, height, "Engine", nullptr, nullptr);
 
     glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    glfwSetFramebufferSizeCallback(window, sFramebufferResizeCallback);
 }
 
 // VULKAN
@@ -33,16 +34,18 @@ void Context::createInstance(bool enableDebug)
     uint32_t glfwExtensionCount = 0;
     auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);  // required for swapchain extension
+
     if (enableDebug)
     {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
     // layers
-    std::vector<char const*> layers;
+    std::vector<const char*> layers;
     if (enableDebug)
     {
-        const std::vector<char const*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+        const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
         layers.assign(validationLayers.begin(), validationLayers.end());
     }
 
@@ -58,18 +61,30 @@ void Context::createInstance(bool enableDebug)
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
-    createInfo.ppEnabledLayerNames = layers.data();
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
 
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
+    // declare `debugCreateInfo` outside of if statement so it stays alive until `vkCreateInstance`
+    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+    if (enableDebug)
+    {  // create a separate debug messenger for instance creation, as debug messenger creation depends on instance creation
+
+        createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
+        createInfo.ppEnabledLayerNames = layers.data();
+
+        sPopulateDebugMessengerCreateInfo(debugCreateInfo);
+        createInfo.pNext = &debugCreateInfo;
+    }
+    else
     {
-        throw std::runtime_error("instance creation failed");
+        createInfo.enabledLayerCount = 0;
+        createInfo.pNext = nullptr;
     }
 
+    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance), "instance creation failed\n");
+
     if (enableDebug)
-    {
+    {  // create debug messenger after instance creation
         createDebugMessenger(enableDebug);
     }
 }
@@ -104,47 +119,52 @@ void Context::createLogicalDeviceAndQueues()
     std::vector<VkQueueFamilyProperties> properties(propertyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &propertyCount, properties.data());
 
-    NPQueue graphicsQueue;
-    NPQueue transferQueue;
-
     // queue selection
     for (uint32_t i = 0; i < properties.size(); i++)
     {
         const auto& family = properties[i];
 
-        if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT
+            && !queues.count(NPQueueType::GRAPHICS))  // do not overwrite with a later match
         {
-            graphicsQueue.index = i;
+            queues[NPQueueType::GRAPHICS].index = i;  // operator[] will insert if does not exist
         }
-        else if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
+        if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
-            transferQueue.index = i;
+            if (!queues.count(NPQueueType::TRANSFER) || !(family.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+            {  // allow overwrite if this is a dedicated transfer queue
+                queues[NPQueueType::TRANSFER].index = i;
+            }
         }
     }
 
-    float queuePriority = 1.0f;
+    std::unordered_set<uint32_t> queueFamilyIndicesSet;
+    for (auto it = queues.begin(); it != queues.end();)
+    {
+        if (!it->second) it = queues.erase(it);  // should not occur, but for completion's sake
+        else
+        {
+            queueFamilyIndicesSet.insert(it->second.index.value());
+            ++it;
+        }
+    }
+    queueFamilyIndices.clear();
+    queueFamilyIndices.reserve(static_cast<size_t>(NPQueueType::_COUNT));  // reserve upfront
+    queueFamilyIndices.assign(queueFamilyIndicesSet.begin(), queueFamilyIndicesSet.end());
+
+    constexpr float kQueuePriority = 1.0f;
+
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-
-    if (graphicsQueue)
+    queueCreateInfos.reserve(queueFamilyIndices.size());
+    for (uint32_t idx : queueFamilyIndices)
     {
         VkDeviceQueueCreateInfo queueCreateInfo{};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = graphicsQueue.index.value();
+        queueCreateInfo.queueFamilyIndex = idx;
         queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfo.pQueuePriorities = &kQueuePriority;
 
-        queueCreateInfos.emplace_back(queueCreateInfo);
-    }
-
-    if (transferQueue)
-    {
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = transferQueue.index.value();
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
-
-        queueCreateInfos.emplace_back(queueCreateInfo);
+        queueCreateInfos.push_back(queueCreateInfo);
     }
 
     VkPhysicalDeviceDescriptorBufferPropertiesEXT descriptorBufferProperties{};
@@ -191,7 +211,7 @@ void Context::createLogicalDeviceAndQueues()
     features2.features.shaderInt64 = VK_TRUE;
     features2.features.samplerAnisotropy = true;
 
-    // TODO add more device extensions
+    // TODO: add more device extensions
     std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME,
                                                           VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
                                                           VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME };
@@ -205,49 +225,34 @@ void Context::createLogicalDeviceAndQueues()
     createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
     createInfo.pEnabledFeatures = nullptr;
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create logical device");
-    }
+    VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device),
+             "failed to create logical device\n");
 
-    if (graphicsQueue)
+    for (auto& [type, queue] : queues)
     {
-        vkGetDeviceQueue(device, graphicsQueue.index.value(), 0, &graphicsQueue.queue);
+        if (!queue) continue;
+        vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
 
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = graphicsQueue.index.value();
+        poolInfo.queueFamilyIndex = queue.index.value();
 
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool)
-            != VK_SUCCESS)
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to create command pool");
+            vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
+
+            VkCommandPoolCreateInfo poolInfo{};
+            poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            poolInfo.queueFamilyIndex = queue.index.value();
+
+            if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create command pool\n");
+            }
         }
-        queues[NPQueueType::GRAPHICS] = graphicsQueue;
     }
-
-    if (transferQueue)
-    {
-        vkGetDeviceQueue(device, transferQueue.index.value(), 0, &transferQueue.queue);
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = transferQueue.index.value();
-
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &transferQueue.commandPool)
-            != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create command pool");
-        }
-        queues[NPQueueType::TRANSFER] = transferQueue;
-    }
-
-    queueFamilyIndices = {
-        queues[NPQueueType::GRAPHICS].index.value(),
-        queues[NPQueueType::TRANSFER].index.value(),
-    };
 }
 
 void Context::createAllocator()
@@ -261,7 +266,7 @@ void Context::createAllocator()
 
     if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create vma allocator!");
+        throw std::runtime_error("failed to create vma allocator!\n");
     }
 }
 
@@ -428,9 +433,9 @@ void Context::createSyncAndFrameObjects()
         vkCreateSemaphore(device, &semInfo, nullptr, &sem);
     }
 
-    frames.resize(FRAME_COUNT);
+    frames.resize(kFrameCount);
 
-    for (int i = 0; i < FRAME_COUNT; i++)
+    for (int i = 0; i < kFrameCount; i++)
     {
         NPFrame& frame = frames[i];
 
@@ -460,10 +465,8 @@ void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType qu
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
 
-    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate command buffer");
-    }
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer),
+             "failed to allocate command buffer\n");
 }
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
@@ -473,27 +476,40 @@ void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferU
     beginInfo.flags = flags;
     beginInfo.pInheritanceInfo = nullptr;
 
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to begin recording command buffer");
-    }
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo),
+             "failed to begin recording command buffer\n");
 }
 
-void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily)
+void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily,
+                               VkPipelineStageFlags waitDstFlags, VkFence fence,
+                               VkSemaphore waitSemaphores, VkSemaphore signalSemaphores)
 {
     vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pWaitDstStageMask = &waitDstFlags;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.waitSemaphoreCount = waitSemaphores ? 1 : 0;
+    submitInfo.pWaitSemaphores = &waitSemaphores;
+    submitInfo.signalSemaphoreCount = signalSemaphores ? 1 : 0;
+    submitInfo.pSignalSemaphores = &signalSemaphores;
 
-    vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, nullptr);
+    VK_CHECK(vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, fence),
+             "failed to submit command buffer\n");
+}
+
+void Context::freeCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily)
+{
+    if (commandBuffer == VK_NULL_HANDLE) return;
+
+    vkFreeCommandBuffers(device, queues[queueFamily].commandPool, 1, &commandBuffer);
 }
 
 // BUFFERS
 bool Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
-                           VmaAllocationCreateFlags allocationFlags)
+                           VmaAllocationCreateFlags allocationFlags) const
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -504,13 +520,15 @@ bool Context::createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFla
     bufferInfo.pQueueFamilyIndices = queueFamilyIndices.data();
 
     VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.flags = allocationFlags;
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    // `VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT` required with `VMA_MEMORY_USAGE_AUTO`
+    allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | allocationFlags;
 
     if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
                         &handle.allocation, &handle.allocInfo)
         != VK_SUCCESS)
     {
+        DBG_PRINT("failed to create device local buffer!\n");
         return false;
     }
 
@@ -525,7 +543,7 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
                       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                           | VMA_ALLOCATION_CREATE_MAPPED_BIT))
     {
-        std::cout << "createDeviceLocalBuffer: failed to create staging buffer\n";
+        DBG_PRINT("failed to create staging buffer for device local buffer!\n");
         return false;
     }
 
@@ -533,7 +551,7 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
 
     if (!createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0))
     {
-        std::cout << "createDeviceLocalBuffer: failed to create device-local buffer\n";
+        DBG_PRINT("failed to create device local buffer!\n");
         vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
         return false;
     }
@@ -541,7 +559,7 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
     copyBuffer(stagingBuffer, handle, size);
 
     vkQueueWaitIdle(queues[NPQueueType::TRANSFER].queue);
-    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+    stagingBuffer.destroy(allocator);
 
     return true;
 }
@@ -592,7 +610,7 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
                        &handle.allocInfo)
         != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create image!");
+        throw std::runtime_error("failed to create image!\n");
     }
 
     handle.width = width;
@@ -643,24 +661,25 @@ void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, 
     createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     beginCommandBuffer(commandBuffer);
 
-    transitionImageLayout(commandBuffer, handle.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+    handle.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                            VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+
     copyBufferToImage(commandBuffer, stagingBuffer, handle, width, height);
 
-    transitionImageLayout(commandBuffer, handle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                          VK_ACCESS_2_SHADER_SAMPLED_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                          VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+    handle.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                            VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                            VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
 
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+
+    vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
+    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 
     handle.width = width;
     handle.height = height;
     handle.format = VK_FORMAT_R8G8B8A8_SRGB;
-
-    vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
-    vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
 void Context::createDepthImage(uint32_t width, uint32_t height)
@@ -681,10 +700,7 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
         }
     }
 
-    if (depthFormat == VK_FORMAT_UNDEFINED)
-    {
-        throw std::runtime_error("failed to find supported depth format");
-    }
+    DEV_ASSERT(depthFormat != VK_FORMAT_UNDEFINED, "failed to create depth image!\n");
 
     createImage(depthImage, VK_IMAGE_TYPE_2D, depthFormat, width, height,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0, VK_IMAGE_ASPECT_DEPTH_BIT);
@@ -842,7 +858,7 @@ void Context::createDescriptorSetLayout(
     {
         VkDescriptorPoolSize poolSize{};
         poolSize.type = pair.first;
-        poolSize.descriptorCount = static_cast<uint32_t>(pair.second);
+        poolSize.descriptorCount = pair.second;
         poolSizes.push_back(poolSize);
     }
 
@@ -967,33 +983,38 @@ void Context::createDebugMessenger(bool enableDebug)
     }
 
     VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+    sPopulateDebugMessengerCreateInfo(createInfo);
+
+    // `vkCreateDebugUtilsMessengerEXT` extension relies on a valid instance to have been created
+    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
+        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+    DEV_ASSERT(fn, "debug layer function proc addr not found\n");
+
+    fn(instance, &createInfo, nullptr, &debugMessenger);
+    fn(instance, &createInfo, nullptr, &debugMessenger);
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL Context::sDebugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+{
+    DBG_PRINT("validation error: %s\n", pCallbackData->pMessage);
+    return VK_FALSE;
+}
+
+void Context::sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
+{
+    createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
                                  | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                              | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
                              | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    createInfo.pfnUserCallback = debugCallback;
+    createInfo.pfnUserCallback = sDebugCallback;
     createInfo.pUserData = nullptr;
-
-    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (fn)
-    {
-        fn(instance, &createInfo, nullptr, &debugMessenger);
-    }
-    else
-    {
-        throw std::runtime_error("debug layer not function proc addr not found");
-    }
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL Context::debugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-{
-    std::cerr << "validation: " << pCallbackData->pMessage << std::endl;
-    return VK_FALSE;
 }
 
 void Context::destroyDebugMessenger()
@@ -1017,7 +1038,7 @@ void Context::destroy()
 {
     cleanupSwapchain();
 
-    for (int i = 0; i < FRAME_COUNT; i++)
+    for (int i = 0; i < kFrameCount; i++)
     {
         frames[i].destroy(device, allocator);
     }
@@ -1028,12 +1049,21 @@ void Context::destroy()
     }
     doneRenderingSemaphores.clear();
 
+    if (transferCommandBuffer != VK_NULL_HANDLE)
+    {
+        freeCommandBuffer(transferCommandBuffer, NPQueueType::TRANSFER);
+    }
+
     for (auto& queue : queues)
     {
         queue.second.destroy(device);
     }
 
-    vmaDestroyAllocator(allocator);
+    if (allocator != VK_NULL_HANDLE)
+    {
+        vmaDestroyAllocator(allocator);
+        allocator = VK_NULL_HANDLE;
+    }
 
     if (device != VK_NULL_HANDLE)
     {
@@ -1055,7 +1085,7 @@ void Context::destroy()
     }
 }
 
-void Context::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+void Context::sFramebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
     auto* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
     context->framebufferResized = true;

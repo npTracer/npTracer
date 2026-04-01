@@ -16,12 +16,12 @@ class App
     std::unique_ptr<NPRendererAovs> m_aovs = nullptr;
 
 public:
-    inline Context* getContext()
+    Context* getContext()
     {
         return &context;
     }
 
-    inline Scene* getScene() const
+    Scene* getScene() const
     {
         return scene.get();
     }
@@ -84,7 +84,7 @@ private:
     void createGraphicsPipeline();
 
     // render commands recording
-    void populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
+    void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
     void populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
 
     // private execute draw call standalone

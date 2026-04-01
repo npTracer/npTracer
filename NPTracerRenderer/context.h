@@ -14,7 +14,7 @@
 class Context
 {
 public:
-    int FRAME_COUNT = 0;
+    int kFrameCount;
     bool framebufferResized = false;
 
     // vulkan basics
@@ -36,12 +36,12 @@ public:
 
     // queues
     std::unordered_map<NPQueueType, NPQueue> queues;
-    std::array<uint32_t, 2> queueFamilyIndices;
+    std::vector<uint32_t> queueFamilyIndices;  // stored indices based on if they are supported
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
     void setFrameCount(const int frameCount)
     {
-        FRAME_COUNT = frameCount;
+        kFrameCount = frameCount;
     }
 
     void createWindow(GLFWwindow*& window, int width, int height);
@@ -60,11 +60,15 @@ public:
     // command buffers
     void createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType queueFamily);
     void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
-    void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
+    void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily,
+                          VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE,
+                          VkSemaphore waitSemaphores = VK_NULL_HANDLE,
+                          VkSemaphore signalSemaphores = VK_NULL_HANDLE);
+    void freeCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
 
     // buffers
     bool createBuffer(NPBuffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
-                      VmaAllocationCreateFlags allocationFlags);
+                      VmaAllocationCreateFlags allocationFlags) const;
     bool createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(NPBuffer& src, NPBuffer& dst, VkDeviceSize size);
@@ -112,14 +116,16 @@ public:
     void destroy();
 
 private:
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+    static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
     void createDebugMessenger(bool enableDebug);
 
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    static VKAPI_ATTR VkBool32 VKAPI_CALL sDebugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+
+    static void sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 };

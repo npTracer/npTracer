@@ -950,7 +950,7 @@ void Context::createBottomLevelAccelerationStructure(
     VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
     buildRangeInfo.primitiveCount = primitiveCount;
     buildRangeInfo.primitiveOffset = firstIndex * sizeof(uint32_t);
-    buildRangeInfo.firstVertex = firstVertex;
+    buildRangeInfo.firstVertex = 0;
     buildRangeInfo.transformOffset = 0;
     
     // BUILD

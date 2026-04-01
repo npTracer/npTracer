@@ -169,9 +169,10 @@ struct NPQueue
 // shared structs
 struct NPCameraRecord
 {
-    alignas(16) FLOAT4X4 model;
     alignas(16) FLOAT4X4 view;
     alignas(16) FLOAT4X4 proj;
+    alignas(16) FLOAT4X4 invView;
+    alignas(16) FLOAT4X4 invProj;
 };
 
 struct NPMeshRecord
@@ -235,7 +236,7 @@ struct NPMaterial
     FLOAT4 specular;
     FLOAT4 emission;
     
-    uint32_t diffuseTextureIdx;
+    uint32_t diffuseTextureIdx = UINT_MAX;
 };
 
 enum class NPLightType : uint8_t

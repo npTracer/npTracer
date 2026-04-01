@@ -261,8 +261,7 @@ void Scene::processCamera(const aiScene* scene)
         glm::vec3 upVec = glm::normalize(glm::vec3(nodeTransform * localUp4));
 
         glm::vec3 center = eye + look;
-
-        cameraRecord.model = glm::mat4(1.0f);
+        
         cameraRecord.view = glm::lookAt(eye, center, upVec);
 
         float aspect = aiCam->mAspect != 0.0f ? aiCam->mAspect : (2560.0f / 1440.0f);
@@ -276,8 +275,6 @@ void Scene::processCamera(const aiScene* scene)
     }
     else
     {
-        cameraRecord.model = glm::mat4(1.0f);
-
         cameraRecord.view = glm::lookAt(
             glm::vec3(0.0f, 0.0f, 5.0f),   // eye
             glm::vec3(0.0f, 0.0f, 0.0f),   // center
@@ -292,6 +289,9 @@ void Scene::processCamera(const aiScene* scene)
         );
         cameraRecord.proj[1][1] *= 1.0f;
     }
+    
+    cameraRecord.invView = glm::inverse(cameraRecord.view);
+    cameraRecord.invProj = glm::inverse(cameraRecord.proj);
     _camera = cameraRecord;
 }
 

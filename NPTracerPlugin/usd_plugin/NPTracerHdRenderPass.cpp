@@ -21,18 +21,19 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPassState,
                                     TfTokenVector const& renderTags)
 {
+    NP_DBG("Render pass executed.\n");
+
     this->SetConverged(false);
 
     App* app = _pCreator->GetRendererApp();
-    NPCameraRecord* cam = app->getScene()->getCamera();
-    _SyncCamera(renderPassState, cam);
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
+    TF_DEV_AXIOM(!aovBindings.empty());
 
     auto payload = std::make_unique<NPRendererAovs>();
 
-    std::vector<NPTracerHdRenderBuffer*> dirtyBuffers;
-    dirtyBuffers.clear();
+    std::vector<NPTracerHdRenderBuffer*> requestedWriters;
+    requestedWriters.reserve(aovBindings.size());
 
     for (HdRenderPassAovBinding const& binding : aovBindings)
     {
@@ -41,7 +42,8 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
         {
             continue;
         }
-        buffer->SetConverged(false);
+
+        TF_DEV_AXIOM(buffer->IsConverged() && !buffer->IsMapped());
 
         if (binding.aovName == HdAovTokens->color)
         {
@@ -53,20 +55,19 @@ void NPTracerHdRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPass
         }
         else
         {
-            buffer->SetConverged(true);
-            continue;  // skip pushing onto `dirtyBuffers`
+            continue;  // skip pushing onto buffer vector
         }
 
-        dirtyBuffers.push_back(buffer);
+        requestedWriters.push_back(buffer);
     }
 
     app->setAov(std::move(payload));
     app->createRenderingResources();  // TODO find better place to create resources
     app->executeDrawCallCallable();
 
-    for (NPTracerHdRenderBuffer* buffer : dirtyBuffers)
+    for (NPTracerHdRenderBuffer* buffer : requestedWriters)
     {
-        buffer->SetConverged(true);  // mark all dirtied buffers
+        buffer->EndWrite();  // mark all requested buffers
     }
 
     this->SetConverged(true);

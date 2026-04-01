@@ -16,56 +16,60 @@ public:
     NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context);
 
     // allocate a new buffer with the given dimensions and format
-    virtual bool Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled) override;
+    bool Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled) override;
 
-    virtual unsigned int GetWidth() const override;
-    virtual unsigned int GetHeight() const override;
-    virtual unsigned int GetDepth() const override;
-    virtual HdFormat GetFormat() const override;
-    virtual bool IsMultiSampled() const override;
+    unsigned int GetWidth() const override;
+    unsigned int GetHeight() const override;
+    unsigned int GetDepth() const override;
+    HdFormat GetFormat() const override;
+    size_t GetSize() const;
+    bool IsMultiSampled() const override;
 
     // map the buffer for reading/writing
-    virtual void* Map() override;
+    void* Map() override;
 
-    virtual void Unmap() override;
+    void Unmap() override;
 
     // return whether any clients have this buffer mapped currently
-    virtual bool IsMapped() const override;
+    bool IsMapped() const override;
 
-    virtual bool IsConverged() const override;
+    bool IsConverged() const override;
     void SetConverged(bool converged);
 
     // resolve the sample buffer into final values
-    virtual void Resolve() override;
+    void Resolve() override;
 
-    virtual VtValue GetResource(bool multiSampled) const override;
-
-    inline NPImage* GetImage()
-    {
-        return &_image;
-    }
+    // will wait until write is available
+    bool HasWriter() const;
+    void EndWrite();
+    // returns nullptr if `waitForSuccess` is false and another entity is already writing
+    NPImage* RequestImageForWrite(bool waitUntilSuccess = true);
 
 private:
     // release any allocated resources
-    virtual void _Deallocate() override;
+    void _Deallocate() override;
 
     // the actual underlying buffer
-    NPImage _image;
-
-    // reused GPU buffer for image to GPU buffer transfer
-    NPBuffer _stagingBuffer;
-
-    GfVec3i _dimensions = GfVec3i(-1, -1, -1);
-    HdFormat _format = HdFormatInvalid;
-    bool _multiSampled = false;
+    std::unique_ptr<NPImage> _pImage;
     Np::FormatTokens _fmtTokens;
 
-    // the number of callers mapping this buffer
-    std::atomic<int> _mappers{ 0 };
+    // reused GPU buffer for image to GPU buffer transfer
+    std::unique_ptr<NPBuffer> _pStagingBuffer;
 
-    std::atomic<bool> _converged{ false };
+    GfVec3i _dimensions = GfVec3i(-1);
+    HdFormat _format = HdFormatInvalid;
+    bool _multiSampled = false;
+
+    // the number of entities that are reading this buffer
+    std::atomic<int> _readers{ 0 };
+    std::atomic<bool> _hasWriter{ false };
+
+    std::atomic<bool> _converged{ true };
 
     Context* _pCtx;
+    VkCommandBuffer _transferCmdBuffer = VK_NULL_HANDLE;
+
+    std::vector<uint8_t> _cpuDebugBuffer;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

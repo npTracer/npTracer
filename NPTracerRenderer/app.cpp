@@ -531,6 +531,10 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
     // new queue submission
 
+    NPImage* renderTarget = aovs.color;
+
+    populateDrawCall(frame, renderTarget);
+
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
     VkSubmitInfo submitInfo{};
@@ -541,8 +545,7 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 
     // signal that rendering is finished once execution is finished
     vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
-                  frame.doneExecutingFence);  // signal that execution has been completed on frame
-    // once it is done
+                  frame.doneExecutingFence);
 
     // increment frame (within ring)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
@@ -551,14 +554,15 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
 void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
 {
+    VkCommandBuffer& commandBuffer = frame.commandBuffer;
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
+    /*context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);*/
 
     VkClearValue clearColor{};
     clearColor.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
@@ -566,26 +570,26 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
     VkClearValue clearDepth{};
     clearDepth.depthStencil = { 1.0f, 0 };
 
-    // TODO pass in image params
+    // TODO: pass in image params
     VkExtent2D extent{};
-    extent.width = WIDTH;
-    extent.height = HEIGHT;
+    extent.width = renderTarget->width;
+    extent.height = renderTarget->height;
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachmentInfo.imageView = renderTarget->view;
-    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachmentInfo.imageLayout = renderTarget->layout;
     colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachmentInfo.clearValue = clearColor;
 
-    VkRenderingAttachmentInfo depthAttachmentInfo{};
-    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = context.depthImage.view;
-    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentInfo.clearValue = clearDepth;
+    // VkRenderingAttachmentInfo depthAttachmentInfo{};
+    // depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    // depthAttachmentInfo.imageView = context.depthImage.view;
+    // depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    // depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // depthAttachmentInfo.clearValue = clearDepth;
 
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -594,12 +598,13 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachmentInfo;
-    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
 
-    VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
+    VkViewport viewport{
+        0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f
+    };
 
     VkRect2D scissor{ { 0, 0 }, extent };
 
@@ -620,13 +625,15 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
 
     vkCmdEndRendering(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image,
+    /*context.transitionImageLayout(commandBuffer, renderTarget->image,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);*/
 
-    vkEndCommandBuffer(commandBuffer);
+    context.endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             frame.doneExecutingFence);
 }
 
 // SWAPCHAIN DRAW CALL
@@ -652,7 +659,7 @@ void App::executeDrawCallSwapchain()
                               imageIndex);  // record commands into frame's command buffer
     vkResetFences(context.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
-                                               // new queue submission
+    // new queue submission
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
@@ -854,9 +861,8 @@ void App::destroy()
     {
         glfwDestroyWindow(window);
         window = nullptr;
+        glfwTerminate();
     }
-
-    glfwTerminate();
 }
 
 void App::loadScene(const char* path)

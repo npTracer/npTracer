@@ -85,5 +85,7 @@ private:
 
     NPCameraRecord _camera = {};
 
-    NPRenderSettings _settings = {};
+    NPCameraRecord _camera;
+
+    NPRenderSettings _settings;
 };

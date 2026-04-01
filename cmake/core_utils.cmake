@@ -31,7 +31,7 @@ function(ConfigureFilePostBuild target_name)
         CONFIGURE_VARIABLES
     )
 
-    cmake_parse_arguments(args
+    cmake_parse_arguments(arg
         "${options}"
         "${oneValueArgs}"
         "${multiValueArgs}"
@@ -40,10 +40,10 @@ function(ConfigureFilePostBuild target_name)
 
     add_custom_command(TARGET ${target_name} POST_BUILD
         COMMAND ${CMAKE_COMMAND}
-            -DCONFIGURE_VARIABLES="${args_CONFIGURE_VARIABLES}"
-            -DIN_PATH="${args_IN_PATH}"
-            -DOUT_PATH="${args_OUT_PATH}"
-            -P "${args_GENERATOR_MODULE_PATH}"
+            -DCONFIGURE_VARIABLES="${arg_CONFIGURE_VARIABLES}"
+            -DIN_PATH="${arg_IN_PATH}"
+            -DOUT_PATH="${arg_OUT_PATH}"
+            -P "${arg_GENERATOR_MODULE_PATH}"
     )
 endfunction()
 
@@ -99,17 +99,25 @@ function(FilterInstallableTargets out_variable_name)
     set(${out_variable_name} ${${out_variable_name}} PARENT_SCOPE)
 endfunction()
 
-function(SetupInstallationAfterBuild target_name)
+function(SetupInstallationAfterBuild target_name install_dir)
     # ensure install command retains configurations
     if(IS_MULTI_CONFIG)
-        set(INSTALL_HELPER_COMMANDLINE_ARGS --config $<CONFIG>)
+        set(INSTALL_CMD_ARGS --config $<CONFIG>)
     else()
-        set(INSTALL_HELPER_COMMANDLINE_ARGS -DCMAKE_BUILD_TYPE=$<CONFIG>)
+        set(INSTALL_CMD_ARGS -DCMAKE_BUILD_TYPE=$<CONFIG>)
     endif()
     
     add_custom_command(TARGET ${target_name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" 
-        ${INSTALL_HELPER_COMMANDLINE_ARGS} 
-        COMMENT "Install after building '${target_name}'."
+        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --prefix "${install_dir}"
+        ${INSTALL_CMD_ARGS} 
+        COMMENT "Installed '${target_name}' after building to '${install_dir}'."
     )
+endfunction()
+
+function (InvertBooleanVariable var_value out_var_name)
+    if(${var_value})
+        set(${out_var_name} FALSE PARENT_SCOPE)
+    else()
+        set(${out_var_name} TRUE PARENT_SCOPE)
+    endif()
 endfunction()

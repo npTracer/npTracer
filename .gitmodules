@@ -7,3 +7,6 @@
 [submodule "NPTracerRenderer/external/vma"]
 	path = external/vma
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "external/assimp"]
+	path = external/assimp
+	url = https://github.com/assimp/assimp.git

@@ -7,34 +7,41 @@
 
 class App
 {
-    static constexpr bool enableDebug =
-#ifdef NDEBUG
-        false;
-#else
-        true;
-#endif
+    static constexpr bool kDEBUG = NPTRACER_DEBUG;
+    static constexpr bool kSTANDALONE = NPTRACER_STANDALONE;
 
     static constexpr uint32_t WIDTH = 2560;
     static constexpr uint32_t HEIGHT = 1440;
 
+    std::unique_ptr<NPRendererAovs> m_aovs = nullptr;
+
 public:
-    inline Context* getContext()
+    Context* getContext()
     {
         return &context;
     }
 
-    inline Scene* getScene() const
+    Scene* getScene() const
     {
         return scene.get();
+    }
+
+    void setAov(std::unique_ptr<NPRendererAovs> aovs)
+    {
+        m_aovs = std::move(aovs);
     }
 
     // interface
     void create();
     void destroy();
 
-    void executeDrawCall(NPRendererAovs& aovs);
+    void loadScene(const char* path);
+
+    void createRenderingResources();
+    void executeDrawCallCallable(NPRendererAovs* aovs = nullptr);
 
     void run();
+    void render();
 
 private:
     static constexpr int FRAME_COUNT = 2;
@@ -44,25 +51,42 @@ private:
     Context context;
     GLFWwindow* window = nullptr;
 
+    // push constants
+    std::vector<uint32_t> indexCounts;
+    uint32_t numLights = 0;
+
     // rendering resources
+    std::unique_ptr<Scene> scene;
+
     NPPipeline pipeline;
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
-
     std::vector<VkDescriptorSet> descriptorSets;
+    VkSampler sampler = VK_NULL_HANDLE;
 
-    std::unique_ptr<Scene> scene;
-    std::vector<uint32_t> indexCounts;
-
+    // SET 0: GEOMETRY
     NPBuffer meshRecordBuffer;
-    NPBuffer lightRecordBuffer;
+    NPBuffer vertexBuffer;
+    NPBuffer indexBuffer;
+
+    // SET 1: TRANSFORMS
+    NPBuffer geometryTransformsBuffer;
+    NPBuffer lightTransformsBuffer;
+
+    // SET 2: CAMERA & LIGHTS
     NPBuffer cameraRecordBuffer;
-    std::vector<NPBuffer> vertexBuffers;
-    std::vector<NPBuffer> indexBuffers;
+    NPBuffer lightRecordBuffer;
+
+    // SET 3: MATERIALS
+    NPBuffer materialRecordsBuffer;
+    std::vector<NPImage> textures;
 
     // resource creation
-    void createRenderingResources(NPRendererAovs& aovs);
-    void createGraphicsPipeline(NPPipeline& pipeline,
-                                std::vector<NPDescriptorSetLayout>& descriptorSetLayouts,
-                                NPRendererAovs& aovs);
-    void populateDrawCall(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
+    void createGraphicsPipeline();
+
+    // render commands recording
+    void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
+    void populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex);
+
+    // private execute draw call standalone
+    void executeDrawCallSwapchain();
 };

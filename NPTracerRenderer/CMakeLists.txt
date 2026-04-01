@@ -60,13 +60,22 @@ target_include_directories(${PROJECT_NAME}
 ) # set the include directories based on interface
 
 find_program(SLANGC_EXECUTABLE slangc REQUIRED)
-foreach(shader_spec ${CURR_SHADER_SPECS})
+
+foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
-    AddSlangShaderTarget(${COMPILE_SHADERS_TARGET} "${CURR_SHADER_FILE}" "${CURR_SHADER_STAGES}" "${SHADER_OUTPUT_DIR}" ${PROJECT_NAME})
+    AddSlangShaderTarget(
+        ${COMPILE_SHADERS_TARGET}
+        "${CURR_SHADER_FILE}"
+        "${CURR_SHADER_STAGES}"
+        "${SHADER_OUTPUT_DIR}"
+        "${PROJECT_NAME}"
+    )
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
 endforeach()
 
 get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
-add_custom_target(${COMPILE_SHADERS_TARGET} DEPENDS ${ALL_SPV_OUTPUTS})
+add_custom_target(${COMPILE_SHADERS_TARGET} ALL DEPENDS ${ALL_SPV_OUTPUTS})
+target_sources(${PROJECT_NAME} PRIVATE "${ALL_SPV_OUTPUTS}") # specify that the project depends on the output files
 
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
@@ -77,6 +86,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     glfw
     Vulkan::Vulkan 
     glm::glm-header-only # use header-only GLM
+    assimp
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")
@@ -117,8 +127,6 @@ install(EXPORT ${PROJECT_TARGETS_NAME}
         DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
 
-include(CMakePackageConfigHelpers)
-
 configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
   "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
   INSTALL_DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
@@ -127,3 +135,13 @@ configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
 install(FILES "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
+
+option(NPTRACER_STANDALONE "Compile NPTracer with standalone swapchain runtime." OFF)
+
+target_compile_definitions(${PROJECT_NAME}
+    PUBLIC
+        NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
+        NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
+)
+
+add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${COMPILE_SHADERS_TARGET})

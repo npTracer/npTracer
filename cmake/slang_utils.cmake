@@ -9,6 +9,7 @@ function(AddSlangShaderTarget compile_target_name shader_file shader_stages outp
         set(ENTRYPOINT_NAME "${stage}${ENTRYPOINT_SUFFIX}")
         add_custom_command(
             OUTPUT ${SPV_OUTPUT}
+            BYPRODUCTS ${SPV_OUTPUT}
             COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
             COMMAND "${SLANGC_EXECUTABLE}" ${shader_file}
                     -target spirv
@@ -30,7 +31,7 @@ function(AddSlangShaderTarget compile_target_name shader_file shader_stages outp
             target_compile_definitions(${tgt} PUBLIC "${COMPILE_DEFINITION_NAME}=\"${SPV_OUTPUT}\"" ) # escape quotes
         endforeach()
 
-        set_property(GLOBAL APPEND PROPERTY ALL_SPV_OUTPUTS ${SPV_OUTPUT})
+        set_property(GLOBAL APPEND PROPERTY ALL_SPV_OUTPUTS "${SPV_OUTPUT}")
     endforeach()
 endfunction()
 

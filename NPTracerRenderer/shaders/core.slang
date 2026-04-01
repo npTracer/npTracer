@@ -1,80 +1,150 @@
-static const uint MAX_RESOURCE_COUNT = 10000;
+[require(spirv_1_5)]
+[require(SPV_EXT_physical_storage_buffer)]
 
 struct MeshRecord
 {
-    uint vbIdx;
-    uint ibIdx;
+    uint vertexOffset;
+    uint indexOffset;
+    uint indexCount;
+    uint vertexCount;
+    
+    uint transformIndex;
+    uint materialIndex;
 };
 
-struct Vertex
-{
-    float3 pos;
-    float3 color;
-    float2 uv;
-}
-
-struct Camera
+struct CameraRecord
 {
     float4x4 model;
     float4x4 view;
     float4x4 proj;
 };
 
-struct Light
+struct LightRecord
 {
-    float4x4 matrix;
-    float3 color;
+    uint transformIndex;
+    float4 color;
     float intensity;
+};
+
+struct MaterialRecord
+{
+    float4 ambient;
+    float4 diffuse;
+    float4 specular;
+    float4 emissive;
+    uint textureIndex;
+};
+
+struct Vertex
+{
+    float4 pos;
+    float4 normal;
+    float4 color;
+    float2 uv;
+    float2 pad0;
 };
 
 struct VertexOutput
 {
     float4 pos : SV_Position;
+    float3 worldPos : TEXCOORD0;
+    float3 worldNormal : TEXCOORD1;
     float3 color : COLOR0;
-    float2 uv : TEXCOORD0;
+    float2 uv : TEXCOORD2;
 };
 
-// set 0
+struct PushConstants
+{
+    uint meshIndex;
+    uint numLights;
+};
+
+[[vk::push_constant]]
+ConstantBuffer<PushConstants> pushConstants;
+
 [[vk::binding(0, 0)]]
 StructuredBuffer<MeshRecord> meshRecords;
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<Vertex> vertexBuffers[MAX_RESOURCE_COUNT];
+StructuredBuffer<Vertex> globalVertices;
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<uint> indexBuffers[MAX_RESOURCE_COUNT];
+StructuredBuffer<uint> globalIndices;
 
-// set 1
+[[vk::binding(3, 0)]]
+StructuredBuffer<float4x4> globalTransforms;
+
 [[vk::binding(0, 1)]]
-ConstantBuffer<Camera> cam;
+StructuredBuffer<LightRecord> lights;
 
-// set 2
-//[[vk::binding(0, 2)]]
-//StructuredBuffer<Light> lights;
+[[vk::binding(1, 1)]]
+StructuredBuffer<float4x4> lightTransforms;
+
+[[vk::binding(0, 2)]]
+ConstantBuffer<CameraRecord> camera;
+
+[[vk::binding(0, 3)]]
+StructuredBuffer<MaterialRecord> materials;
+
+[[vk::binding(1, 3)]]
+Sampler2D textures[];
 
 [shader("vertex")]
-VertexOutput vertMain(uint vertexID: SV_VertexID, uint instanceID: SV_InstanceID)
-{
+VertexOutput vertMain(uint vid : SV_VertexID) {
     VertexOutput output;
-    MeshRecord rec = meshRecords[instanceID];
+    
+    MeshRecord rec = meshRecords[pushConstants.meshIndex];
 
-    uint vb = NonUniformResourceIndex(rec.vbIdx);
-    uint ib = NonUniformResourceIndex(rec.ibIdx);
+    // geometry
+    uint index = globalIndices[rec.indexOffset + vid];
+    Vertex input = globalVertices[index];
+    
+    // transform
+    float4x4 transform = globalTransforms[rec.transformIndex];
+    
+    float4 worldPos = mul(transform, input.pos);
+    output.worldPos = worldPos.xyz;
+    
+    output.worldNormal = normalize(mul((float3x3)transform, input.normal.xyz)); // TODO use inverse transpose
+    
+    float4 viewPos  = mul(camera.view, worldPos);
+    output.pos      = mul(camera.proj, viewPos);
 
-    uint index = indexBuffers[ib][vertexID];
-    Vertex vertex = vertexBuffers[vb][index];
+    output.color  = input.color.xyz;
+    output.uv = input.uv;
 
-    float4 worldPos = mul(cam.model, float4(vertex.pos, 1.0));
-    float4 viewPos = mul(cam.view, worldPos);
-    output.pos = mul(cam.proj, viewPos);
-
-    output.color = vertex.color;
-    output.uv = vertex.uv;
     return output;
 }
 
 [shader("fragment")]
 float4 fragMain(VertexOutput input) : SV_Target
 {
-    return float4(input.color, 1.0);
+    MeshRecord rec = meshRecords[pushConstants.meshIndex]; // TODO don't fetch twice
+    MaterialRecord material = materials[rec.materialIndex];
+    
+    // texture
+    Sampler2D texture = textures[material.textureIndex];
+    float4 texel = texture.Sample(input.uv);
+
+    float3 N = normalize(input.worldNormal);
+    float3 baseColor = material.diffuse.rgb * texel.rgb; // TODO: make more robust
+    
+    float3 litColor = float3(0.0, 0.0, 0.0);
+    
+    for (uint i = 0; i < pushConstants.numLights; i++)
+    {
+        LightRecord light = lights[i];
+        float4x4 lightTransform = lightTransforms[light.transformIndex];
+        float3 lightPos = float3(
+            lightTransform[0][3],
+            lightTransform[1][3],
+            lightTransform[2][3]
+        );
+            
+        float3 L = normalize(lightPos - input.worldPos);
+                
+        float NdotL = max(dot(N, L), 0.0);
+        litColor += baseColor.xyz * light.color.rgb * light.intensity * NdotL;
+    }
+    return float4(litColor, 1.0);
 }

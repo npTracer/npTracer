@@ -28,39 +28,39 @@ public:
     const TfTokenVector& GetSupportedBprimTypes() const override;
 
     // return this delegate's render param, which provides top-level scene state
-    virtual HdRenderParam* GetRenderParam() const override;
+    HdRenderParam* GetRenderParam() const override;
 
     // returns a list of user-configurable render settings, available in the UI
-    virtual HdRenderSettingDescriptorList GetRenderSettingDescriptors() const override;
+    HdRenderSettingDescriptorList GetRenderSettingDescriptors() const override;
 
     /// get the resource registry
-    virtual HdResourceRegistrySharedPtr GetResourceRegistry() const override;
+    HdResourceRegistrySharedPtr GetResourceRegistry() const override;
 
     // create an instancer
-    virtual HdInstancer* CreateInstancer(HdSceneDelegate* delegate, const SdfPath& id) override;
+    HdInstancer* CreateInstancer(HdSceneDelegate* delegate, const SdfPath& id) override;
 
     /// destroy an instancer.
-    virtual void DestroyInstancer(HdInstancer* instancer) override;
+    void DestroyInstancer(HdInstancer* instancer) override;
 
     /// create and destroy Rprim
-    virtual HdRprim* CreateRprim(const TfToken& typeId, const SdfPath& rprimId) override;
-    virtual void DestroyRprim(HdRprim* rprim) override;
+    HdRprim* CreateRprim(const TfToken& typeId, const SdfPath& rprimId) override;
+    void DestroyRprim(HdRprim* rprim) override;
 
     // create, destroy, and create fallback Sprim
-    virtual HdSprim* CreateSprim(const TfToken& typeId, const SdfPath& sprimId) override;
-    virtual void DestroySprim(HdSprim* sprim) override;
-    virtual HdSprim* CreateFallbackSprim(const TfToken& typeId) override;
+    HdSprim* CreateSprim(const TfToken& typeId, const SdfPath& sprimId) override;
+    void DestroySprim(HdSprim* sprim) override;
+    HdSprim* CreateFallbackSprim(const TfToken& typeId) override;
 
     /// create, destroy, and create fallback Bprim
-    virtual HdBprim* CreateBprim(const TfToken& typeId, const SdfPath& bprimId) override;
-    virtual void DestroyBprim(HdBprim* bprim) override;
-    virtual HdBprim* CreateFallbackBprim(const TfToken& typeId) override;
+    HdBprim* CreateBprim(const TfToken& typeId, const SdfPath& bprimId) override;
+    void DestroyBprim(HdBprim* bprim) override;
+    HdBprim* CreateFallbackBprim(const TfToken& typeId) override;
 
     // do work here?
-    virtual void CommitResources(HdChangeTracker* tracker) override;
+    void CommitResources(HdChangeTracker* tracker) override;
 
     // return the AOV description for `aovName`. This will be used to initialize the aov buffers.
-    virtual HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
+    HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
 
     inline App* GetRendererApp() const
     {

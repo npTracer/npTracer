@@ -39,41 +39,41 @@ public:
     NPMesh* addMesh();
     bool removeMesh(const uint32_t& objectId);
 
-    NPMesh const* getMeshAtIndex(int idx) const;
+    const NPMesh* getMeshAtIndex(int idx) const;
 
-    inline size_t getMeshCount() const
+    size_t getMeshCount() const
     {
         return _meshes.size();
     }
 
-    inline const std::vector<std::unique_ptr<NPLight>>& getLights() const
+    const std::vector<std::unique_ptr<NPLight>>& getLights() const
     {
         return _lights;
     }
 
-    NPLight const* getLightAtIndex(int idx) const;
+    const NPLight* getLightAtIndex(int idx) const;
 
-    inline size_t getLightCount() const
+    size_t getLightCount() const
     {
         return _lights.size();
     }
 
-    inline NPCameraRecord* getCamera()
+    NPCameraRecord* getCamera()
     {
         return &_camera;
     }
 
-    inline const std::vector<std::unique_ptr<NPMaterial>>& getMaterials() const
+    const std::vector<std::unique_ptr<NPMaterial>>& getMaterials() const
     {
         return _materials;
     }
 
-    inline size_t getMaterialCount() const
+    size_t getMaterialCount() const
     {
         return _materials.size();
     }
 
-    NPMaterial const* getMaterialAtIndex(int idx) const;
+    const NPMaterial* getMaterialAtIndex(int idx) const;
 
 private:
     std::mutex _meshMutex;
@@ -82,8 +82,6 @@ private:
     std::vector<std::unique_ptr<NPLight>> _lights;
     std::vector<FLOAT4X4> _transforms;
     std::vector<std::unique_ptr<NPMaterial>> _materials;
-
-    NPCameraRecord _camera = {};
 
     NPCameraRecord _camera;
 

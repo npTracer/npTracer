@@ -86,10 +86,7 @@ void App::createRenderingResources()
         = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize,
                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    if (!meshRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create mesh record buffer");
-    }
+    DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.");
 
     VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
@@ -153,10 +150,7 @@ void App::createRenderingResources()
         = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize,
                                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    if (!cameraRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create camera record buffer");
-    }
+    DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.");
 
     // MATERIALS
 
@@ -502,12 +496,9 @@ void App::createGraphicsPipeline()
     pipelineInfo.layout = pipeline.layout;
     pipelineInfo.renderPass = nullptr;
 
-    if (vkCreateGraphicsPipelines(context.device, nullptr, 1, &pipelineInfo, nullptr,
-                                  &pipeline.pipeline)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create pipeline");
-    }
+    VK_CHECK(vkCreateGraphicsPipelines(context.device, nullptr, 1, &pipelineInfo, nullptr,
+                                       &pipeline.pipeline),
+             "failed to create graphics pipeline");
 
     vkDestroyShaderModule(context.device, coreVertModule, nullptr);
     vkDestroyShaderModule(context.device, coreFragModule, nullptr);

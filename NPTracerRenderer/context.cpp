@@ -543,7 +543,7 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
                       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                           | VMA_ALLOCATION_CREATE_MAPPED_BIT))
     {
-        std::cout << "createDeviceLocalBuffer: failed to create staging buffer\n";
+        DBG_PRINT("failed to create staging buffer for device local buffer!\n");
         return false;
     }
 
@@ -551,7 +551,7 @@ bool Context::createDeviceLocalBuffer(NPBuffer& handle, const void* data, VkDevi
 
     if (!createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0))
     {
-        std::cout << "createDeviceLocalBuffer: failed to create device-local buffer\n";
+        DBG_PRINT("failed to create device local buffer!\n");
         vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
         return false;
     }

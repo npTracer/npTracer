@@ -58,7 +58,10 @@ private:
     // rendering resources
     std::unique_ptr<Scene> scene;
     
-    NPPipeline pipeline;
+    NPPipeline rasterPipeline;
+    NPPipeline rtPipeline;
+    ShaderBindingTable sbt;
+    
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkDescriptorSet> descriptorSets;
     VkSampler sampler = VK_NULL_HANDLE;
@@ -80,13 +83,25 @@ private:
     NPBuffer materialRecordsBuffer;
     std::vector<NPImage> textures;
     
+    // SET 4: RT
+    std::vector<NPAccelerationStructure> blasses;
+    NPAccelerationStructure tlas;
+    NPImage resultImage;
+    
     // resource creation
     void createGraphicsPipeline();
+    void createRTPipeline();
+    void createAccelerationStructures(
+        std::vector<NPMeshRecord>& meshes, 
+        std::vector<FLOAT4X4>& transforms, 
+        VkDeviceAddress vertexAddress, 
+        VkDeviceAddress indexAddress);
     
     // render commands recording
     void populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget);
-    void populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
-
+    void populateDrawCallRaster(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
+    void populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
+    
     // private execute draw call standalone
     void executeDrawCallSwapchain();
 };

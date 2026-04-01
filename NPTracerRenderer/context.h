@@ -88,12 +88,40 @@ public:
                                VkPipelineStageFlags2 dstStageMask,
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
+    // acceleration structures
+    void createBottomLevelAccelerationStructure(
+        VkCommandBuffer& commandBuffer, 
+        NPAccelerationStructure& handle, 
+        VkDeviceAddress vertexAddress, 
+        VkDeviceAddress indexAddress,
+        uint32_t firstVertex,
+        uint32_t vertexCount,
+        uint32_t firstIndex,
+        uint32_t indexCount);
+    
+    void createTopLevelAccelerationStructure(
+        VkCommandBuffer& commandBuffer, 
+        NPAccelerationStructure& handle, 
+        std::vector<FLOAT4X4>& transforms,
+        std::vector<NPAccelerationStructure>& blasses);
+    
     // descriptors
     void createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
     void allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout);
     void writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
     std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
-    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding, const std::vector<NPImage>& images, VkSampler& sampler);
+    void writeDescriptorSetImages(
+        VkDescriptorSet& descriptorSet, 
+        uint32_t binding, 
+        const std::vector<NPImage>& images,
+        VkSampler& sampler, 
+        VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    void writeDescriptorSetAccelerationStructures(
+        VkDescriptorSet& descriptorSet, 
+        std::unordered_map<uint32_t, NPAccelerationStructure*>& bindingASMap,
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap
+        );
     
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);

@@ -334,3 +334,42 @@ struct PendingTexture
     uint32_t height;
     TextureOwnership ownership = TextureOwnership::NONE;
 };
+
+struct ShaderBindingTable
+{
+    uint32_t handleSize;
+    uint32_t handleAlign;
+    uint32_t baseAlign;
+    
+    NPBuffer buffer;
+    VkDeviceAddress deviceAddress;
+    
+    VkStridedDeviceAddressRegionKHR rgen{};
+    VkStridedDeviceAddressRegionKHR miss{};
+    VkStridedDeviceAddressRegionKHR hit{};
+    VkStridedDeviceAddressRegionKHR callable{};
+    
+    void destroy(VmaAllocator allocator)
+    {
+        buffer.destroy(allocator);
+    }
+};
+
+struct NPAccelerationStructure
+{
+    VkAccelerationStructureKHR accelerationStructure = VK_NULL_HANDLE;
+    NPBuffer handleBuffer;
+    NPBuffer scratchBuffer;
+    VkDeviceAddress deviceAddress;
+    
+    void destroy(VkDevice device, VmaAllocator allocator)
+    {
+        if (accelerationStructure != VK_NULL_HANDLE)
+        {
+            vkDestroyAccelerationStructureKHR(device, accelerationStructure, nullptr);
+        }
+        
+        handleBuffer.destroy(allocator);
+        scratchBuffer.destroy(allocator);
+    }
+};

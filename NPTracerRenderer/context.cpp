@@ -9,13 +9,8 @@
 
 #include <algorithm>
 #include <optional>
-#include <iostream>
 #include <unordered_map>
 #include <unordered_set>
-
-// #include "../../../../../../../Program Files/Side Effects
-// Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
-#include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
 
 void Context::createWindow(GLFWwindow*& window, int width, int height)
 {
@@ -385,14 +380,13 @@ void Context::createSwapchain(GLFWwindow* window)
 void Context::recreateSwapchain(GLFWwindow* window)
 {
     int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-    while (width == 0 || height == 0)
+    do
     {
         glfwGetFramebufferSize(window, &width, &height);
         glfwWaitEvents();
-    }
+    } while (width == 0 || height == 0);
 
-    vkDeviceWaitIdle(device);
+    waitIdle();
     cleanupSwapchain();
     createSwapchain(window);
     createDepthImage(width, height);
@@ -427,13 +421,14 @@ void Context::createSyncAndFrameObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    doneRenderingSemaphores.resize(swapchainImages.size());
-    for (auto& sem : doneRenderingSemaphores)
+    const size_t kNumRenderingSemaphores = swapchainImages.size();
+    doneRenderingSemaphores.reserve(kNumRenderingSemaphores);
+    for (int i = 0; i < kNumRenderingSemaphores; i++)
     {
-        vkCreateSemaphore(device, &semInfo, nullptr, &sem);
+        vkCreateSemaphore(device, &semInfo, nullptr, &doneRenderingSemaphores[i]);
     }
 
-    frames.resize(kFrameCount);
+    frames.reserve(kFrameCount);
 
     for (int i = 0; i < kFrameCount; i++)
     {
@@ -637,8 +632,7 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
-void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height,
-                                 TextureOwnership ownership)
+void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height)
 {
     NPBuffer stagingBuffer;
     VkDeviceSize size = width * height * 4;
@@ -647,13 +641,8 @@ void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, 
                      | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     memcpy(stagingBuffer.allocInfo.pMappedData, pixels, size);
+    free(pixels);
 
-    switch (ownership)
-    {
-        case TextureOwnership::STB: stbi_image_free(pixels); break;
-        case TextureOwnership::MALLOC: free(pixels); break;
-        case TextureOwnership::NONE: break;
-    }
     createImage(handle, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 

@@ -8,8 +8,8 @@ Scene::~Scene() {}
 
 static FLOAT4X4 aiToGlm(const aiMatrix4x4& m)
 {
-    FLOAT4X4 mat = FLOAT4X4(m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3,
-                            m.a4, m.b4, m.c4, m.d4);
+    auto mat = FLOAT4X4(m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3,
+                        m.a4, m.b4, m.c4, m.d4);
     return mat;
 }
 
@@ -40,7 +40,6 @@ void Scene::loadSceneAssimp(const char* path)
     defaultTexture->pixels = pixel;
     defaultTexture->width = 1;
     defaultTexture->height = 1;
-    defaultTexture->ownership = TextureOwnership::MALLOC;
     pendingTextures.push_back(std::move(defaultTexture));
 
     // visit all nodes
@@ -183,14 +182,12 @@ void Scene::processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOA
                     texture->pixels = decodedPixels;
                     texture->width = static_cast<uint32_t>(width);
                     texture->height = static_cast<uint32_t>(height);
-                    texture->ownership = TextureOwnership::STB;
                 }
                 else
                 {
                     texture->pixels = embedded->pcData;
                     texture->width = embedded->mWidth;
                     texture->height = embedded->mHeight;
-                    texture->ownership = TextureOwnership::NONE;
                 }
             }
             else
@@ -207,7 +204,6 @@ void Scene::processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOA
                 texture->pixels = pixels;
                 texture->width = static_cast<uint32_t>(width);
                 texture->height = static_cast<uint32_t>(height);
-                texture->ownership = TextureOwnership::STB;
             }
 
             textureIndexByKey[key] = newIndex;
@@ -252,19 +248,18 @@ void Scene::processCamera(const aiScene* scene)
     {
         aiCamera* aiCam = scene->mCameras[0];
 
-        FLOAT4X4 nodeTransform = FLOAT4X4(1.0f);
+        auto nodeTransform = FLOAT4X4(1.0f);
         auto it = nodeTransforms.find(aiCam->mName.C_Str());
         if (it != nodeTransforms.end())
         {
             nodeTransform = it->second;
         }
 
-        glm::vec4 localEye4 = glm::vec4(aiCam->mPosition.x, aiCam->mPosition.y, aiCam->mPosition.z,
-                                        1.0f);
-        glm::vec4 localLook4 = glm::vec4(aiCam->mLookAt.x, aiCam->mLookAt.y, aiCam->mLookAt.z, 0.0f);
-        glm::vec4 localUp4 = glm::vec4(aiCam->mUp.x, -aiCam->mUp.y, aiCam->mUp.z, 0.0f);
+        auto localEye4 = glm::vec4(aiCam->mPosition.x, aiCam->mPosition.y, aiCam->mPosition.z, 1.0f);
+        auto localLook4 = glm::vec4(aiCam->mLookAt.x, aiCam->mLookAt.y, aiCam->mLookAt.z, 0.0f);
+        auto localUp4 = glm::vec4(aiCam->mUp.x, -aiCam->mUp.y, aiCam->mUp.z, 0.0f);
 
-        glm::vec3 eye = glm::vec3(nodeTransform * localEye4);
+        auto eye = glm::vec3(nodeTransform * localEye4);
         glm::vec3 look = glm::normalize(glm::vec3(nodeTransform * localLook4));
         glm::vec3 upVec = glm::normalize(glm::vec3(nodeTransform * localUp4));
 
@@ -317,7 +312,7 @@ bool Scene::removeMesh(const uint32_t& objectId)
     return found;
 }
 
-NPMesh const* Scene::getMeshAtIndex(int idx) const
+const NPMesh* Scene::getMeshAtIndex(int idx) const
 {
     if (idx < 0 || idx >= _meshes.size())
     {
@@ -327,7 +322,7 @@ NPMesh const* Scene::getMeshAtIndex(int idx) const
     return _meshes[idx].get();
 }
 
-NPLight const* Scene::getLightAtIndex(int idx) const
+const NPLight* Scene::getLightAtIndex(int idx) const
 {
     if (idx < 0 || idx >= _lights.size())
     {
@@ -337,7 +332,7 @@ NPLight const* Scene::getLightAtIndex(int idx) const
     return _lights[idx].get();
 }
 
-NPMaterial const* Scene::getMaterialAtIndex(int idx) const
+const NPMaterial* Scene::getMaterialAtIndex(int idx) const
 {
     if (idx < 0 || idx >= _materials.size())
     {

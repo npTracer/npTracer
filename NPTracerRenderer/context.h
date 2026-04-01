@@ -80,8 +80,7 @@ public:
                      VmaAllocationCreateFlags allocationFlags,
                      VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT,
                      bool shouldCreateView = true) const;
-    void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height,
-                            TextureOwnership ownership);
+    void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height);
     void createDepthImage(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,

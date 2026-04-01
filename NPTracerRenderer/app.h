@@ -7,8 +7,8 @@
 
 class App
 {
-    static constexpr bool enableDebug = NPTRACER_DEBUG;
-    static constexpr bool standalone = NPTRACER_STANDALONE;
+    static constexpr bool kDEBUG = NPTRACER_DEBUG;
+    static constexpr bool kSTANDALONE = NPTRACER_STANDALONE;
 
     static constexpr uint32_t WIDTH = 2560;
     static constexpr uint32_t HEIGHT = 1440;
@@ -85,7 +85,7 @@ private:
 
     // render commands recording
     void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
-    void populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
+    void populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex);
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

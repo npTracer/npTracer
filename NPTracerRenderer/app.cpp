@@ -2,11 +2,7 @@
 #include "utils.h"
 #define STB_IMAGE_IMPLEMENTATION
 
-#include <iostream>
 #include <stb_image.h>
-#include <cassert>
-
-#include "external/assimp/code/AssetLib/3MF/3MFXmlTags.h"
 
 void App::create()
 {
@@ -15,14 +11,14 @@ void App::create()
 
     // create vulkan basics
     context.setFrameCount(FRAME_COUNT);
-    if (standalone)
+    if (kSTANDALONE)
     {
         context.createWindow(window, WIDTH, HEIGHT);
     }
 
-    context.createInstance(enableDebug);
+    context.createInstance(kDEBUG);
 
-    if (standalone)
+    if (kSTANDALONE)
     {
         context.createSurface(window);
     }
@@ -31,7 +27,7 @@ void App::create()
     context.createLogicalDeviceAndQueues();
     context.createAllocator();
 
-    if (standalone)
+    if (kSTANDALONE)
     {
         context.createSwapchain(window);
     }
@@ -121,7 +117,7 @@ void App::createRenderingResources()
             lightRecords.push_back(lightRecord);
         }
     }
-    else
+    else if (kDEBUG)
     {
         numLights = 1;
 
@@ -135,6 +131,7 @@ void App::createRenderingResources()
         lightTransforms.push_back(transform);
         lightRecords.push_back(defaultLightRecord);
     }
+    else DEV_ASSERT(false, "No lights were found in scene.");
 
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
     VkDeviceSize lightTransformsSize = sizeof(lightTransforms[0]) * lightTransforms.size();
@@ -162,9 +159,9 @@ void App::createRenderingResources()
     {
         // right now NPMaterial and record are identical so just use the same struct here (still
         // looping for easy modification in the future)
-        NPMaterial material = *scene->getMaterialAtIndex(i);
+        const NPMaterial* material = scene->getMaterialAtIndex(i);
 
-        materialRecords.push_back(material);
+        materialRecords.push_back(*material);
     }
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
@@ -179,8 +176,7 @@ void App::createRenderingResources()
         NPImage textureImage;
         auto texture = scene->pendingTextures[i].get();
 
-        context.createTextureImage(textureImage, texture->pixels, texture->width, texture->height,
-                                   texture->ownership);
+        context.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
 
         textures.push_back(textureImage);
     }
@@ -610,10 +606,6 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);*/
-
-    context.endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS,
-                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                             frame.doneExecutingFence);
 }
 
 // SWAPCHAIN DRAW CALL
@@ -635,17 +627,8 @@ void App::executeDrawCallSwapchain()
         return;
     }
 
-    populateDrawCallSwapchain(frame.commandBuffer,
+    populateDrawCallSwapchain(frame,
                               imageIndex);  // record commands into frame's command buffer
-    vkResetFences(context.device, 1,
-                  &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
-    // new queue submission
-
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
-                             frame.doneExecutingFence, frame.donePresentingSemaphore,
-                             context.doneRenderingSemaphores[imageIndex]);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -668,12 +651,12 @@ void App::executeDrawCallSwapchain()
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t imageIndex)
+void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
 {
-    vkResetCommandBuffer(commandBuffer, 0);
-    context.beginCommandBuffer(commandBuffer);
+    vkResetCommandBuffer(frame.commandBuffer, 0);
+    context.beginCommandBuffer(frame.commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, context.swapchainImages[imageIndex],
+    context.transitionImageLayout(frame.commandBuffer, context.swapchainImages[imageIndex],
                                   VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
@@ -712,8 +695,8 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
     renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
     // record commands
-    vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+    vkCmdBeginRendering(frame.commandBuffer, &renderingInfo);
+    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
 
     VkViewport viewport{ 0.0f,
                          0.0f,
@@ -724,33 +707,41 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
 
     VkRect2D scissor{ { 0, 0 }, context.swapchainParams.extent };
 
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    vkCmdSetViewport(frame.commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0,
-                            static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0,
-                            nullptr);
+    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout,
+                            0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(),
+                            0, nullptr);
 
     for (size_t i = 0; i < indexCounts.size(); i++)
     {
         std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), numLights };
-        vkCmdPushConstants(commandBuffer, pipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0,
+        vkCmdPushConstants(frame.commandBuffer, pipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0,
                            sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
                            pushConstants.data());
-        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
+        vkCmdDraw(frame.commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
 
-    vkCmdEndRendering(commandBuffer);
+    vkCmdEndRendering(frame.commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, context.swapchainImages[imageIndex],
+    context.transitionImageLayout(frame.commandBuffer, context.swapchainImages[imageIndex],
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
-    vkEndCommandBuffer(commandBuffer);
+    vkResetFences(
+        context.device, 1,
+        &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
+
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence, frame.donePresentingSemaphore,
+                             context.doneRenderingSemaphores[imageIndex]);
 }
 
 void App::destroy()
@@ -847,7 +838,7 @@ void App::render()
 
 void App::run()
 {
-    if (standalone)
+    if (kSTANDALONE)
     {
         render();
     }

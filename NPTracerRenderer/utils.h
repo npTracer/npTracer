@@ -22,7 +22,7 @@
         DEV_ASSERT(vkRes == VK_SUCCESS, "[%i] " _msg, vkRes, ##__VA_ARGS__);                       \
     } while (0)
 
-#ifdef NDEBUG
+#ifdef NPTRACER_DEBUG
 #define DBG_PRINT(...)                                                                             \
     do                                                                                             \
     {                                                                                              \

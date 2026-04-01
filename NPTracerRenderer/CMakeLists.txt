@@ -47,12 +47,7 @@ set(STB_HEADERS
     "${NPTracer_EXTERNAL_DIR}/stb/stb_image.h"
 )
 
-add_library(${PROJECT_NAME} STATIC ${LIB_SOURCES} ${LIB_HEADERS})
-
-# fix this later
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    WINDOWS_EXPORT_ALL_SYMBOLS ON
-)
+add_library(${PROJECT_NAME} ${LIB_SOURCES} ${LIB_HEADERS})
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
@@ -78,21 +73,11 @@ foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
 endforeach()
 
-# Incremental target: only rebuilds when outputs are stale
 get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
-add_custom_target(${COMPILE_SHADERS_TARGET} DEPENDS ${ALL_SPV_OUTPUTS})
-
-# Manual target: always runs the shader compiler commands when invoked
-get_property(ALL_SHADER_COMMANDS GLOBAL PROPERTY ALL_SHADER_COMMANDS)
-add_custom_target(CompileShadersManual
-    ${ALL_SHADER_COMMANDS}
-    COMMENT "Manually recompiling all Slang shaders"
-    VERBATIM
-)
+add_custom_target(${COMPILE_SHADERS_TARGET} ALL DEPENDS ${ALL_SPV_OUTPUTS})
 
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
-set_target_properties(CompileShadersManual PROPERTIES FOLDER "utility")
 
 add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 
@@ -150,7 +135,7 @@ install(FILES "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
 
-option(NPTRACER_STANDALONE "Make NPTracer be callable rather than using swapchain" OFF)
+option(NPTRACER_STANDALONE "Compile NPTracer with standalone swapchain runtime." OFF)
 
 target_compile_definitions(${PROJECT_NAME}
     PUBLIC

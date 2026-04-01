@@ -11,23 +11,23 @@
 #include <assimp/postprocess.h>
 #include <unordered_map>
 
+// assimp loading
+struct AssimpMeshInstance
+{
+    const aiMesh* mesh;
+    FLOAT4X4 transform;
+    std::string nodeName;
+};
+
 class Scene
 {
 public:
     Scene();
     ~Scene();
 
-    // assimp loading
-    struct PendingMeshInstance
-    {
-        const aiMesh* mesh;
-        FLOAT4X4 transform;
-        std::string nodeName;
-    };
-
     std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
     std::vector<std::unique_ptr<PendingTexture>> pendingTextures;
-    std::vector<PendingMeshInstance> pendingMeshes;
+    std::vector<AssimpMeshInstance> pendingMeshes;
     std::unordered_map<std::string, uint32_t> textureIndexByKey;
 
     void loadSceneAssimp(const char* path);

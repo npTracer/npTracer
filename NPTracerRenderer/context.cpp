@@ -2,16 +2,16 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "context.h"
-
 #include "utils.h"
 
 #include <glm/glm.hpp>
+#include <stb_image.h>
 
 #include <algorithm>
 #include <optional>
 #include <iostream>
 #include <unordered_map>
-#include <stb_image.h>
+#include <unordered_set>
 
 // #include "../../../../../../../Program Files/Side Effects
 // Software/Houdini 21.0.596/toolkit/include/oneapi/tbb/detail/_task.h"
@@ -24,7 +24,7 @@ void Context::createWindow(GLFWwindow*& window, int width, int height)
     window = glfwCreateWindow(width, height, "Engine", nullptr, nullptr);
 
     glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    glfwSetFramebufferSizeCallback(window, sFramebufferResizeCallback);
 }
 
 // VULKAN
@@ -167,17 +167,6 @@ void Context::createLogicalDeviceAndQueues()
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
-    if (transferQueue)
-    {
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = transferQueue.index.value();
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
-
-        queueCreateInfos.emplace_back(queueCreateInfo);
-    }
-
     VkPhysicalDeviceDescriptorBufferPropertiesEXT descriptorBufferProperties{};
     descriptorBufferProperties.sType
         = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
@@ -222,7 +211,7 @@ void Context::createLogicalDeviceAndQueues()
     features2.features.shaderInt64 = VK_TRUE;
     features2.features.samplerAnisotropy = true;
 
-    // TODO add more device extensions
+    // TODO: add more device extensions
     std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME,
                                                           VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
                                                           VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME };
@@ -241,20 +230,15 @@ void Context::createLogicalDeviceAndQueues()
 
     for (auto& [type, queue] : queues)
     {
-        throw std::runtime_error("failed to create logical device");
-    }
-
-    if (graphicsQueue)
-    {
-        vkGetDeviceQueue(device, graphicsQueue.index.value(), 0, &graphicsQueue.queue);
+        if (!queue) continue;
+        vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
 
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = graphicsQueue.index.value();
+        poolInfo.queueFamilyIndex = queue.index.value();
 
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsQueue.commandPool)
-            != VK_SUCCESS)
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
         {
             vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
 
@@ -449,9 +433,9 @@ void Context::createSyncAndFrameObjects()
         vkCreateSemaphore(device, &semInfo, nullptr, &sem);
     }
 
-    frames.resize(FRAME_COUNT);
+    frames.resize(kFrameCount);
 
-    for (int i = 0; i < FRAME_COUNT; i++)
+    for (int i = 0; i < kFrameCount; i++)
     {
         NPFrame& frame = frames[i];
 
@@ -497,15 +481,20 @@ void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferU
 }
 
 void Context::endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily,
-                               VkPipelineStageFlags waitDstFlags, VkFence fence)
+                               VkPipelineStageFlags waitDstFlags, VkFence fence,
+                               VkSemaphore waitSemaphores, VkSemaphore signalSemaphores)
 {
     vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
     submitInfo.pWaitDstStageMask = &waitDstFlags;
+    submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.waitSemaphoreCount = waitSemaphores ? 1 : 0;
+    submitInfo.pWaitSemaphores = &waitSemaphores;
+    submitInfo.signalSemaphoreCount = signalSemaphores ? 1 : 0;
+    submitInfo.pSignalSemaphores = &signalSemaphores;
 
     VK_CHECK(vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, fence),
              "failed to submit command buffer\n");
@@ -1049,7 +1038,7 @@ void Context::destroy()
 {
     cleanupSwapchain();
 
-    for (int i = 0; i < FRAME_COUNT; i++)
+    for (int i = 0; i < kFrameCount; i++)
     {
         frames[i].destroy(device, allocator);
     }
@@ -1096,7 +1085,7 @@ void Context::destroy()
     }
 }
 
-void Context::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+void Context::sFramebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
     auto* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
     context->framebufferResized = true;

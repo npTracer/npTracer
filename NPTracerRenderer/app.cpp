@@ -55,7 +55,7 @@ void App::createRenderingResources()
     std::vector<FLOAT4X4> globalTransforms;
     for (int i = 0; i < meshCount; i++)
     {
-        NPMesh const* mesh = scene->getMeshAtIndex(i);
+        const NPMesh* mesh = scene->getMeshAtIndex(i);
 
         NPMeshRecord meshRecord{};
         meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
@@ -133,7 +133,7 @@ void App::createRenderingResources()
         defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
         defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
 
-        FLOAT4X4 transform = FLOAT4X4(1.0);
+        auto transform = FLOAT4X4(1.0);
         transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
         lightTransforms.push_back(transform);
         lightRecords.push_back(defaultLightRecord);
@@ -525,34 +525,23 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 
     NPImage* renderTarget = aovs->color;
 
-    populateDrawCallCallable(frame.commandBuffer, renderTarget);
+    populateDrawCallCallable(frame, renderTarget);
 
     vkResetFences(context.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
     // new queue submission
 
-    NPImage* renderTarget = aovs.color;
-
-    populateDrawCall(frame, renderTarget);
-
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-
-    // signal that rendering is finished once execution is finished
-    vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
-                  frame.doneExecutingFence);
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence);
 
     // increment frame (within ring)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
-void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
+void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 {
     VkCommandBuffer& commandBuffer = frame.commandBuffer;
     vkResetCommandBuffer(commandBuffer, 0);
@@ -663,25 +652,9 @@ void App::executeDrawCallSwapchain()
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores
-        = &frame.donePresentingSemaphore;  // wait until image is no longer being presented
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores
-        = &context.doneRenderingSemaphores[imageIndex];  // signal when rendering finishes
-
-    VkResult submitResult = vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1,
-                                          &submitInfo, frame.doneExecutingFence);
-    if (submitResult != VK_SUCCESS)
-    {
-        std::cout << "vkQueueSubmit failed with code: " << submitResult << "\n";
-        throw std::runtime_error("vkQueueSubmit failed");
-    }
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence, frame.donePresentingSemaphore,
+                             context.doneRenderingSemaphores[imageIndex]);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -753,8 +726,8 @@ void App::populateDrawCallSwapchain(VkCommandBuffer& commandBuffer, uint32_t ima
 
     VkViewport viewport{ 0.0f,
                          0.0f,
-                         (float)context.swapchainParams.extent.width,
-                         (float)context.swapchainParams.extent.height,
+                         static_cast<float>(context.swapchainParams.extent.width),
+                         static_cast<float>(context.swapchainParams.extent.height),
                          0.0f,
                          1.0f };
 

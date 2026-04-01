@@ -61,7 +61,9 @@ public:
     void createCommandBuffer(VkCommandBuffer& commandBuffer, NPQueueType queueFamily);
     void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
     void endCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily,
-                          VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE);
+                          VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE,
+                          VkSemaphore waitSemaphores = VK_NULL_HANDLE,
+                          VkSemaphore signalSemaphores = VK_NULL_HANDLE);
     void freeCommandBuffer(VkCommandBuffer commandBuffer, NPQueueType queueFamily);
 
     // buffers
@@ -114,7 +116,7 @@ public:
     void destroy();
 
 private:
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+    static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;

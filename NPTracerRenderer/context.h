@@ -16,6 +16,7 @@ class Context
 public:
     int kFrameCount;
     bool framebufferResized = false;
+    uint32_t frameIndex = 0;
 
     // vulkan basics
     VkInstance instance = VK_NULL_HANDLE;
@@ -25,6 +26,7 @@ public:
     VmaAllocator allocator = VK_NULL_HANDLE;
     NPImage depthImage;
     NPImage resultImage;
+    NPImage accumulationImage;
     VkFormat depthFormat;
     VkDescriptorSet rtDescriptorSet;
     std::vector<NPFrame> frames;
@@ -85,7 +87,7 @@ public:
                      bool shouldCreateView = true) const;
     void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height);
     void createDepthImage(uint32_t width, uint32_t height);
-    void createResultImage();
+    void createResultImages();
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                            uint32_t width, uint32_t height);

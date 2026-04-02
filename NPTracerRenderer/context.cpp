@@ -464,10 +464,11 @@ void Context::recreateSwapchain(GLFWwindow* window)
     cleanupSwapchain();
     createSwapchain(window);
     createDepthImage(width, height);
-    createResultImage();
+    createResultImages();
     
-    std::vector<NPImage> resultImages{resultImage};
+    std::vector<NPImage> resultImages{resultImage, accumulationImage};
     writeDescriptorSetImages(rtDescriptorSet, 1, resultImages, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
+    frameIndex = 0;
 }
 
 void Context::cleanupSwapchain()
@@ -486,6 +487,11 @@ void Context::cleanupSwapchain()
     if (resultImage.image != VK_NULL_HANDLE)
     {
         resultImage.destroy(device, allocator);
+    }
+    
+    if (accumulationImage.image != VK_NULL_HANDLE)
+    {
+        accumulationImage.destroy(device, allocator);
     }
     
     if (swapchain != VK_NULL_HANDLE)
@@ -795,34 +801,39 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
 }
 
-void Context::createResultImage()
+void Context::createResultImages()
 {
-    // result image
-    createImage(
-        resultImage, 
-        VK_IMAGE_TYPE_2D, 
-        VK_FORMAT_R8G8B8A8_UNORM, 
-        swapchainParams.extent.width,
-        swapchainParams.extent.height,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-        VK_IMAGE_ASPECT_COLOR_BIT
-        );
+    std::vector<NPImage*> handles {&resultImage, &accumulationImage};
     
     VkCommandBuffer commandBuffer;
     createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     beginCommandBuffer(commandBuffer);
     
-    transitionImageLayout(
-        commandBuffer,
-        resultImage.image,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_GENERAL,
-        0,
-        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-        VK_IMAGE_ASPECT_COLOR_BIT
-    );
+    for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); i++)
+    {
+        // result image
+        createImage(
+            *handles[i], 
+            VK_IMAGE_TYPE_2D, 
+            VK_FORMAT_R8G8B8A8_UNORM, 
+            swapchainParams.extent.width,
+            swapchainParams.extent.height,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT
+            );
+        
+        transitionImageLayout(
+            commandBuffer,
+            handles[i]->image,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_GENERAL,
+            0,
+            VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+            VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+            VK_IMAGE_ASPECT_COLOR_BIT
+        );
+    }
     
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);

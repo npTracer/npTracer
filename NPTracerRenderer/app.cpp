@@ -36,7 +36,7 @@ void App::create()
 
     context.createSyncAndFrameObjects();
     context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
-    context.createResultImage();
+    context.createResultImages();
     context.createTextureSampler(sampler);
     context.waitIdle();
 }
@@ -253,7 +253,7 @@ void App::createRenderingResources()
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -292,7 +292,7 @@ void App::createRenderingResources()
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR;
         b1.pImmutableSamplers = nullptr;
         
         bindings[0] = b0;
@@ -368,7 +368,7 @@ void App::createRenderingResources()
         b0.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
         b0.pImmutableSamplers = nullptr;
         
-        // images
+        // result image
         VkDescriptorSetLayoutBinding b1{};
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -376,8 +376,17 @@ void App::createRenderingResources()
         b1.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;;
         b1.pImmutableSamplers = nullptr;
         
+        // accumulation image
+        VkDescriptorSetLayoutBinding b2{};
+        b2.binding = 2;
+        b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        b2.descriptorCount = 1;
+        b2.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;;
+        b2.pImmutableSamplers = nullptr;
+        
         bindings[0] = b0;
         bindings[1] = b1;
+        bindings[2] = b2;
         
         context.createDescriptorSetLayout(descriptorSetLayout, bindings);
         descriptorSetLayouts.push_back(descriptorSetLayout);
@@ -391,7 +400,7 @@ void App::createRenderingResources()
 
         context.writeDescriptorSetAccelerationStructures(context.rtDescriptorSet, bindingASMap, bindings);
         
-        std::vector<NPImage> resultImages{context.resultImage};
+        std::vector<NPImage> resultImages{context.resultImage, context.accumulationImage};
         context.writeDescriptorSetImages(context.rtDescriptorSet, 1, resultImages, &sampler, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
         
         descriptorSets.push_back(context.rtDescriptorSet);
@@ -508,7 +517,7 @@ void App::createGraphicsPipeline()
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = 2 * sizeof(uint32_t);
+    pushConstantRange.size = 3 * sizeof(uint32_t);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -569,7 +578,7 @@ void App::createRTPipeline()
         VK_SHADER_STAGE_MISS_BIT_KHR |
         VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = 2 * sizeof(uint32_t);
+    pushConstantRange.size = 3 * sizeof(uint32_t);
     
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -584,6 +593,8 @@ void App::createRTPipeline()
     VkShaderModule rgenModule = context.createShaderModule(readFile(NPTRACER_SHADER_RT_RGEN));
     VkShaderModule missModule = context.createShaderModule(readFile(NPTRACER_SHADER_RT_MISS));
     VkShaderModule hitModule = context.createShaderModule(readFile(NPTRACER_SHADER_RT_HIT));
+    VkShaderModule shadowHitModule = context.createShaderModule(readFile(NPTRACER_SHADER_RT_SHADOWHIT));
+    VkShaderModule shadowMissModule = context.createShaderModule(readFile(NPTRACER_SHADER_RT_SHADOWMISS));
     
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     
@@ -603,13 +614,29 @@ void App::createRTPipeline()
     missInfo.pName = "missMain";
     shaderStages.push_back(missInfo);
     
-    // STAGE 2: Hit
+    // STAGE 2: Shadow Miss
+    VkPipelineShaderStageCreateInfo shadowMissInfo{};
+    shadowMissInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shadowMissInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+    shadowMissInfo.module = shadowMissModule;
+    shadowMissInfo.pName = "shadowmissMain";
+    shaderStages.push_back(shadowMissInfo);
+    
+    // STAGE 3: Hit
     VkPipelineShaderStageCreateInfo hitInfo{};
     hitInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     hitInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
     hitInfo.module = hitModule;
     hitInfo.pName = "hitMain";
     shaderStages.push_back(hitInfo);
+    
+    // STAGE 4: Shadow Hit
+    VkPipelineShaderStageCreateInfo shadowHitInfo{};
+    shadowHitInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shadowHitInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    shadowHitInfo.module = shadowHitModule;
+    shadowHitInfo.pName = "shadowhitMain";
+    shaderStages.push_back(shadowHitInfo);
     
     // groups
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups;
@@ -634,15 +661,35 @@ void App::createRTPipeline()
     missGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
     groups.push_back(missGroup);
     
-    // GROUP 2: Hit
+    // GROUP 2: Shadow Miss
+    VkRayTracingShaderGroupCreateInfoKHR shadowMissGroup{};
+    shadowMissGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    shadowMissGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    shadowMissGroup.generalShader = 2;
+    shadowMissGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+    shadowMissGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    shadowMissGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(shadowMissGroup);
+    
+    // GROUP 3: Hit
     VkRayTracingShaderGroupCreateInfoKHR hitGroup{};
     hitGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
     hitGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
     hitGroup.generalShader = VK_SHADER_UNUSED_KHR;
-    hitGroup.closestHitShader = 2;
+    hitGroup.closestHitShader = 3;
     hitGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
     hitGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
     groups.push_back(hitGroup);
+    
+    // GROUP 4: Shadow Hit
+    VkRayTracingShaderGroupCreateInfoKHR shadowHitGroup{};
+    shadowHitGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    shadowHitGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    shadowHitGroup.generalShader = VK_SHADER_UNUSED_KHR;
+    shadowHitGroup.closestHitShader = 4;
+    shadowHitGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    shadowHitGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(shadowHitGroup);
     
     VkRayTracingPipelineCreateInfoKHR pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
@@ -650,7 +697,7 @@ void App::createRTPipeline()
     pipelineInfo.pStages = shaderStages.data();
     pipelineInfo.groupCount = static_cast<uint32_t>(groups.size());
     pipelineInfo.pGroups = groups.data();
-    pipelineInfo.maxPipelineRayRecursionDepth = 2; // TODO: change accordingly
+    pipelineInfo.maxPipelineRayRecursionDepth = 3; // TODO: change accordingly
     pipelineInfo.layout = rtPipeline.layout;
     
     if (context.vkCreateRayTracingPipelinesKHR(context.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rtPipeline.pipeline) != VK_SUCCESS)
@@ -683,8 +730,8 @@ void App::createRTPipeline()
     VkDeviceSize hitStride = alignUp(sbt.handleSize, sbt.handleAlign);
     
     VkDeviceSize rgenSize = rgenStride * 1; // TODO: writing explicitly here for clarity
-    VkDeviceSize missSize = missStride * 1;
-    VkDeviceSize hitSize = hitStride * 1;
+    VkDeviceSize missSize = missStride * 2;
+    VkDeviceSize hitSize = hitStride * 2;
     
     VkDeviceSize rgenOffset = 0;
     VkDeviceSize missOffset = alignUpVk(rgenOffset + rgenSize, sbt.baseAlign);
@@ -695,12 +742,16 @@ void App::createRTPipeline()
     std::vector<uint8_t> sbtBlob(sbtSize, 0);
     
     const uint8_t* rgenHandle = shaderHandleStorage.data() + sbt.handleSize * 0;
-    const uint8_t* missHandle = shaderHandleStorage.data() + sbt.handleSize * 1;
-    const uint8_t* hitHandle = shaderHandleStorage.data() + sbt.handleSize * 2;
-    
+    const uint8_t* primaryMissHandle = shaderHandleStorage.data() + sbt.handleSize * 1;
+    const uint8_t* shadowMissHandle = shaderHandleStorage.data() + sbt.handleSize * 2;
+    const uint8_t* primaryHitHandle = shaderHandleStorage.data() + sbt.handleSize * 3;
+    const uint8_t* shadowHitHandle = shaderHandleStorage.data() + sbt.handleSize * 4;
+
     std::memcpy(sbtBlob.data() + rgenOffset, rgenHandle, sbt.handleSize);
-    std::memcpy(sbtBlob.data() + missOffset, missHandle, sbt.handleSize);
-    std::memcpy(sbtBlob.data() + hitOffset, hitHandle, sbt.handleSize);
+    std::memcpy(sbtBlob.data() + missOffset + missStride * 0, primaryMissHandle, sbt.handleSize);
+    std::memcpy(sbtBlob.data() + missOffset + missStride * 1, shadowMissHandle, sbt.handleSize);
+    std::memcpy(sbtBlob.data() + hitOffset + hitStride * 0, primaryHitHandle, sbt.handleSize);
+    std::memcpy(sbtBlob.data() + hitOffset + hitStride * 1, shadowHitHandle, sbt.handleSize);
     
     if (!context.createDeviceLocalBuffer(sbt.buffer, sbtBlob.data(), sbtSize, VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))
     {
@@ -728,6 +779,8 @@ void App::createRTPipeline()
     vkDestroyShaderModule(context.device, rgenModule, nullptr);
     vkDestroyShaderModule(context.device, missModule, nullptr);
     vkDestroyShaderModule(context.device, hitModule, nullptr);
+    vkDestroyShaderModule(context.device, shadowHitModule, nullptr);
+    vkDestroyShaderModule(context.device, shadowMissModule, nullptr);
 }
 
 void App::createAccelerationStructures(
@@ -801,7 +854,7 @@ void App::createAccelerationStructures(
 void App::executeDrawCallCallable(NPRendererAovs* aovs)
 {
     // grab a frame
-    NPFrame& frame = context.getCurrentFrame(currentFrame);
+    NPFrame& frame = context.getCurrentFrame(currentRingFrame);
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -820,7 +873,7 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
                              frame.doneExecutingFence);
 
     // increment frame (within ring)
-    currentFrame = (currentFrame + 1) % FRAME_COUNT;
+    currentRingFrame = (currentRingFrame + 1) % FRAME_COUNT;
 }
 
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
@@ -915,7 +968,7 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 void App::executeDrawCallSwapchain()
 {
     // grab a frame
-    NPFrame& frame = context.frames[currentFrame];
+    NPFrame& frame = context.frames[currentRingFrame];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -971,7 +1024,8 @@ void App::executeDrawCallSwapchain()
     }
 
     // increment frame (within ring)
-    currentFrame = (currentFrame + 1) % FRAME_COUNT;
+    currentRingFrame = (currentRingFrame + 1) % FRAME_COUNT;
+    context.frameIndex++;
 }
 
 void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
@@ -1039,7 +1093,7 @@ void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
     
     for (size_t i = 0; i < indexCounts.size(); i++)
     {
-        std::vector<uint32_t> pushConstants{static_cast<uint32_t>(i), numLights};
+        std::vector<uint32_t> pushConstants{static_cast<uint32_t>(i), numLights, context.frameIndex};
         vkCmdPushConstants(frame.commandBuffer, rasterPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()), pushConstants.data());
         vkCmdDraw(frame.commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
@@ -1073,7 +1127,7 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rtPipeline.layout, 0, static_cast<uint32_t>(descriptorSets.size()),
                         descriptorSets.data(), 0, nullptr);
     
-    std::vector<uint32_t> pushConstants{static_cast<uint32_t>(0), numLights};
+    std::vector<uint32_t> pushConstants{static_cast<uint32_t>(0), numLights, context.frameIndex};
     vkCmdPushConstants(
         commandBuffer,
         rtPipeline.layout,

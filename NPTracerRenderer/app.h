@@ -46,8 +46,8 @@ public:
 private:
     static constexpr int FRAME_COUNT = 2;
     static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
-    uint32_t currentFrame = 0;
-
+    uint32_t currentRingFrame = 0;
+    
     Context context;
     GLFWwindow* window = nullptr;
 

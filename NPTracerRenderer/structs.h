@@ -320,6 +320,13 @@ struct NPLight
     uint32_t lightId;
 };
 
+struct NPTexture
+{
+    void* pixels;
+    uint32_t width;
+    uint32_t height;
+};
+
 enum class NPStylizationFunction : uint8_t
 {
     PASSTHROUGH
@@ -344,7 +351,7 @@ struct NPRendererAovs
 
 struct SwapchainParams
 {
-    VkSurfaceFormatKHR format;
+    VkSurfaceFormatKHR surfaceFormat;
     VkPresentModeKHR presentMode;
     VkExtent2D extent;
     VkFormat depthFormat;
@@ -367,20 +374,4 @@ struct NPDescriptorSetLayout
             vkDestroyDescriptorSetLayout(device, layout, nullptr);
         }
     }
-};
-
-enum class TextureOwnership
-{
-    NONE,
-    STB,
-    MALLOC
-};
-
-// TODO: move this to scene
-struct PendingTexture
-{
-    void* pixels;
-    uint32_t width;
-    uint32_t height;
-    TextureOwnership ownership = TextureOwnership::NONE;
 };

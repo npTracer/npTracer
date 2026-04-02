@@ -1,48 +1,37 @@
 #include "app.h"
 #include "utils.h"
-#define STB_IMAGE_IMPLEMENTATION
+#include "assimp_scene.h"
 
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-void App::create()
+void App::create(bool isStandalone)
 {
     // define `scene`
-    scene = std::make_unique<Scene>();
+    mpScene = isStandalone ? std::make_unique<AssimpScene>() : std::make_unique<Scene>();
 
     // create vulkan basics
-    context.setFrameCount(FRAME_COUNT);
-    if (kSTANDALONE)
-    {
-        context.createWindow(window, WIDTH, HEIGHT);
-    }
+    mContext.setFrameCount(FRAME_COUNT);
+    if (isStandalone) mContext.createWindow(mpContext, kWIDTH, kHEIGHT);
+    mContext.createInstance(kDEBUG);
+    if (isStandalone) mContext.createSurface(mpContext);
+    mContext.createPhysicalDevice();
+    mContext.createLogicalDeviceAndQueues();
+    mContext.createAllocator();
+    if (isStandalone) mContext.createSwapchain(mpContext);
+    mContext.createSyncAndFrameObjects();
+    mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
+    mContext.createTextureSampler(mSampler);
+    mContext.waitIdle();
 
-    context.createInstance(kDEBUG);
-
-    if (kSTANDALONE)
-    {
-        context.createSurface(window);
-    }
-
-    context.createPhysicalDevice();
-    context.createLogicalDeviceAndQueues();
-    context.createAllocator();
-
-    if (kSTANDALONE)
-    {
-        context.createSwapchain(window);
-    }
-
-    context.createSyncAndFrameObjects();
-    context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
-    context.createTextureSampler(sampler);
-    context.waitIdle();
+    mIsStandalone = isStandalone;
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources()
+void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
 {
     // GEOMETRY
-    const size_t meshCount = scene->getMeshCount();
+    const size_t meshCount = mpScene->getMeshCount();
     std::vector<NPMeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
 
@@ -51,7 +40,7 @@ void App::createRenderingResources()
     std::vector<FLOAT4X4> globalTransforms;
     for (int i = 0; i < meshCount; i++)
     {
-        const NPMesh* mesh = scene->getMeshAtIndex(i);
+        const NPMesh* mesh = mpScene->getMeshAtIndex(i);
 
         NPMeshRecord meshRecord{};
         meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
@@ -69,7 +58,7 @@ void App::createRenderingResources()
         }
 
         // temp
-        indexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
+        mIndexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
 
         // transforms
         globalTransforms.push_back(mesh->objectToWorld);
@@ -79,8 +68,8 @@ void App::createRenderingResources()
 
     VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
     bool meshRecordBufferCreated
-        = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize,
-                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        = mContext.createDeviceLocalBuffer(mMeshRecordBuffer, meshRecords.data(), meshRecordSize,
+                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.");
 
@@ -88,16 +77,16 @@ void App::createRenderingResources()
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
     VkDeviceSize transformBufferSize = sizeof(globalTransforms[0]) * globalTransforms.size();
 
-    context.createDeviceLocalBuffer(vertexBuffer, globalVertices.data(), vertexBufferSize,
-                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    context.createDeviceLocalBuffer(indexBuffer, globalIndices.data(), indexBufferSize,
-                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    context.createDeviceLocalBuffer(geometryTransformsBuffer, globalTransforms.data(),
-                                    transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(mVertexBuffer, globalVertices.data(), vertexBufferSize,
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(mIndexBuffer, globalIndices.data(), indexBufferSize,
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(mGeometryTransformsBuffer, globalTransforms.data(),
+                                     transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // LIGHTS
-    const size_t lightCount = scene->getLightCount();
-    numLights = static_cast<uint32_t>(lightCount);  // push constant
+    const size_t lightCount = mpScene->getLightCount();
+    mNumLights = static_cast<uint32_t>(lightCount);  // push constant
     std::vector<NPLightRecord> lightRecords;
     meshRecords.reserve(meshCount);
     std::vector<FLOAT4X4> lightTransforms;
@@ -106,7 +95,7 @@ void App::createRenderingResources()
     {
         for (uint32_t i = 0; i < lightCount; i++)
         {
-            const NPLight* light = scene->getLightAtIndex(i);
+            const NPLight* light = mpScene->getLightAtIndex(i);
 
             NPLightRecord lightRecord;
             lightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
@@ -119,7 +108,7 @@ void App::createRenderingResources()
     }
     else if (kDEBUG)
     {
-        numLights = 1;
+        mNumLights = 1;
 
         NPLightRecord defaultLightRecord;
         defaultLightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
@@ -136,22 +125,22 @@ void App::createRenderingResources()
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
     VkDeviceSize lightTransformsSize = sizeof(lightTransforms[0]) * lightTransforms.size();
 
-    context.createDeviceLocalBuffer(lightRecordBuffer, lightRecords.data(), lightRecordBufferSize,
-                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    context.createDeviceLocalBuffer(lightTransformsBuffer, lightTransforms.data(),
-                                    lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(mLightRecordBuffer, lightRecords.data(), lightRecordBufferSize,
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(mLightTransformsBuffer, lightTransforms.data(),
+                                     lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // CAMERA
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
     bool cameraRecordBufferCreated
-        = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize,
-                                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        = mContext.createDeviceLocalBuffer(mCameraRecordBuffer, mpScene->getCamera(), cameraSize,
+                                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.");
 
     // MATERIALS
 
-    const size_t materialCount = scene->getMaterialCount();
+    const size_t materialCount = mpScene->getMaterialCount();
     std::vector<NPMaterial> materialRecords;
     materialRecords.reserve(materialCount);
 
@@ -159,26 +148,26 @@ void App::createRenderingResources()
     {
         // right now NPMaterial and record are identical so just use the same struct here (still
         // looping for easy modification in the future)
-        const NPMaterial* material = scene->getMaterialAtIndex(i);
+        const NPMaterial* material = mpScene->getMaterialAtIndex(i);
 
         materialRecords.push_back(*material);
     }
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
-    context.createDeviceLocalBuffer(materialRecordsBuffer, materialRecords.data(),
-                                    materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(mMaterialRecordsBuffer, materialRecords.data(),
+                                     materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // TEXTURES
-    uint32_t textureCount = static_cast<uint32_t>(scene->pendingTextures.size());
-    textures.reserve(textureCount);
-    for (uint32_t i = 0; i < textureCount; i++)
+    size_t textureCount = mpScene->getTextureCount();
+    mTextures.reserve(textureCount);
+    for (size_t i = 0; i < textureCount; i++)
     {
         NPImage textureImage;
-        auto texture = scene->pendingTextures[i].get();
+        auto texture = mpScene->getTextureAtIndex(i);
 
-        context.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
+        mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
 
-        textures.push_back(textureImage);
+        mTextures.push_back(textureImage);
     }
 
     // SET 0: Mesh Records
@@ -220,22 +209,22 @@ void App::createRenderingResources()
         bindings[2] = b2;
         bindings[3] = b3;
 
-        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
-        descriptorSetLayouts.push_back(descriptorSetLayout);
+        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
-        bindingBufferMap[0] = &meshRecordBuffer;
-        bindingBufferMap[1] = &vertexBuffer;
-        bindingBufferMap[2] = &indexBuffer;
-        bindingBufferMap[3] = &geometryTransformsBuffer;
+        bindingBufferMap[0] = &mMeshRecordBuffer;
+        bindingBufferMap[1] = &mVertexBuffer;
+        bindingBufferMap[2] = &mIndexBuffer;
+        bindingBufferMap[3] = &mGeometryTransformsBuffer;
 
-        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
-        descriptorSets.push_back(descriptorSet);
+        mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 1 : LIGHTS
@@ -261,20 +250,20 @@ void App::createRenderingResources()
         bindings[0] = b0;
         bindings[1] = b1;
 
-        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
-        descriptorSetLayouts.push_back(descriptorSetLayout);
+        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
-        bindingBufferMap[0] = &lightRecordBuffer;
-        bindingBufferMap[1] = &lightTransformsBuffer;
+        bindingBufferMap[0] = &mLightRecordBuffer;
+        bindingBufferMap[1] = &mLightTransformsBuffer;
 
-        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
-        descriptorSets.push_back(descriptorSet);
+        mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 2: CAMERA
@@ -292,20 +281,20 @@ void App::createRenderingResources()
 
         bindings[0] = b0;
 
-        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
-        descriptorSetLayouts.push_back(descriptorSetLayout);
+        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         // create descriptor set
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
-        bindingBufferMap[0] = &cameraRecordBuffer;
+        bindingBufferMap[0] = &mCameraRecordBuffer;
 
-        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
-        descriptorSets.push_back(descriptorSet);
+        mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 3: MATERIALS AND TEXTURES
@@ -325,39 +314,50 @@ void App::createRenderingResources()
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         b1.descriptorCount = static_cast<uint32_t>(
-            textures.size());  // TODO: this one SHOULD be a variable size descriptor
+            mTextures.size());  // TODO: this one SHOULD be a variable size descriptor
         b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         b1.pImmutableSamplers = nullptr;
 
         bindings[0] = b0;
         bindings[1] = b1;
 
-        context.createDescriptorSetLayout(descriptorSetLayout, bindings);
-        descriptorSetLayouts.push_back(descriptorSetLayout);
+        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        context.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         // create descriptor set
         std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
-        bindingBufferMap[0] = &materialRecordsBuffer;
+        bindingBufferMap[0] = &mMaterialRecordsBuffer;
 
-        context.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
-        context.writeDescriptorSetImages(descriptorSet, 1, textures,
-                                         sampler);  // write all textures
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetImages(descriptorSet, 1, mTextures,
+                                          mSampler);  // write all textures
 
-        descriptorSets.push_back(descriptorSet);
+        mDescriptorSets.push_back(descriptorSet);
     }
 
-    createGraphicsPipeline();
+    if (mIsStandalone)
+    {
+        createGraphicsPipeline(mContext.swapchainParams.extent.width,
+                               mContext.swapchainParams.extent.height,
+                               mContext.swapchainParams.surfaceFormat.format);
+    }
+    else
+    {
+        DEV_ASSERT(aovsRef.has_value(), "no `aovs` given in non-standalone mode.");
+        NPRendererAovs& aovs = aovsRef.value().get();
+        createGraphicsPipeline(aovs.color->width, aovs.color->height, aovs.color->format);
+    }
 }
 
-void App::createGraphicsPipeline()
+void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format)
 {
     // shader creation
-    VkShaderModule coreVertModule = context.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
-    VkShaderModule coreFragModule = context.createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
+    VkShaderModule coreVertModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
+    VkShaderModule coreFragModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
 
     VkPipelineShaderStageCreateInfo vInfo{};
     vInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -394,12 +394,12 @@ void App::createGraphicsPipeline()
     inputInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     VkViewport viewport{ 0.0f, 0.0f, 0, 0, 0.0f, 1.0f };
-    viewport.width = m_aovs ? m_aovs->color->width : context.swapchainParams.extent.width;
-    viewport.height = m_aovs ? m_aovs->color->height : context.swapchainParams.extent.height;
+    viewport.width = width;
+    viewport.height = height;
 
     VkExtent2D extent{};
-    extent.width = m_aovs ? m_aovs->color->width : context.swapchainParams.extent.width;
-    extent.height = m_aovs ? m_aovs->color->height : context.swapchainParams.extent.height;
+    extent.width = width;
+    extent.height = height;
     VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
 
     VkPipelineViewportStateCreateInfo viewportState{};
@@ -450,8 +450,8 @@ void App::createGraphicsPipeline()
 
     // pipeline layout
     std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
-    vkDescriptorSetLayouts.reserve(descriptorSetLayouts.size());
-    for (auto& descriptorSetLayout : descriptorSetLayouts)
+    vkDescriptorSetLayouts.reserve(mDescriptorSetLayouts.size());
+    for (auto& descriptorSetLayout : mDescriptorSetLayouts)
     {
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
     }
@@ -463,19 +463,18 @@ void App::createGraphicsPipeline()
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size());
     pipelineLayoutInfo.pSetLayouts = vkDescriptorSetLayouts.data();
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    vkCreatePipelineLayout(context.device, &pipelineLayoutInfo, nullptr, &pipeline.layout);
+    vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mPipeline.layout);
 
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = m_aovs ? &m_aovs->color->format
-                                                   : &context.swapchainParams.format.format;
-    renderingInfo.depthAttachmentFormat = context.depthFormat;
+    renderingInfo.pColorAttachmentFormats = &format;
+    renderingInfo.depthAttachmentFormat = mContext.depthFormat;
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -490,42 +489,42 @@ void App::createGraphicsPipeline()
     pipelineInfo.pDepthStencilState = &depthInfo;
     pipelineInfo.pColorBlendState = &blendStateInfo;
     pipelineInfo.pDynamicState = &dynamicInfo;
-    pipelineInfo.layout = pipeline.layout;
+    pipelineInfo.layout = mPipeline.layout;
     pipelineInfo.renderPass = nullptr;
 
-    VK_CHECK(vkCreateGraphicsPipelines(context.device, nullptr, 1, &pipelineInfo, nullptr,
-                                       &pipeline.pipeline),
+    VK_CHECK(vkCreateGraphicsPipelines(mContext.device, nullptr, 1, &pipelineInfo, nullptr,
+                                       &mPipeline.pipeline),
              "failed to create graphics pipeline");
 
-    vkDestroyShaderModule(context.device, coreVertModule, nullptr);
-    vkDestroyShaderModule(context.device, coreFragModule, nullptr);
+    vkDestroyShaderModule(mContext.device, coreVertModule, nullptr);
+    vkDestroyShaderModule(mContext.device, coreFragModule, nullptr);
 }
 
 // CALLABLE DRAW CALL
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
-void App::executeDrawCallCallable(NPRendererAovs* aovs)
+void App::executeDrawCall(NPRendererAovs& aovs)
 {
     // grab a frame
-    NPFrame& frame = context.getCurrentFrame(currentFrame);
+    NPFrame& frame = mContext.getCurrentFrame(mCurrentFrame);
 
     // wait until this frame has finished executing its commands
-    vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    NPImage* renderTarget = aovs->color;
+    NPImage* renderTarget = aovs.color;
 
     populateDrawCallCallable(frame, renderTarget);
 
-    vkResetFences(context.device, 1,
+    vkResetFences(mContext.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
     // new queue submission
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
-                             frame.doneExecutingFence);
+    mContext.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                              frame.doneExecutingFence);
 
     // increment frame (within ring)
-    currentFrame = (currentFrame + 1) % FRAME_COUNT;
+    mCurrentFrame = (mCurrentFrame + 1) % FRAME_COUNT;
 }
 
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
@@ -533,7 +532,7 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 {
     VkCommandBuffer& commandBuffer = frame.commandBuffer;
     vkResetCommandBuffer(commandBuffer, 0);
-    context.beginCommandBuffer(commandBuffer);
+    mContext.beginCommandBuffer(commandBuffer);
 
     /*context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
@@ -577,7 +576,7 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
     renderingInfo.pColorAttachments = &colorAttachmentInfo;
 
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.pipeline);
 
     VkViewport viewport{
         0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f
@@ -589,12 +588,12 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0,
-                            descriptorSets.size(), descriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.layout, 0,
+                            mDescriptorSets.size(), mDescriptorSets.data(), 0, nullptr);
 
-    for (size_t i = 0; i < indexCounts.size(); i++)
+    for (size_t i = 0; i < mIndexCounts.size(); i++)
     {
-        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
+        vkCmdDraw(commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
 
     vkCmdEndRendering(commandBuffer);
@@ -610,18 +609,18 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 void App::executeDrawCallSwapchain()
 {
     // grab a frame
-    NPFrame& frame = context.frames[currentFrame];
+    NPFrame& frame = mContext.frames[mCurrentFrame];
 
     // wait until this frame has finished executing its commands
-    vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
     // acquire image when it is done being presented
     uint32_t imageIndex;
-    if (vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX,
+    if (vkAcquireNextImageKHR(mContext.device, mContext.swapchain, UINT64_MAX,
                               frame.donePresentingSemaphore, nullptr, &imageIndex)
         == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        context.recreateSwapchain(window);
+        mContext.recreateSwapchain(mpContext);
         return;
     }
 
@@ -632,41 +631,41 @@ void App::executeDrawCallSwapchain()
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores
-        = &context.doneRenderingSemaphores[imageIndex];  // present after rendering finishes
+        = &mContext.doneRenderingSemaphores[imageIndex];  // present after rendering finishes
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &context.swapchain;
+    presentInfo.pSwapchains = &mContext.swapchain;
     presentInfo.pImageIndices = &imageIndex;
 
-    VkResult result = vkQueuePresentKHR(context.queues[NPQueueType::GRAPHICS].queue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(mContext.queues[NPQueueType::GRAPHICS].queue, &presentInfo);
     if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR)
-        || context.framebufferResized)
+        || mContext.framebufferResized)
     {
-        context.framebufferResized = false;
-        context.recreateSwapchain(window);
+        mContext.framebufferResized = false;
+        mContext.recreateSwapchain(mpContext);
     }
 
     // increment frame (within ring)
-    currentFrame = (currentFrame + 1) % FRAME_COUNT;
+    mCurrentFrame = (mCurrentFrame + 1) % FRAME_COUNT;
 }
 
 void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
 {
     vkResetCommandBuffer(frame.commandBuffer, 0);
-    context.beginCommandBuffer(frame.commandBuffer);
+    mContext.beginCommandBuffer(frame.commandBuffer);
 
-    context.transitionImageLayout(frame.commandBuffer, context.swapchainImages[imageIndex],
-                                  VK_IMAGE_LAYOUT_UNDEFINED,
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                  VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    mContext.transitionImageLayout(frame.commandBuffer, mContext.swapchainImages[imageIndex],
+                                   VK_IMAGE_LAYOUT_UNDEFINED,
+                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
+                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkClearValue clearColor{ { { 0.0f, 0.0f, 0.0f, 1.0f } } };
     VkClearValue clearDepth{ { 1.0f, 0 } };
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachmentInfo.imageView = context.swapchainImageViews[imageIndex];
+    colorAttachmentInfo.imageView = mContext.swapchainImageViews[imageIndex];
     colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -674,7 +673,7 @@ void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
 
     VkRenderingAttachmentInfo depthAttachmentInfo{};
     depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = context.depthImage.view;
+    depthAttachmentInfo.imageView = mContext.depthImage.view;
     depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -685,7 +684,7 @@ void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
 
     renderingInfo.renderArea.offset.x = 0;
     renderingInfo.renderArea.offset.y = 0;
-    renderingInfo.renderArea.extent = context.swapchainParams.extent;
+    renderingInfo.renderArea.extent = mContext.swapchainParams.extent;
 
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
@@ -694,152 +693,142 @@ void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
 
     // record commands
     vkCmdBeginRendering(frame.commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.pipeline);
 
     VkViewport viewport{ 0.0f,
                          0.0f,
-                         static_cast<float>(context.swapchainParams.extent.width),
-                         static_cast<float>(context.swapchainParams.extent.height),
+                         static_cast<float>(mContext.swapchainParams.extent.width),
+                         static_cast<float>(mContext.swapchainParams.extent.height),
                          0.0f,
                          1.0f };
 
-    VkRect2D scissor{ { 0, 0 }, context.swapchainParams.extent };
+    VkRect2D scissor{ { 0, 0 }, mContext.swapchainParams.extent };
 
     vkCmdSetViewport(frame.commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout,
-                            0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(),
-                            0, nullptr);
+    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.layout,
+                            0, static_cast<uint32_t>(mDescriptorSets.size()),
+                            mDescriptorSets.data(), 0, nullptr);
 
-    for (size_t i = 0; i < indexCounts.size(); i++)
+    for (size_t i = 0; i < mIndexCounts.size(); i++)
     {
-        std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), numLights };
-        vkCmdPushConstants(frame.commandBuffer, pipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0,
+        std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), mNumLights };
+        vkCmdPushConstants(frame.commandBuffer, mPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0,
                            sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
                            pushConstants.data());
-        vkCmdDraw(frame.commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
+        vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
 
     vkCmdEndRendering(frame.commandBuffer);
 
-    context.transitionImageLayout(frame.commandBuffer, context.swapchainImages[imageIndex],
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+    mContext.transitionImageLayout(frame.commandBuffer, mContext.swapchainImages[imageIndex],
+                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
     vkResetFences(
-        context.device, 1,
+        mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
-                             frame.doneExecutingFence, frame.donePresentingSemaphore,
-                             context.doneRenderingSemaphores[imageIndex]);
+    mContext.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                              frame.doneExecutingFence, frame.donePresentingSemaphore,
+                              mContext.doneRenderingSemaphores[imageIndex]);
 }
 
 void App::destroy()
 {
-    for (auto& descriptorSetLayout : descriptorSetLayouts)
+    for (auto& descriptorSetLayout : mDescriptorSetLayouts)
     {
-        descriptorSetLayout.destroy(context.device);
+        descriptorSetLayout.destroy(mContext.device);
     }
 
-    if (sampler != VK_NULL_HANDLE)
+    if (mSampler != VK_NULL_HANDLE)
     {
-        vkDestroySampler(context.device, sampler, nullptr);
+        vkDestroySampler(mContext.device, mSampler, nullptr);
     }
 
     // SET 0 : GEOMETRY
-    if (meshRecordBuffer.buffer != VK_NULL_HANDLE)
+    if (mMeshRecordBuffer.buffer != VK_NULL_HANDLE)
     {
-        meshRecordBuffer.destroy(context.allocator);
+        mMeshRecordBuffer.destroy(mContext.allocator);
     }
 
-    if (vertexBuffer.buffer != VK_NULL_HANDLE)
+    if (mVertexBuffer.buffer != VK_NULL_HANDLE)
     {
-        vertexBuffer.destroy(context.allocator);
+        mVertexBuffer.destroy(mContext.allocator);
     }
 
-    if (indexBuffer.buffer != VK_NULL_HANDLE)
+    if (mIndexBuffer.buffer != VK_NULL_HANDLE)
     {
-        indexBuffer.destroy(context.allocator);
+        mIndexBuffer.destroy(mContext.allocator);
     }
 
     // SET 1 : TRANSFOMRS
-    if (geometryTransformsBuffer.buffer != VK_NULL_HANDLE)
+    if (mGeometryTransformsBuffer.buffer != VK_NULL_HANDLE)
     {
-        geometryTransformsBuffer.destroy(context.allocator);
+        mGeometryTransformsBuffer.destroy(mContext.allocator);
     }
 
-    if (lightTransformsBuffer.buffer != VK_NULL_HANDLE)
+    if (mLightTransformsBuffer.buffer != VK_NULL_HANDLE)
     {
-        lightTransformsBuffer.destroy(context.allocator);
+        mLightTransformsBuffer.destroy(mContext.allocator);
     }
 
     // SET 2: CAMERA AND LIGHTS
-    if (cameraRecordBuffer.buffer != VK_NULL_HANDLE)
+    if (mCameraRecordBuffer.buffer != VK_NULL_HANDLE)
     {
-        cameraRecordBuffer.destroy(context.allocator);
+        mCameraRecordBuffer.destroy(mContext.allocator);
     }
 
-    if (lightRecordBuffer.buffer != VK_NULL_HANDLE)
+    if (mLightRecordBuffer.buffer != VK_NULL_HANDLE)
     {
-        lightRecordBuffer.destroy(context.allocator);
+        mLightRecordBuffer.destroy(mContext.allocator);
     }
 
     // SET 3: MATERIAL AND TEXTURES
-    if (materialRecordsBuffer.buffer != VK_NULL_HANDLE)
+    if (mMaterialRecordsBuffer.buffer != VK_NULL_HANDLE)
     {
-        materialRecordsBuffer.destroy(context.allocator);
+        mMaterialRecordsBuffer.destroy(mContext.allocator);
     }
 
-    for (auto& texture : textures)
+    for (auto& texture : mTextures)
     {
-        texture.destroy(context.device, context.allocator);
+        texture.destroy(mContext.device, mContext.allocator);
     }
 
-    if (pipeline.pipeline != VK_NULL_HANDLE)
+    if (mPipeline.pipeline != VK_NULL_HANDLE)
     {
-        pipeline.destroy(context.device);
+        mPipeline.destroy(mContext.device);
     }
 
-    context.destroy();
+    mContext.destroy();
 
-    if (window)
+    if (mpContext)
     {
-        glfwDestroyWindow(window);
-        window = nullptr;
+        glfwDestroyWindow(mpContext);
+        mpContext = nullptr;
         glfwTerminate();
     }
 }
 
-void App::loadScene(const char* path)
+void App::loadSceneFromPath(const char* path)
 {
-    scene->loadSceneAssimp(path);
+    mpScene->loadSceneFromPath(path);
 }
 
 void App::render()
 {
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(mpContext))
     {
         glfwPollEvents();
         executeDrawCallSwapchain();
     }
 
-    context.waitIdle();
-}
-
-void App::run()
-{
-    if (kSTANDALONE)
-    {
-        render();
-    }
-
-    destroy();
+    mContext.waitIdle();
 }

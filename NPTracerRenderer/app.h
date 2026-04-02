@@ -5,83 +5,84 @@
 
 #include <memory>
 
+template<typename T>
+using REF = std::reference_wrapper<T>;
+
 class App
 {
-    static constexpr bool kDEBUG = NPTRACER_DEBUG;
-    static constexpr bool kSTANDALONE = NPTRACER_STANDALONE;
-
-    static constexpr uint32_t WIDTH = 2560;
-    static constexpr uint32_t HEIGHT = 1440;
-
-    std::unique_ptr<NPRendererAovs> m_aovs = nullptr;
-
 public:
     Context* getContext()
     {
-        return &context;
+        return &mContext;
     }
 
     Scene* getScene() const
     {
-        return scene.get();
+        return mpScene.get();
     }
 
     void setAov(std::unique_ptr<NPRendererAovs> aovs)
     {
-        m_aovs = std::move(aovs);
+        aovs = std::move(aovs);
     }
 
     // interface
-    void create();
+    void create(bool isStandalone);
     void destroy();
 
-    void loadScene(const char* path);
+    void loadSceneFromPath(const char* path);
 
-    void createRenderingResources();
-    void executeDrawCallCallable(NPRendererAovs* aovs = nullptr);
+    void createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef = std::nullopt);
+    void executeDrawCall(NPRendererAovs& aovs);
 
-    void run();
     void render();
 
 private:
+    static constexpr bool kDEBUG = NPTRACER_DEBUG;
+
+    static constexpr uint32_t kWIDTH = 2560;  // default width when standalone
+    static constexpr uint32_t kHEIGHT = 1440;  // default width when standalone
+
     static constexpr int FRAME_COUNT = 2;
     static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
-    uint32_t currentFrame = 0;
 
-    Context context;
-    GLFWwindow* window = nullptr;
+    bool mIsStandalone = false;
+    uint32_t mCurrentFrame = 0;
+
+    Context mContext{};
+    GLFWwindow* mpContext = nullptr;
 
     // push constants
-    std::vector<uint32_t> indexCounts;
-    uint32_t numLights = 0;
+    std::vector<uint32_t> mIndexCounts;
+    uint32_t mNumLights = 0;
 
     // rendering resources
-    std::unique_ptr<Scene> scene;
+    std::unique_ptr<Scene> mpScene;
 
-    NPPipeline pipeline;
-    std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
-    std::vector<VkDescriptorSet> descriptorSets;
-    VkSampler sampler = VK_NULL_HANDLE;
+    NPPipeline mPipeline;
+    std::vector<NPDescriptorSetLayout> mDescriptorSetLayouts;
+    std::vector<VkDescriptorSet> mDescriptorSets;
+    VkSampler mSampler = VK_NULL_HANDLE;
 
     // SET 0: GEOMETRY
-    NPBuffer meshRecordBuffer;
-    NPBuffer vertexBuffer;
-    NPBuffer indexBuffer;
+    NPBuffer mMeshRecordBuffer;
+    NPBuffer mVertexBuffer;
+    NPBuffer mIndexBuffer;
 
     // SET 1: TRANSFORMS
-    NPBuffer geometryTransformsBuffer;
-    NPBuffer lightTransformsBuffer;
+    NPBuffer mGeometryTransformsBuffer;
+    NPBuffer mLightTransformsBuffer;
 
     // SET 2: CAMERA & LIGHTS
-    NPBuffer cameraRecordBuffer;
-    NPBuffer lightRecordBuffer;
+    NPBuffer mCameraRecordBuffer;
+    NPBuffer mLightRecordBuffer;
 
     // SET 3: MATERIALS
-    NPBuffer materialRecordsBuffer;
-    std::vector<NPImage> textures;
+    NPBuffer mMaterialRecordsBuffer;
+    std::vector<NPImage> mTextures;
 
     // resource creation
-    void createGraphicsPipeline();
+    void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
 
     // render commands recording
     void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);

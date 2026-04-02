@@ -24,14 +24,16 @@ set(LIB_SOURCES
     "${NPTracerRenderer_ROOT_DIR}/context.cpp"
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
     "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
+    "${NPTracerRenderer_ROOT_DIR}/assimp_scene.cpp"
 )
 
 set(LIB_HEADERS
+    "${NPTracerRenderer_ROOT_DIR}/utils.h"
+    "${NPTracerRenderer_ROOT_DIR}/structs.h"
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
     "${NPTracerRenderer_ROOT_DIR}/scene.h"
-    "${NPTracerRenderer_ROOT_DIR}/utils.h"
-    "${NPTracerRenderer_ROOT_DIR}/structs.h"
+    "${NPTracerRenderer_ROOT_DIR}/assimp_scene.h"
 )
 
 set(CURR_SHADER_SPECS

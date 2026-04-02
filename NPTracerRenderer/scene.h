@@ -6,82 +6,63 @@
 #include <memory>
 #include <mutex>
 
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-#include <unordered_map>
-
-// assimp loading
-struct AssimpMeshInstance
-{
-    const aiMesh* mesh;
-    FLOAT4X4 transform;
-    std::string nodeName;
-};
-
 class Scene
 {
 public:
-    Scene();
-    ~Scene();
+    virtual ~Scene() = default;
 
-    std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
-    std::vector<std::unique_ptr<PendingTexture>> pendingTextures;
-    std::vector<AssimpMeshInstance> pendingMeshes;
-    std::unordered_map<std::string, uint32_t> textureIndexByKey;
-
-    void loadSceneAssimp(const char* path);
-    void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);
-    void processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4X4& localTransform);
-    void processCamera(const aiScene* scene);
-    void processLight(const aiLight* light);
+    virtual void loadSceneFromPath(const char* path);
 
     NPMesh* addMesh();
     bool removeMesh(const uint32_t& objectId);
 
-    const NPMesh* getMeshAtIndex(int idx) const;
+    NPMesh const* getMeshAtIndex(int idx) const;
 
-    size_t getMeshCount() const
+    inline size_t getMeshCount() const
     {
         return _meshes.size();
     }
 
-    const std::vector<std::unique_ptr<NPLight>>& getLights() const
-    {
-        return _lights;
-    }
+    NPLight const* getLightAtIndex(int idx) const;
 
-    const NPLight* getLightAtIndex(int idx) const;
-
-    size_t getLightCount() const
+    inline size_t getLightCount() const
     {
         return _lights.size();
     }
 
-    NPCameraRecord* getCamera()
+    inline NPCameraRecord* getCamera()
     {
         return &_camera;
     }
 
-    const std::vector<std::unique_ptr<NPMaterial>>& getMaterials() const
+    inline NPCameraRecord const* getCamera() const
     {
-        return _materials;
+        return &_camera;
     }
 
-    size_t getMaterialCount() const
+    inline size_t getMaterialCount() const
     {
         return _materials.size();
     }
 
     const NPMaterial* getMaterialAtIndex(int idx) const;
 
-private:
+    inline size_t getTextureCount() const
+    {
+        return _textures.size();
+    }
+
+    const NPTexture* getTextureAtIndex(int idx) const;
+
+protected:
     std::mutex _meshMutex;
     std::vector<std::unique_ptr<NPMesh>> _meshes;
+    std::vector<FLOAT4X4> _transforms;
 
     std::vector<std::unique_ptr<NPLight>> _lights;
-    std::vector<FLOAT4X4> _transforms;
     std::vector<std::unique_ptr<NPMaterial>> _materials;
+
+    std::vector<std::unique_ptr<NPTexture>> _textures;
 
     NPCameraRecord _camera;
 

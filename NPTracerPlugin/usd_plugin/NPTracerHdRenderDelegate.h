@@ -20,7 +20,7 @@ public:
     ~NPTracerHdRenderDelegate() override;
 
     HdRenderPassSharedPtr CreateRenderPass(HdRenderIndex* index,
-                                           HdRprimCollection const& collection) override;
+                                           const HdRprimCollection& collection) override;
 
     // query supported hydra prim types
     const TfTokenVector& GetSupportedRprimTypes() const override;
@@ -62,12 +62,12 @@ public:
     // return the AOV description for `aovName`. This will be used to initialize the aov buffers.
     HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
 
-    inline App* GetRendererApp() const
+    App* GetRendererApp() const
     {
         return _pApp.get();
     }
 
-    inline Scene* GetScene() const
+    Scene* GetScene() const
     {
         return _pApp != nullptr ? _pApp->getScene() : nullptr;
     }
@@ -75,7 +75,9 @@ public:
 private:
     void _Initialize();
 
-    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };  // renderable primitives
+    const TfTokenVector SUPPORTED_RPRIM_TYPES = {
+        HdPrimTypeTokens->mesh, HdPrimTypeTokens->sphereLight
+    };  // renderable primitives
     const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera };  // state prims
     const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
 

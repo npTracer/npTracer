@@ -13,6 +13,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 NPTracerHdMesh::NPTracerHdMesh(const SdfPath& rprimId, NPTracerHdRenderDelegate* renderDelegate)
     : HdMesh(rprimId), _pCreator(renderDelegate)
 {
+    _AddToScene();
 }
 
 NPTracerHdMesh::~NPTracerHdMesh()
@@ -63,14 +64,14 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
 {
     const SdfPath& id = GetId();
 
-    _RemoveFromScene();  // remove existing mesh from scene
-
-    if (!delegate->GetVisible(GetId()))
-    {
-        return;  // do not add to scene if it is not visible
-    }
-
-    _AddToScene();
+    // _RemoveFromScene();  // remove existing mesh from scene
+    //
+    // if (!delegate->GetVisible(GetId()))
+    // {
+    //     return;  // do not add to scene if it is not visible
+    // }
+    //
+    // _AddToScene();
 
     sConstructMesh(id, delegate, _pMesh);
 }

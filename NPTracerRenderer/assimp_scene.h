@@ -5,6 +5,9 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 
+#include <functional>
+#include <string>
+
 class AssimpScene final : public Scene
 {
 public:
@@ -24,6 +27,8 @@ private:
     std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
     std::vector<AssimpMeshInstance> pendingMeshes;
     std::unordered_map<std::string, uint32_t> textureIndexByKey;
+
+    std::hash<std::string> idHasher;
 
     void processAiNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);
     void processAiMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4X4& localTransform);

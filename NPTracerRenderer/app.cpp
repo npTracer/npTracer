@@ -150,7 +150,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         // looping for easy modification in the future)
         NPMaterial const* material = mpScene->getPrimAtIndex<NPMaterial>(i);
 
-        materialRecords.push_back(*material);
+        materialRecords.push_back(material->toRecord());
     }
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();

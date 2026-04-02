@@ -1,5 +1,8 @@
 #include "usd_plugin/primitives/NPTracerHdMaterial.h"
+
+#include "stb_image.h"
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
+#include "usd_plugin/debugCodes.h"
 
 #include <pxr/imaging/hd/sceneDelegate.h>
 
@@ -18,7 +21,7 @@ NPTracerHdMaterial::~NPTracerHdMaterial()
 
 HdDirtyBits NPTracerHdMaterial::GetInitialDirtyBitsMask() const
 {
-    return HdMaterial::DirtyParams;
+    return HdChangeTracker::AllSceneDirtyBits;
 }
 
 // TODO: make a base case class for all hd prim types with add and remove
@@ -26,9 +29,19 @@ void NPTracerHdMaterial::_AddToScene()
 {
     if (Scene* scene = _pCreator->GetScene())
     {
+        const SdfPath& id = GetId();
         _pMaterial = scene->makePrim<NPMaterial>();
+        _pMaterial->objectId = id.GetHash();
+        _pMaterial->scenePath = id.GetString();
 
-        _materialIndex = static_cast<uint32_t>(scene->getPrimCount<NPMaterial>() - 1);
+#if NPTRACER_DEBUG
+        // temp
+        _pMaterial->diffuse = FLOAT4(1.f);
+        _pMaterial->ambient = FLOAT4(1.f);
+        _pMaterial->specular = FLOAT4(1.f);
+        _pMaterial->emission = FLOAT4(1.f);
+        _pMaterial->diffuseTextureIdx = -1;
+#endif
     }
 }
 
@@ -45,28 +58,78 @@ void NPTracerHdMaterial::_RemoveFromScene()
 void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirtyBits* dirtyBits)
 {
     const SdfPath& id = GetId();
+    Scene* scene = _pCreator->GetScene();
 
+    // has similar API to `std::unordered_map`? if not just a wrapper, I suspect
     HdMaterialNetworkMap networkMap = delegate->GetMaterialResource(id).Get<HdMaterialNetworkMap>();
 
-    for (const auto& entry : networkMap.map)
+    if (!scene || !_pMaterial || !networkMap.map.count(TfToken("surface"))) return;
+
+    const HdMaterialNetwork& net = networkMap.map.at(TfToken("surface"));
+
+    const HdMaterialNode* previewNode = nullptr;
+    const HdMaterialNode* textureNode = nullptr;
+    for (const auto& node : net.nodes)
     {
-        for (const auto& node : entry.second.nodes)
+        if (node.identifier == TfToken("UsdPreviewSurface"))
         {
-            const auto& params = node.parameters;
+            previewNode = &node;
+            NP_DBG("Found `USDPreviewSurface` at scene path '%s'\n", previewNode->path.GetText());
+        }
+        if (node.identifier == TfToken("UsdUVTexture"))
+        {
+            textureNode = &node;
+        }
+        NP_DBG("'%s'\n", node.identifier.GetText());
+    }
 
-            if (params.count(TfToken("diffuseColor")))
-            {
-                auto c = params.at(TfToken("diffuseColor")).Get<GfVec3f>();
+    if (previewNode)
+    {
+        const auto& params = previewNode->parameters;
+        if (params.count(TfToken("diffuseColor")))
+        {
+            auto c = params.at(TfToken("diffuseColor")).Get<GfVec3f>();
+            _pMaterial->diffuse = FLOAT4(c[0], c[1], c[2], 1.0f);
 
-                _pMaterial->diffuse = FLOAT4(c[0], c[1], c[2], 1.0f);
-            }
+            NP_DBG("Found uniform diffuse color '(%f, %f, %f)'.\n", c[0], c[1], c[2]);
+            const VtValue& val = params.at(TfToken("diffuseColor"));
+        }
 
-            if (params.count(TfToken("emissiveColor")))
-            {
-                auto e = params.at(TfToken("emissiveColor")).Get<GfVec3f>();
+        if (params.count(TfToken("emissiveColor")))
+        {
+            auto e = params.at(TfToken("emissiveColor")).Get<GfVec3f>();
 
-                _pMaterial->emission = FLOAT4(e[0], e[1], e[2], 1.0f);
-            }
+            _pMaterial->emission = FLOAT4(e[0], e[1], e[2], 1.0f);
+
+            NP_DBG("Found uniform emission color '(%f, %f, %f)'.\n", e[0], e[1], e[2]);
+        }
+    }
+
+    if (textureNode)
+    {
+        const auto& params = textureNode->parameters;
+        if (params.count(TfToken("file")))
+        {
+            auto asset = params.at(TfToken("file")).Get<SdfAssetPath>();
+
+            std::string path = asset.GetResolvedPath();
+
+            NP_DBG("Found texture at scene path '%s'.\n", path.c_str());
+
+            // create texture
+            // TODO: pull this into another static function
+            NPTexture* tex = scene->makePrim<NPTexture>();
+
+            int w, h, c;
+            unsigned char* data = stbi_load(path.c_str(), &w, &h, &c, 4);
+
+            tex->pixels = data;
+            tex->width = w;
+            tex->height = h;
+
+            uint32_t texIdx = scene->getPrimCount<NPTexture>() - 1;
+
+            _pMaterial->diffuseTextureIdx = texIdx;
         }
     }
 

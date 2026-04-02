@@ -25,7 +25,7 @@ public:
     template<typename T>
     T* getPrimAtIndex(size_t idx);
 
-    inline NPCameraRecord* getCamera()
+    inline NPCamera* getCamera()
     {
         return &_camera;
     }
@@ -36,11 +36,11 @@ protected:
     std::vector<std::unique_ptr<NPMesh>> _meshes;
 
     std::vector<std::unique_ptr<NPLight>> _lights;
-    std::vector<std::unique_ptr<NPMaterialRecord>> _materials;
+    std::vector<std::unique_ptr<NPMaterial>> _materials;
 
-    std::vector<std::unique_ptr<NPTextureRecord>> _textures;
+    std::vector<std::unique_ptr<NPTexture>> _textures;
 
-    NPCameraRecord _camera;
+    NPCamera _camera;
 
     NPRenderSettings _settings;
 

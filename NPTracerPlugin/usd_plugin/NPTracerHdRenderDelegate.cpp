@@ -1,5 +1,6 @@
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
+#include "primitives/NPTracerHdMaterial.h"
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderPass.h"
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
@@ -111,6 +112,10 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
     {
         return new HdCamera(sprimId);
     }
+    else if (typeId == HdPrimTypeTokens->material)
+    {
+        return new NPTracerHdMaterial(sprimId, this);
+    }
     else if (typeId == HdPrimTypeTokens->sphereLight)
     {
         return new NPTracerHdSphereLight(sprimId, this);
@@ -137,9 +142,10 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     {
         return new HdCamera(SdfPath::EmptyPath());
     }
-    else if (typeId == HdPrimTypeTokens->sphereLight)
+    else if (typeId == HdPrimTypeTokens->material || typeId == HdPrimTypeTokens->sphereLight)
     {
-        return nullptr;  // do not corrupt our scene with this fallback prim as it its data is not correct
+        // do not corrupt our scene with other fallback prims as it their data is not initialized and they are also not properly deleted
+        return nullptr;
     }
     else
     {

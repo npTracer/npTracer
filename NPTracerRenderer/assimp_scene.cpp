@@ -116,12 +116,14 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     }
 
     // get material
-    auto mat = std::make_unique<NPMaterialRecord>();
+    auto mat = std::make_unique<NPMaterial>();
 
     mat->ambient = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
     mat->diffuse = FLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
     mat->specular = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
     mat->emission = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+    mat->scenePath = "";
+    mat->objectId = -1;
 
     const aiMaterial* aiMat = scene->mMaterials[currMesh->mMaterialIndex];
 
@@ -144,6 +146,13 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, color) == AI_SUCCESS)
     {
         mat->emission = FLOAT4(color.r, color.g, color.b, 1.0f);
+    }
+
+    aiString aiStr;
+    if (aiMat->Get(AI_MATKEY_NAME, aiStr) == AI_SUCCESS)
+    {
+        mat->scenePath = std::string(aiStr.C_Str());
+        mat->objectId = idHasher(mat->scenePath);
     }
 
     // texturing

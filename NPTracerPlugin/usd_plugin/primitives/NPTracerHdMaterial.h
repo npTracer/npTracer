@@ -27,8 +27,6 @@ protected:
 private:
     NPTracerHdRenderDelegate* _pCreator;
     NPMaterial* _pMaterial = nullptr;
-
-    uint32_t _materialIndex = 0;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

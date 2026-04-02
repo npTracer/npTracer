@@ -345,7 +345,16 @@ struct NPMaterialRecord
     uint32_t diffuseTextureIdx;
 };
 
-using NPMaterial = NPMaterialRecord;
+struct NPMaterial : NPMaterialRecord
+{
+    uint64_t objectId;  // the hash of the object's `SdfPath`
+    NPScenePath scenePath;
+
+    NPMaterialRecord toRecord() const
+    {
+        return { ambient, diffuse, specular, emission };
+    }
+};
 
 struct NPTextureRecord
 {

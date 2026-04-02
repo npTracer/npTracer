@@ -55,7 +55,6 @@ inline T* Scene::getPrimAtIndex(size_t idx)
 template<typename T>
 inline std::vector<std::unique_ptr<T>>& Scene::getPrimVector()
 {
-    DBG_PRINT("TYPE: %s\n", typeid(T).name());
     if constexpr (std::is_same_v<T, NPMesh>)
     {
         return _meshes;

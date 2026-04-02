@@ -8,7 +8,7 @@ inline T* Scene::makePrim()
 {
     guard();  // lock the mutex
 
-    auto& primVector = getPrimVector<T>();
+    std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
 
     primVector.push_back(std::make_unique<T>());
     return primVector.back().get();
@@ -19,7 +19,7 @@ inline bool Scene::deletePrim(T* primToDelete)
 {
     guard();
 
-    auto& primVector = getPrimVector<T>();
+    std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
 
     auto it = std::find_if(primVector.begin(), primVector.end(), [&](const std::unique_ptr<T>& prim)
                            { return prim.get() == primToDelete; });
@@ -35,17 +35,20 @@ inline bool Scene::deletePrim(T* primToDelete)
 template<typename T>
 inline size_t Scene::getPrimCount() const
 {
-    auto const& primVector = getPrimVector<T>();
+    std::vector<std::unique_ptr<T>> const& primVector = getPrimVector<T>();
     return primVector.size();
 }
 
 template<typename T>
-inline T const* Scene::getPrimAtIndex(size_t idx)
+inline T* Scene::getPrimAtIndex(size_t idx)
 {
     guard();
 
-    auto& primVector = getPrimVector<T>();
-    if (idx < 0 || idx >= primVector.size()) return nullptr;
+    std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
+    if (idx < 0 || idx >= primVector.size())
+    {
+        return nullptr;
+    }
     return primVector[idx].get();
 }
 

@@ -107,10 +107,14 @@ function(SetupInstallationAfterBuild target_name install_dir install_component)
     else()
         set(CMAKE_CMD_ARGS -DCMAKE_BUILD_TYPE=$<CONFIG>)
     endif()
+
+    set(CMAKE_CONSTANT_CMD_ARGS --install "${CMAKE_BINARY_DIR}" --prefix "${install_dir}")
     
     add_custom_command(TARGET ${target_name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --prefix="${install_dir}" --component=${install_component} --component=${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME} ${CMAKE_CMD_ARGS}
+        COMMAND ${CMAKE_COMMAND} ${CMAKE_CONSTANT_CMD_ARGS} ${CMAKE_CMD_ARGS} --component ${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME} && ${CMAKE_COMMAND} ${CMAKE_CONSTANT_CMD_ARGS} ${CMAKE_CMD_ARGS} --component ${install_component}
         COMMENT "Installed '${target_name}' after building to '${install_dir}'."
+        COMMAND_EXPAND_LISTS
+        VERBATIM
     )
 endfunction()
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 set(CMAKE_CONFIGURATION_TYPES "Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Remove `Debug` from multi-config generators due to Houdini restrictions. Also, in general, OpenUSD source code is difficult to build in `Debug` configuration regardless of OS." FORCE) # `
 

@@ -147,7 +147,7 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
         {
             TF_WARN("Primvar UVs were found for %s but count of %i does not match "
                     "flattened index count of %i.",
-                    id.GetString().c_str(), uvValue.GetArraySize(), flattenedCount);
+                    id.GetText(), uvValue.GetArraySize(), flattenedCount);
         }
     }
 
@@ -170,7 +170,7 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
         {
             TF_WARN("Primvar normals were found for %s but count of %i does not match "
                     "flattened index count of %i.",
-                    id.GetString().c_str(), normalsValue.GetArraySize(), flattenedCount);
+                    id.GetText(), normalsValue.GetArraySize(), flattenedCount);
         }
     }
 

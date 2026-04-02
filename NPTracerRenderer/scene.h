@@ -24,7 +24,7 @@ public:
     size_t getPrimCount() const;
 
     template<typename T>
-    T const* getPrimAtIndex(size_t idx);
+    T* getPrimAtIndex(size_t idx);
 
     inline NPCameraRecord* getCamera()
     {

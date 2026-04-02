@@ -70,19 +70,18 @@ HdResourceRegistrySharedPtr NPTracerHdRenderDelegate::GetResourceRegistry() cons
 
 HdInstancer* NPTracerHdRenderDelegate::CreateInstancer(HdSceneDelegate* delegate, const SdfPath& id)
 {
-    NP_DBG("Creating instancer not currently supported: id=%s", id.GetText());
+    NP_DBG("Creating instancer not currently supported: id=%s\n", id.GetText());
     return nullptr;
 }
 
 void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 {
-    NP_DBG("Destroying instancer not currently supported.");
+    NP_DBG("Destroying instancer not currently supported.\n");
 }
 
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
-    NP_DBG("[%s] Create Rprim type: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
-           rprimId.GetText());
+    NP_DBG("Create Rprim type: type=%s id=%s\n", typeId.GetText(), rprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->mesh)
     {
@@ -90,21 +89,20 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
     }
     else
     {
-        NP_DBG("Unknown Rprim: type=%s id=%s", typeId.GetText(), rprimId.GetText());
+        NP_DBG("Unknown Rprim: type=%s id=%s\n", typeId.GetText(), rprimId.GetText());
     }
     return nullptr;
 }
 
 void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 {
-    NP_DBG("[%s] Destroy Rprim: id=%s\n", TF_FUNC_NAME().c_str(), rprim->GetId().GetText());
+    NP_DBG("Destroy Rprim: id=%s\n", rprim->GetId().GetText());
     delete rprim;
 }
 
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
-    NP_DBG("[%s] Create Sprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
-           sprimId.GetText());
+    NP_DBG("Create Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -112,7 +110,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
     }
     else
     {
-        TF_CODING_ERROR("Unknown Sprim: type=%s id=%s", typeId.GetText(), sprimId.GetText());
+        TF_FATAL_CODING_ERROR("Unknown Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
     }
 
     return nullptr;
@@ -120,13 +118,13 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroySprim(HdSprim* sprim)
 {
-    NP_DBG("[%s] Destroy Sprim: id=%s\n", TF_FUNC_NAME().c_str(), sprim->GetId().GetText());
+    NP_DBG("Destroy Sprim: id=%s\n", sprim->GetId().GetText());
     delete sprim;
 }
 
 HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 {
-    NP_DBG("[%s] Create Fallback Sprim: type=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText());
+    NP_DBG("Create Fallback Sprim: type=%s\n", typeId.GetText());
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -134,7 +132,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     }
     else
     {
-        TF_CODING_ERROR("Unknown Sprim: type=%s", typeId.GetText());
+        TF_FATAL_CODING_ERROR("Unknown Sprim: type=%s\n", typeId.GetText());
     }
 
     return nullptr;
@@ -142,8 +140,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
 HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfPath& bprimId)
 {
-    NP_DBG("[%s] Create Bprim: type=%s id=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText(),
-           bprimId.GetText());
+    NP_DBG("Create Bprim: type=%s id=%s\n", typeId.GetText(), bprimId.GetText());
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
@@ -151,21 +148,21 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
     }
     else
     {
-        TF_CODING_ERROR("Unknown Bprim: type=%s id=%s", typeId.GetText(), bprimId.GetText());
+        TF_FATAL_CODING_ERROR("Unknown Bprim: type=%s id=%s\n", typeId.GetText(), bprimId.GetText());
     }
     return nullptr;
 }
 
 void NPTracerHdRenderDelegate::DestroyBprim(HdBprim* bprim)
 {
-    NP_DBG("[%s] Destroy Bprim: id=%s\n", TF_FUNC_NAME().c_str(), bprim->GetId().GetText());
+    NP_DBG("Destroy Bprim: id=%s\n", bprim->GetId().GetText());
 
     delete bprim;
 }
 
 HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
 {
-    NP_DBG("[%s] Create Fallback Bprim: type=%s\n", TF_FUNC_NAME().c_str(), typeId.GetText());
+    NP_DBG("Create Fallback Bprim: type=%s\n", typeId.GetText());
 
     if (typeId == HdPrimTypeTokens->renderBuffer)
     {
@@ -173,7 +170,7 @@ HdBprim* NPTracerHdRenderDelegate::CreateFallbackBprim(const TfToken& typeId)
     }
     else
     {
-        TF_CODING_ERROR("Unknown Bprim: type=%s", typeId.GetText());
+        TF_FATAL_CODING_ERROR("Unknown Bprim: type=%s\n", typeId.GetText());
     }
 
     return nullptr;
@@ -187,20 +184,10 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
     {
         return { HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)) };
     }
-    else if (aovName == HdAovTokens->depth)
+    /*else if (aovName == HdAovTokens->depth)
     {
         return { HdFormatFloat32, false, VtValue(1.0f) };
-    }
-    else if (aovName == HdAovTokens->normal)
-    {
-        return { HdFormatFloat32Vec3, false, VtValue(GfVec3f(0.0f, 0.0f, 0.0f)) };
-    }
-    else if (aovName == HdAovTokens->primId || aovName == HdAovTokens->instanceId
-             || aovName == HdAovTokens->elementId)
-    {
-        return { HdFormatInt32, false, VtValue(-1) };
-    }
-
+    }*/
     return {};
 }
 

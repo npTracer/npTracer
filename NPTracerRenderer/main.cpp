@@ -8,14 +8,10 @@ int main(int argc, char** argv)
 {
     App app;
     app.create();
-    if (argc < 2)
-    {
-        app.run();
-    }
-    else
+    if (argc == 2)
     {
         std::string scenePath = argv[1];
-    
+
         try
         {
             app.loadScene(scenePath.c_str());
@@ -28,6 +24,13 @@ int main(int argc, char** argv)
             return 1;
         }
     }
-    
+    else
+    {
+        std::cerr
+            << "Specify the path to a 3D scene file (GLB, FBX, etc.) as the 1st program argument."
+            << std::endl;
+        return 1;
+    }
+
     return 0;
 }

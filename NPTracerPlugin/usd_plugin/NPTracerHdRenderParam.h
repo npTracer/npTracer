@@ -10,7 +10,7 @@ class NPTracerHdRenderParam final : public HdRenderParam
 {
 public:
     NPTracerHdRenderParam();
-    virtual ~NPTracerHdRenderParam() override = default;
+    ~NPTracerHdRenderParam() override = default;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

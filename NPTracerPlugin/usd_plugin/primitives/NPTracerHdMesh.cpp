@@ -117,8 +117,7 @@ void NPTracerHdMesh::sConstructMesh(SdfPath const& id, HdSceneDelegate* delegate
     // look for UVs in primvars as they are more ideal
     VtValue uvValue;
     if (sReadMeshPrimvars(id, delegate, meshUtil, &uvValue,
-                          [](const std::string& pvName)
-                          { // naming standards for UVs
+                          [](const std::string& pvName) {  // naming standards for UVs
                               return pvName.compare("st") == 0
                                      || pvName.substr(0, 3).compare("map") == 0;
                           }))
@@ -239,7 +238,7 @@ void NPTracerHdMesh::_RemoveFromScene()
         bool removed = scene->removeMesh(_pMesh->objectId);
         _pMesh = nullptr;
 
-        NP_DBG("Removed mesh '%s' from scene: %b\n", GetId().GetAsString().c_str(), removed);
+        NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
     }
 }
 

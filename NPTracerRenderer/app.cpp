@@ -10,21 +10,30 @@ void App::create()
 {
     // define `scene`
     scene = std::make_unique<Scene>();
-    
+
     // create vulkan basics
     context.setFrameCount(FRAME_COUNT);
-    if (standalone) context.createWindow(window, WIDTH, HEIGHT);
-    
-    context.createInstance(enableDebug);
-    
-    if (standalone) context.createSurface(window);
-    
+    if (kSTANDALONE)
+    {
+        context.createWindow(window, WIDTH, HEIGHT);
+    }
+
+    context.createInstance(kDEBUG);
+
+    if (kSTANDALONE)
+    {
+        context.createSurface(window);
+    }
+
     context.createPhysicalDevice();
     context.createLogicalDeviceAndQueues();
     context.createAllocator();
-    
-    if (standalone) context.createSwapchain(window);
-    
+
+    if (kSTANDALONE)
+    {
+        context.createSwapchain(window);
+    }
+
     context.createSyncAndFrameObjects();
     context.createDepthImage(WIDTH, HEIGHT);  // TODO pass actual depth aov target
     context.createResultImage();
@@ -39,14 +48,14 @@ void App::createRenderingResources()
     const size_t meshCount = scene->getMeshCount();
     std::vector<NPMeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
-    
+
     std::vector<NPVertex> globalVertices;
     std::vector<uint32_t> globalIndices;
     std::vector<FLOAT4X4> globalTransforms;
     for (uint32_t i = 0; i < static_cast<uint32_t>(meshCount); i++)
     {
-        NPMesh const* mesh = scene->getMeshAtIndex(i);
-        
+        const NPMesh* mesh = scene->getMeshAtIndex(i);
+
         NPMeshRecord meshRecord{};
         meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
         meshRecord.indexOffset = static_cast<uint32_t>(globalIndices.size());
@@ -54,31 +63,30 @@ void App::createRenderingResources()
         meshRecord.vertexCount = static_cast<uint32_t>(mesh->vertices.size());
         meshRecord.transformIndex = static_cast<uint32_t>(globalTransforms.size());
         meshRecord.materialIndex = mesh->materialIndex;
-        
+
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());
         for (uint32_t idx : mesh->indices)
         {
             globalIndices.push_back(idx + meshRecord.vertexOffset);
         }
-        
+
         // temp
         indexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
 
         // transforms
         globalTransforms.push_back(mesh->objectToWorld);
-        
+
         meshRecords.push_back(meshRecord);
     }
-        
+
     VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
-    bool meshRecordBufferCreated = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
-    if (!meshRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create mesh record buffer");
-    }
-    
+    bool meshRecordBufferCreated
+        = context.createDeviceLocalBuffer(meshRecordBuffer, meshRecords.data(), meshRecordSize,
+                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+    DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.");
+
     VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
     VkDeviceSize transformBufferSize = sizeof(globalTransforms[0]) * globalTransforms.size();
@@ -89,73 +97,77 @@ void App::createRenderingResources()
     
     // LIGHTS
     const size_t lightCount = scene->getLightCount();
-    numLights = static_cast<uint32_t>(lightCount); // push constant
+    numLights = static_cast<uint32_t>(lightCount);  // push constant
     std::vector<NPLightRecord> lightRecords;
     meshRecords.reserve(meshCount);
     std::vector<FLOAT4X4> lightTransforms;
-    
+
     if (lightCount > 0)
     {
         for (uint32_t i = 0; i < lightCount; i++)
         {
             const NPLight* light = scene->getLightAtIndex(i);
-        
+
             NPLightRecord lightRecord;
             lightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
             lightRecord.color = FLOAT4(light->color, 1.0);
             lightRecord.intensity = light->intensity;
-        
+
             lightTransforms.push_back(light->transform);
             lightRecords.push_back(lightRecord);
         }
     }
-    else
+    else if (kDEBUG)
     {
         numLights = 1;
-        
+
         NPLightRecord defaultLightRecord;
         defaultLightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
         defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
         defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
-        
-        FLOAT4X4 transform = FLOAT4X4(1.0);
-        transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f); // written explicitly for debugging
+
+        auto transform = FLOAT4X4(1.0);
+        transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
         lightTransforms.push_back(transform);
         lightRecords.push_back(defaultLightRecord);
     }
-    
+    else DEV_ASSERT(false, "No lights were found in scene.");
+
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
     VkDeviceSize lightTransformsSize = sizeof(lightTransforms[0]) * lightTransforms.size();
-    
-    context.createDeviceLocalBuffer(lightRecordBuffer, lightRecords.data(), lightRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    context.createDeviceLocalBuffer(lightTransformsBuffer, lightTransforms.data(), lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
+
+    context.createDeviceLocalBuffer(lightRecordBuffer, lightRecords.data(), lightRecordBufferSize,
+                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    context.createDeviceLocalBuffer(lightTransformsBuffer, lightTransforms.data(),
+                                    lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
     // CAMERA
     VkDeviceSize cameraSize = sizeof(NPCameraRecord);
-    bool cameraRecordBufferCreated = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    
-    if (!cameraRecordBufferCreated)
-    {
-        throw std::runtime_error("failed to create camera record buffer");
-    }
-    
+    bool cameraRecordBufferCreated
+        = context.createDeviceLocalBuffer(cameraRecordBuffer, scene->getCamera(), cameraSize,
+                                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+    DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.");
+
     // MATERIALS
-    
+
     const size_t materialCount = scene->getMaterialCount();
     std::vector<NPMaterial> materialRecords;
     materialRecords.reserve(materialCount);
-    
+
     for (uint32_t i = 0; i < materialCount; i++)
     {
-        // right now NPMaterial and record are identical so just use the same struct here (still looping for easy modification in the future)
-        NPMaterial material = *scene->getMaterialAtIndex(i);
-        
-        materialRecords.push_back(material);
+        // right now NPMaterial and record are identical so just use the same struct here (still
+        // looping for easy modification in the future)
+        const NPMaterial* material = scene->getMaterialAtIndex(i);
+
+        materialRecords.push_back(*material);
     }
-    
+
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
-    context.createDeviceLocalBuffer(materialRecordsBuffer, materialRecords.data(), materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
+    context.createDeviceLocalBuffer(materialRecordsBuffer, materialRecords.data(),
+                                    materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
     // TEXTURES
     uint32_t textureCount = static_cast<uint32_t>(scene->pendingTextures.size());
     textures.reserve(textureCount);
@@ -163,9 +175,9 @@ void App::createRenderingResources()
     {
         NPImage textureImage;
         auto texture = scene->pendingTextures[i].get();
-        
-        context.createTextureImage(textureImage, texture->pixels, texture->width, texture->height, texture->ownership);
-        
+
+        context.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
+
         textures.push_back(textureImage);
     }
     
@@ -395,60 +407,57 @@ void App::createGraphicsPipeline()
     // shader creation
     VkShaderModule coreVertModule = context.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
     VkShaderModule coreFragModule = context.createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
-    
+
     VkPipelineShaderStageCreateInfo vInfo{};
     vInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vInfo.module = coreVertModule;
     vInfo.pName = "vertMain";
-    
+
     VkPipelineShaderStageCreateInfo fInfo{};
     fInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fInfo.module = coreFragModule;
     fInfo.pName = "fragMain";
-    
+
     VkPipelineShaderStageCreateInfo shaderStages[] = { vInfo, fInfo };
-    
+
     // viewport
     std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT,
                                                   VK_DYNAMIC_STATE_SCISSOR };
-    
+
     VkPipelineDynamicStateCreateInfo dynamicInfo{};
     dynamicInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicInfo.pDynamicStates = dynamicStates.data();
-    
+
     VkPipelineVertexInputStateCreateInfo vertexInfo{};
     vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInfo.vertexBindingDescriptionCount = 0;
     vertexInfo.pVertexBindingDescriptions = nullptr;
     vertexInfo.vertexAttributeDescriptionCount = 0;
     vertexInfo.pVertexAttributeDescriptions = nullptr;
-    
+
     VkPipelineInputAssemblyStateCreateInfo inputInfo{};
     inputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    
-    VkViewport viewport{
-        0.0f, 0.0f, 0, 0,
-        0.0f, 1.0f
-    };
+
+    VkViewport viewport{ 0.0f, 0.0f, 0, 0, 0.0f, 1.0f };
     viewport.width = m_aovs ? m_aovs->color->width : context.swapchainParams.extent.width;
     viewport.height = m_aovs ? m_aovs->color->height : context.swapchainParams.extent.height;
-    
+
     VkExtent2D extent{};
     extent.width = m_aovs ? m_aovs->color->width : context.swapchainParams.extent.width;
     extent.height = m_aovs ? m_aovs->color->height : context.swapchainParams.extent.height;
     VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
-    
+
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.pViewports = nullptr;
     viewportState.scissorCount = 1;
     viewportState.pScissors = nullptr;
-    
+
     // rasterizer
     VkPipelineRasterizationStateCreateInfo rasterInfo{};
     rasterInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -460,25 +469,25 @@ void App::createGraphicsPipeline()
     rasterInfo.depthBiasEnable = VK_FALSE;
     rasterInfo.depthBiasSlopeFactor = 1.0f;
     rasterInfo.lineWidth = 1.0f;
-    
+
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     multisampling.sampleShadingEnable = VK_FALSE;
-    
+
     // color blending
     VkPipelineColorBlendAttachmentState blendInfo{};
     blendInfo.blendEnable = VK_FALSE;
     blendInfo.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
                                | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    
+
     VkPipelineColorBlendStateCreateInfo blendStateInfo{};
     blendStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     blendStateInfo.logicOpEnable = VK_FALSE;
     blendStateInfo.logicOp = VK_LOGIC_OP_COPY;
     blendStateInfo.attachmentCount = 1;
     blendStateInfo.pAttachments = &blendInfo;
-    
+
     // depth testing
     VkPipelineDepthStencilStateCreateInfo depthInfo{};
     depthInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -487,7 +496,7 @@ void App::createGraphicsPipeline()
     depthInfo.depthCompareOp = VK_COMPARE_OP_LESS;
     depthInfo.depthBoundsTestEnable = VK_FALSE;
     depthInfo.stencilTestEnable = VK_FALSE;
-    
+
     // pipeline layout
     std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
     vkDescriptorSetLayouts.reserve(descriptorSetLayouts.size());
@@ -495,12 +504,12 @@ void App::createGraphicsPipeline()
     {
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
     }
-    
+
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
     pushConstantRange.offset = 0;
     pushConstantRange.size = 2 * sizeof(uint32_t);
-    
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
@@ -513,9 +522,10 @@ void App::createGraphicsPipeline()
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = m_aovs ? &m_aovs->color->format : &context.swapchainParams.format.format;
+    renderingInfo.pColorAttachmentFormats = m_aovs ? &m_aovs->color->format
+                                                   : &context.swapchainParams.format.format;
     renderingInfo.depthAttachmentFormat = context.depthFormat;
-    
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.pNext = &renderingInfo;
@@ -798,7 +808,7 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 
     NPImage* renderTarget = aovs->color;
 
-    populateDrawCallCallable(frame.commandBuffer, renderTarget);
+    populateDrawCallCallable(frame, renderTarget);
 
     vkResetFences(context.device, 1,
                   &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
@@ -806,32 +816,25 @@ void App::executeDrawCallCallable(NPRendererAovs* aovs)
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-
-    // signal that rendering is finished once execution is finished
-    vkQueueSubmit(context.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
-                  frame.doneExecutingFence);  // signal that execution has been completed on frame
-    // once it is done
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence);
 
     // increment frame (within ring)
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
-void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* renderTarget)
+void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 {
+    VkCommandBuffer& commandBuffer = frame.commandBuffer;
     vkResetCommandBuffer(commandBuffer, 0);
     context.beginCommandBuffer(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
+    /*context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);*/
 
     VkClearValue clearColor{};
     clearColor.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
@@ -839,26 +842,26 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
     VkClearValue clearDepth{};
     clearDepth.depthStencil = { 1.0f, 0 };
 
-    // TODO pass in image params
+    // TODO: pass in image params
     VkExtent2D extent{};
-    extent.width = WIDTH;
-    extent.height = HEIGHT;
+    extent.width = renderTarget->width;
+    extent.height = renderTarget->height;
 
     VkRenderingAttachmentInfo colorAttachmentInfo{};
     colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachmentInfo.imageView = renderTarget->view;
-    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachmentInfo.imageLayout = renderTarget->layout;
     colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachmentInfo.clearValue = clearColor;
 
-    VkRenderingAttachmentInfo depthAttachmentInfo{};
-    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = context.depthImage.view;
-    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentInfo.clearValue = clearDepth;
+    // VkRenderingAttachmentInfo depthAttachmentInfo{};
+    // depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    // depthAttachmentInfo.imageView = context.depthImage.view;
+    // depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    // depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // depthAttachmentInfo.clearValue = clearDepth;
 
     VkRenderingInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -867,12 +870,13 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
     renderingInfo.layerCount = 1;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachmentInfo;
-    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline.pipeline);
 
-    VkViewport viewport{ 0.0f, 0.0f, (float)extent.width, (float)extent.height, 0.0f, 1.0f };
+    VkViewport viewport{
+        0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f
+    };
 
     VkRect2D scissor{ { 0, 0 }, extent };
 
@@ -900,13 +904,11 @@ void App::populateDrawCallCallable(VkCommandBuffer& commandBuffer, NPImage* rend
 
     vkCmdEndRendering(commandBuffer);
 
-    context.transitionImageLayout(commandBuffer, renderTarget->image,
+    /*context.transitionImageLayout(commandBuffer, renderTarget->image,
                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
-
-    vkEndCommandBuffer(commandBuffer);
+                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);*/
 }
 
 // SWAPCHAIN DRAW CALL
@@ -917,11 +919,12 @@ void App::executeDrawCallSwapchain()
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(context.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
-    
+
     // acquire image when it is done being presented
     uint32_t imageIndex;
-    if (vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, frame.donePresentingSemaphore, nullptr,
-        &imageIndex) == VK_ERROR_OUT_OF_DATE_KHR)
+    if (vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX,
+                              frame.donePresentingSemaphore, nullptr, &imageIndex)
+        == VK_ERROR_OUT_OF_DATE_KHR)
     {
         context.recreateSwapchain(window);
         return;
@@ -953,13 +956,15 @@ void App::executeDrawCallSwapchain()
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &context.doneRenderingSemaphores[imageIndex]; // present after rendering finishes
+    presentInfo.pWaitSemaphores
+        = &context.doneRenderingSemaphores[imageIndex];  // present after rendering finishes
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &context.swapchain;
     presentInfo.pImageIndices = &imageIndex;
 
     VkResult result = vkQueuePresentKHR(context.queues[NPQueueType::GRAPHICS].queue, &presentInfo);
-    if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR) || context.framebufferResized)
+    if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR)
+        || context.framebufferResized)
     {
         context.framebufferResized = false;
         context.recreateSwapchain(window);
@@ -969,20 +974,17 @@ void App::executeDrawCallSwapchain()
     currentFrame = (currentFrame + 1) % FRAME_COUNT;
 }
 
-void App::populateDrawCallRaster(VkCommandBuffer& commandBuffer, uint32_t imageIndex)
+void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
 {
-    vkResetCommandBuffer(commandBuffer, 0);
-    context.beginCommandBuffer(commandBuffer);
+    vkResetCommandBuffer(frame.commandBuffer, 0);
+    context.beginCommandBuffer(frame.commandBuffer);
 
-    context.transitionImageLayout(
-        commandBuffer,
-        context.swapchainImages[imageIndex],
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        0,
-        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    context.transitionImageLayout(frame.commandBuffer, context.swapchainImages[imageIndex],
+                                  VK_IMAGE_LAYOUT_UNDEFINED,
+                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
+                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                  VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkClearValue clearColor{ { { 0.0f, 0.0f, 0.0f, 1.0f } } };
     VkClearValue clearDepth{ { 1.0f, 0 } };
@@ -1016,43 +1018,50 @@ void App::populateDrawCallRaster(VkCommandBuffer& commandBuffer, uint32_t imageI
     renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
     // record commands
-    vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline.pipeline);
+    vkCmdBeginRendering(frame.commandBuffer, &renderingInfo);
+    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline.pipeline);
 
-    VkViewport viewport{
-        0.0f, 0.0f, (float)context.swapchainParams.extent.width, (float)context.swapchainParams.extent.height,
-        0.0f, 1.0f
-    };
+    VkViewport viewport{ 0.0f,
+                         0.0f,
+                         static_cast<float>(context.swapchainParams.extent.width),
+                         static_cast<float>(context.swapchainParams.extent.height),
+                         0.0f,
+                         1.0f };
 
     VkRect2D scissor{ { 0, 0 }, context.swapchainParams.extent };
 
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    vkCmdSetViewport(frame.commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline.layout, 0, static_cast<uint32_t>(descriptorSets.size()),
+    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline.layout, 0, static_cast<uint32_t>(descriptorSets.size()),
                             descriptorSets.data(), 0, nullptr);
     
     for (size_t i = 0; i < indexCounts.size(); i++)
     {
         std::vector<uint32_t> pushConstants{static_cast<uint32_t>(i), numLights};
-        vkCmdPushConstants(commandBuffer, rasterPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()), pushConstants.data());
-        vkCmdDraw(commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
+        vkCmdPushConstants(frame.commandBuffer, rasterPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0, sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()), pushConstants.data());
+        vkCmdDraw(frame.commandBuffer, indexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
-    
-    vkCmdEndRendering(commandBuffer);
 
-    context.transitionImageLayout(
-        commandBuffer,
-        context.swapchainImages[imageIndex],
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-        0,
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+    vkCmdEndRendering(frame.commandBuffer);
 
-    vkEndCommandBuffer(commandBuffer);
+    context.transitionImageLayout(frame.commandBuffer, context.swapchainImages[imageIndex],
+                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+
+    vkResetFences(
+        context.device, 1,
+        &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
+
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    context.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+                             frame.doneExecutingFence, frame.donePresentingSemaphore,
+                             context.doneRenderingSemaphores[imageIndex]);
 }
 
 void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex)
@@ -1241,7 +1250,10 @@ void App::render()
 
 void App::run()
 {
-    if (standalone) render();
-    
+    if (kSTANDALONE)
+    {
+        render();
+    }
+
     destroy();
 }

@@ -1089,16 +1089,15 @@ void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
                             0, nullptr);
 
     for (size_t i = 0; i < mIndexCounts.size(); i++)
-        for (size_t i = 0; i < mIndexCounts.size(); i++)
-        {
-            std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), mNumLights,
-                                                 mContext.frameIndex };
-            vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
-                               VK_SHADER_STAGE_ALL_GRAPHICS, 0,
-                               sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
-                               pushConstants.data());
-            vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
-        }
+    {
+        std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), mNumLights,
+                                             mContext.frameIndex };
+        vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
+                           VK_SHADER_STAGE_ALL_GRAPHICS, 0,
+                           sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
+                           pushConstants.data());
+        vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
+    }
 
     vkCmdEndRendering(frame.commandBuffer);
 

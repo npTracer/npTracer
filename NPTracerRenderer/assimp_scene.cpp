@@ -185,10 +185,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
                                                 static_cast<int>(embedded->mWidth), &width, &height,
                                                 &channels, STBI_rgb_alpha);
 
-                    if (!decodedPixels)
-                    {
-                        throw std::runtime_error("failed to decode embedded texture from memory");
-                    }
+                    DEV_ASSERT(decodedPixels, "failed to decode embedded texture from memory");
 
                     texture->pixels = decodedPixels;
                     texture->width = static_cast<uint32_t>(width);
@@ -206,11 +203,8 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
                 int width = 0, height = 0, channels = 0;
                 stbi_uc* pixels = stbi_load(path.C_Str(), &width, &height, &channels,
                                             STBI_rgb_alpha);  // TODO: store scene directory
-                if (!pixels)
-                {
-                    throw std::runtime_error(std::string("failed to load external texture: ")
-                                             + path.C_Str());
-                }
+
+                DEV_ASSERT(pixels, "failed to load external texture: '%s'\n", path.C_Str());
 
                 texture->pixels = pixels;
                 texture->width = static_cast<uint32_t>(width);

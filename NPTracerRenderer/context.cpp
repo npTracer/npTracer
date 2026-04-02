@@ -215,7 +215,7 @@ void Context::createLogicalDeviceAndQueues()
                  && features2Probe.features.shaderInt64
                  && features2Probe.features.samplerAnisotropy;
 
-    DEV_ASSERT(valid, "required features not supported");
+    DEV_ASSERT(valid, "required features not supported\n");
 
     // enable features
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{};
@@ -293,10 +293,8 @@ void Context::createLogicalDeviceAndQueues()
             poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             poolInfo.queueFamilyIndex = queue.index.value();
 
-            if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
-            {
-                throw std::runtime_error("Failed to create command pool\n");
-            }
+            VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool),
+                     "failed to create command pool\n");
         }
     }
 
@@ -322,10 +320,7 @@ void Context::createAllocator()
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 
-    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create vma allocator!\n");
-    }
+    VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator), "failed to create vma allocator!\n");
 }
 
 void Context::createSwapchain(GLFWwindow* window)
@@ -408,10 +403,8 @@ void Context::createSwapchain(GLFWwindow* window)
     swapchainCreateInfo.clipped = VK_TRUE;
     swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain))
-    {
-        throw std::runtime_error("failed to create swapchain");
-    }
+    VK_CHECK(vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain),
+             "failed to create swapchain\n");
 
     uint32_t swapchainImageCount;
     vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
@@ -527,10 +520,8 @@ void Context::createSyncAndFrameObjects()
 
 void Context::createSurface(GLFWwindow* window)
 {
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-    {
-        throw std::runtime_error("surface creation failed");
-    }
+    VK_CHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface),
+             "surface creation failed\n");
 }
 
 // COMMAND BUFFERS
@@ -683,12 +674,9 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     allocCreateInfo.flags = allocationFlags;
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-    if (vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image, &handle.allocation,
-                       &handle.allocInfo)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create image!\n");
-    }
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image,
+                            &handle.allocation, &handle.allocInfo),
+             "failed to create image!\n");
 
     handle.width = width;
     handle.height = height;
@@ -929,10 +917,8 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
                                                      uint32_t firstVertex, uint32_t vertexCount,
                                                      uint32_t firstIndex, uint32_t indexCount)
 {
-    if (indexCount == 0 || (indexCount % 3) != 0)
-    {
-        throw std::runtime_error("BLAS build requires a non-zero triangle index count.");
-    }
+    DEV_ASSERT(indexCount != 0 && (indexCount % 3) == 0,
+               "BLAS build requires a non-zero triangle index count.\n");
 
     VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
     triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
@@ -993,11 +979,9 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
     createInfo.size = sizeInfo.accelerationStructureSize;
     createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 
-    if (vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &handle.accelerationStructure)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create acceleration structure!");
-    }
+    VK_CHECK(vkCreateAccelerationStructureKHR(device, &createInfo, nullptr,
+                                              &handle.accelerationStructure),
+             "failed to create acceleration structure!\n");
 
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
     buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -1039,12 +1023,10 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     const uint32_t instanceCount = static_cast<uint32_t>(instances.size());
     VkDeviceSize instanceBufferSize = sizeof(VkAccelerationStructureInstanceKHR) * instanceCount;
 
-    if (!createDeviceLocalBuffer(instanceBufferHandle, instances.data(), instanceBufferSize,
-                                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-                                     | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))
-    {
-        throw std::runtime_error("failed to create device local memory buffer!");
-    }
+    DEV_ASSERT(createDeviceLocalBuffer(instanceBufferHandle, instances.data(), instanceBufferSize,
+                                       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+                                           | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
+               "failed to create device local memory buffer!\n");
 
     VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(instanceBufferHandle);
 
@@ -1132,11 +1114,8 @@ void Context::createDescriptorSetLayout(
     layoutInfo.bindingCount = static_cast<uint32_t>(bindingVec.size());
     layoutInfo.pBindings = bindingVec.data();
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create mesh descriptor set layout");
-    }
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout),
+             "failed to create mesh descriptor set layout\n");
 
     // get binding types and number
     std::unordered_map<VkDescriptorType, uint32_t> countMap;
@@ -1161,11 +1140,8 @@ void Context::createDescriptorSetLayout(
     descriptorPoolInfo.pPoolSizes = poolSizes.data();
     descriptorPoolInfo.maxSets = 1;  // maybe change later
 
-    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create mesh descriptor pool");
-    }
+    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool),
+             "failed to create mesh descriptor pool\n");
 }
 
 void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
@@ -1177,10 +1153,8 @@ void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
     allocInfo.descriptorSetCount = 1;  // maybe change later
     allocInfo.pSetLayouts = &descriptorSetLayout.layout;
 
-    if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate mesh descriptor set");
-    }
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet),
+             "failed to allocate mesh descriptor set\n");
 }
 
 void Context::writeDescriptorSetBuffers(
@@ -1318,13 +1292,13 @@ void Context::loadRayTracingFunctionPointers()
     vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(
         vkGetDeviceProcAddr(device, "vkCmdTraceRaysKHR"));
 
-    if (!vkCreateAccelerationStructureKHR || !vkDestroyAccelerationStructureKHR
-        || !vkGetAccelerationStructureBuildSizesKHR || !vkCmdBuildAccelerationStructuresKHR
-        || !vkGetAccelerationStructureDeviceAddressKHR || !vkCreateRayTracingPipelinesKHR
-        || !vkGetRayTracingShaderGroupHandlesKHR || !vkCmdTraceRaysKHR)
-    {
-        throw std::runtime_error("failed to load ray tracing Vulkan function pointers");
-    }
+    bool pointers = vkCreateAccelerationStructureKHR && vkDestroyAccelerationStructureKHR
+                    && vkGetAccelerationStructureBuildSizesKHR
+                    && vkCmdBuildAccelerationStructuresKHR
+                    && vkGetAccelerationStructureDeviceAddressKHR && vkCreateRayTracingPipelinesKHR
+                    && vkGetRayTracingShaderGroupHandlesKHR && vkCmdTraceRaysKHR;
+
+    DEV_ASSERT(pointers, "failed to load ray tracing Vulkan function pointers\n");
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const

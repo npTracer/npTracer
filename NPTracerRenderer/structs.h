@@ -21,14 +21,6 @@ using FLOAT4X4 = glm::f32mat4;
 using NPScenePath = std::string;
 using NPScenePathCollection = std::vector<NPScenePath>;
 
-struct Dummy
-{
-    float a;
-    float b;
-    float c;
-    float d;
-};
-
 struct NPVertex
 {
     FLOAT4 pos;
@@ -187,6 +179,33 @@ struct NPFrame
     }
 };
 
+struct NPSwapchainParams
+{
+    VkSurfaceFormatKHR surfaceFormat;
+    VkPresentModeKHR presentMode;
+    VkExtent2D extent;
+    VkFormat depthFormat;
+};
+
+struct NPDescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+
+    void destroy(VkDevice device)
+    {
+        if (pool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(device, pool, nullptr);
+        }
+
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        }
+    }
+};
+
 enum class NPQueueType : uint8_t
 {
     GRAPHICS,
@@ -215,14 +234,9 @@ struct NPQueue
     }
 };
 
-// shared structs
-struct NPCameraRecord
-{
-    alignas(16) FLOAT4X4 model;
-    alignas(16) FLOAT4X4 view;
-    alignas(16) FLOAT4X4 proj;
-};
+// primitive types
 
+// meshes
 struct NPMeshRecord
 {
     uint32_t vertexOffset;
@@ -278,27 +292,28 @@ struct NPMesh
     }
 };
 
-struct NPMaterial
+// camera
+struct NPCameraRecord
 {
-    FLOAT4 ambient;
-    FLOAT4 diffuse;
-    FLOAT4 specular;
-    FLOAT4 emission;
+    alignas(16) FLOAT4X4 model;
+    alignas(16) FLOAT4X4 view;
+    alignas(16) FLOAT4X4 proj;
+};
 
-    uint32_t diffuseTextureIdx;
+using NPCamera = NPCameraRecord;
+
+// lights
+struct NPLightRecord
+{
+    uint32_t lightTransformIndex;
+    FLOAT4 color;
+    float intensity;
 };
 
 enum class NPLightType : uint8_t
 {
     POINT,
     AREA
-};
-
-struct NPLightRecord
-{
-    uint32_t lightTransformIndex;
-    FLOAT4 color;
-    float intensity;
 };
 
 struct NPLight
@@ -317,15 +332,29 @@ struct NPLight
     // for point / area
     float radius;
 
-    uint32_t lightId;
+    uint64_t lightId;
 };
 
-struct NPTexture
+struct NPMaterialRecord
+{
+    FLOAT4 ambient;
+    FLOAT4 diffuse;
+    FLOAT4 specular;
+    FLOAT4 emission;
+
+    uint32_t diffuseTextureIdx;
+};
+
+using NPMaterial = NPMaterialRecord;
+
+struct NPTextureRecord
 {
     void* pixels;
     uint32_t width;
     uint32_t height;
 };
+
+using NPTexture = NPTextureRecord;
 
 enum class NPStylizationFunction : uint8_t
 {
@@ -347,31 +376,4 @@ struct NPRendererAovs
     NPImage* color = nullptr;
     NPImage* depth = nullptr;
     // normals?
-};
-
-struct SwapchainParams
-{
-    VkSurfaceFormatKHR surfaceFormat;
-    VkPresentModeKHR presentMode;
-    VkExtent2D extent;
-    VkFormat depthFormat;
-};
-
-struct NPDescriptorSetLayout
-{
-    VkDescriptorSetLayout layout;
-    VkDescriptorPool pool;
-
-    void destroy(VkDevice device)
-    {
-        if (pool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(device, pool, nullptr);
-        }
-
-        if (layout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
-        }
-    }
 };

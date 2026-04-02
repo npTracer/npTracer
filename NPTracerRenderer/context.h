@@ -29,7 +29,7 @@ public:
 
     // swapchain
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    SwapchainParams swapchainParams;
+    NPSwapchainParams swapchainParams;
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
     std::vector<VkSemaphore> doneRenderingSemaphores;

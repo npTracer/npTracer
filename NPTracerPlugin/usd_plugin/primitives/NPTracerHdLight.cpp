@@ -1,6 +1,10 @@
 #include "usd_plugin/primitives/NPTracerHdLight.h"
 
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
+#include "usd_plugin/debugCodes.h"
+#include "usd_plugin/hdMathUtils.h"
+
+#include "pxr/imaging/hd/sceneDelegate.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -9,16 +13,65 @@ NPTracerHdLight::NPTracerHdLight(const SdfPath& sprimId, NPTracerHdRenderDelegat
 {
 }
 
-NPTracerHdLight::~NPTracerHdLight() {}
+NPTracerHdLight::~NPTracerHdLight()
+{
+    _RemoveFromScene();
+}
 
 HdDirtyBits NPTracerHdLight::GetInitialDirtyBitsMask() const
 {
     return DirtyParams;
 }
 
-void NPTracerHdLight::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
-                           HdDirtyBits* dirtyBits)
+void NPTracerHdLight::_AddToScene()
 {
+    if (Scene* scene = _pCreator->GetScene())
+    {
+        const SdfPath& id = GetId();
+        _pLight = scene->makePrim<NPLight>();
+
+        _PrepareLight();
+
+        NP_DBG("Added light '%s' to scene\n", id.GetAsString().c_str());
+    }
+}
+
+void NPTracerHdLight::_RemoveFromScene()
+{
+    Scene* scene = _pCreator->GetScene();
+    if (scene && _pLight)
+    {
+        bool removed = scene->deletePrim<NPLight>(_pLight);
+        _pLight = nullptr;
+
+        NP_DBG("Removed light '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
+    }
+}
+
+NPTracerHdSphereLight::NPTracerHdSphereLight(const SdfPath& sprimId,
+                                             NPTracerHdRenderDelegate* renderDelegate)
+    : NPTracerHdLight(sprimId, renderDelegate)
+{
+}
+
+void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
+                                 HdDirtyBits* dirtyBits)
+{
+    const SdfPath& id = GetId();
+
+    _pLight->intensity = (delegate->GetLightParamValue(id, HdLightTokens->intensity)).Get<float>();
+
+    GfVec3f lightColor = (delegate->GetLightParamValue(id, HdLightTokens->color)).Get<pxr::GfVec3f>();
+    _pLight->color = GfVec3ToGLM(lightColor);
+
+    GfMatrix4f lightTransform(delegate->GetTransform(id));
+    _pLight->transform = GfMatrix4fToGLM(lightTransform);
+}
+
+void NPTracerHdSphereLight::_PrepareLight()
+{
+    DEV_ASSERT(_pLight, "Light should exist before preparation");
+    _pLight->type = NPLightType::POINT;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

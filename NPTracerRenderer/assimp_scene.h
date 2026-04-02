@@ -4,15 +4,6 @@
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
-// assimp loading
-struct AssimpMeshInstance
-{
-    const aiMesh* mesh;
-    FLOAT4X4 transform;
-    std::string nodeName;
-};
 
 class AssimpScene final : public Scene
 {
@@ -22,6 +13,14 @@ public:
     void loadSceneFromPath(const char* path) override;
 
 private:
+    // assimp loading
+    struct AssimpMeshInstance
+    {
+        const aiMesh* mesh;
+        FLOAT4X4 transform;
+        std::string nodeName;
+    };
+
     std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
     std::vector<AssimpMeshInstance> pendingMeshes;
     std::unordered_map<std::string, uint32_t> textureIndexByKey;

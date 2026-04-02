@@ -272,7 +272,7 @@ void NPTracerHdMesh::_AddToScene()
     if (Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pMesh = scene->addMesh();
+        _pMesh = scene->makePrim<NPMesh>();
         _pMesh->objectId = id.GetHash();
         _pMesh->scenePath = id.GetString();
 
@@ -285,7 +285,7 @@ void NPTracerHdMesh::_RemoveFromScene()
     Scene* scene = _pCreator->GetScene();
     if (scene && _pMesh)
     {
-        bool removed = scene->removeMesh(_pMesh->objectId);
+        bool removed = scene->deletePrim<NPMesh>(_pMesh);
         _pMesh = nullptr;
 
         NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);

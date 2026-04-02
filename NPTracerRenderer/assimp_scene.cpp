@@ -1,8 +1,10 @@
 #include "assimp_scene.h"
 
+#include "utils.h"
+#include "assimp/postprocess.h"
 #include <stb_image.h>
 
-static FLOAT4X4 aiToGlm(const aiMatrix4x4& m)
+static FLOAT4X4 sAiToGLM(const aiMatrix4x4& m)
 {
     auto mat = FLOAT4X4(m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3,
                         m.a4, m.b4, m.c4, m.d4);
@@ -18,27 +20,23 @@ AssimpScene::~AssimpScene()
 
 void AssimpScene::loadSceneFromPath(const char* path)
 {
-    if (!path)
-    {
-        throw std::runtime_error("failed to load scene");
-    }
-
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path, aiProcess_MakeLeftHanded | aiProcess_Triangulate
-                                                       | aiProcess_GlobalScale
-                                                       | aiProcess_GenSmoothNormals
-                                                       | aiProcess_FlipUVs
-                                                       | aiProcess_JoinIdenticalVertices);
-
-    if (!scene)
+    const aiScene* scene;
+    try
     {
-        throw std::runtime_error("failed to load scene");
+        scene = importer.ReadFile(path, aiProcess_MakeLeftHanded | aiProcess_Triangulate
+                                            | aiProcess_GlobalScale | aiProcess_GenSmoothNormals
+                                            | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices);
+    }
+    catch (std::exception& e)
+    {
+        DEV_ASSERT(false, "failed to load scene: %s", e.what());
     }
 
     const aiNode* root = scene->mRootNode;
 
     // mark default texture in texture path vector
-    auto defaultTexture = std::make_unique<NPTexture>();
+    auto defaultTexture = std::make_unique<NPTextureRecord>();
     auto* pixel = static_cast<uint32_t*>(malloc(sizeof(uint32_t)));
     defaultTexture->pixels = pixel;
     defaultTexture->width = 1;
@@ -63,7 +61,7 @@ void AssimpScene::loadSceneFromPath(const char* path)
 
 void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform)
 {
-    FLOAT4X4 localTransform = transform * aiToGlm(node->mTransformation);
+    FLOAT4X4 localTransform = transform * sAiToGLM(node->mTransformation);
     nodeTransforms[node->mName.C_Str()] = localTransform;  // store for light traversal
 
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
@@ -118,7 +116,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     }
 
     // get material
-    auto mat = std::make_unique<NPMaterial>();
+    auto mat = std::make_unique<NPMaterialRecord>();
 
     mat->ambient = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
     mat->diffuse = FLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -161,7 +159,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
         }
         else  // create a new texture
         {
-            auto texture = std::make_unique<NPTexture>();
+            auto texture = std::make_unique<NPTextureRecord>();
             uint32_t newIndex = static_cast<uint32_t>(_textures.size());
             mat->diffuseTextureIdx = newIndex;
 

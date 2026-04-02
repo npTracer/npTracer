@@ -1,6 +1,7 @@
 #pragma once
 
 #include "structs.h"
+#include "utils.h"
 
 #include <vector>
 #include <memory>
@@ -11,60 +12,46 @@ class Scene
 public:
     virtual ~Scene() = default;
 
-    virtual void loadSceneFromPath(const char* path);
+    virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
 
-    NPMesh* addMesh();
-    bool removeMesh(const uint32_t& objectId);
+    template<typename T>
+    T* makePrim();
 
-    NPMesh const* getMeshAtIndex(int idx) const;
+    template<typename T>
+    bool deletePrim(T* primToDelete);
 
-    inline size_t getMeshCount() const
-    {
-        return _meshes.size();
-    }
+    template<typename T>
+    size_t getPrimCount() const;
 
-    NPLight const* getLightAtIndex(int idx) const;
-
-    inline size_t getLightCount() const
-    {
-        return _lights.size();
-    }
+    template<typename T>
+    T const* getPrimAtIndex(size_t idx);
 
     inline NPCameraRecord* getCamera()
     {
         return &_camera;
     }
 
-    inline NPCameraRecord const* getCamera() const
-    {
-        return &_camera;
-    }
-
-    inline size_t getMaterialCount() const
-    {
-        return _materials.size();
-    }
-
-    const NPMaterial* getMaterialAtIndex(int idx) const;
-
-    inline size_t getTextureCount() const
-    {
-        return _textures.size();
-    }
-
-    const NPTexture* getTextureAtIndex(int idx) const;
-
 protected:
-    std::mutex _meshMutex;
+    std::mutex _readWriteMutex;  // for now temp? keeps i/o single-threaded
+
     std::vector<std::unique_ptr<NPMesh>> _meshes;
-    std::vector<FLOAT4X4> _transforms;
 
     std::vector<std::unique_ptr<NPLight>> _lights;
-    std::vector<std::unique_ptr<NPMaterial>> _materials;
+    std::vector<std::unique_ptr<NPMaterialRecord>> _materials;
 
-    std::vector<std::unique_ptr<NPTexture>> _textures;
+    std::vector<std::unique_ptr<NPTextureRecord>> _textures;
 
     NPCameraRecord _camera;
 
     NPRenderSettings _settings;
+
+    template<typename T>
+    const std::vector<std::unique_ptr<T>>& getPrimVector() const;
+
+    template<typename T>
+    std::vector<std::unique_ptr<T>>& getPrimVector();
+
+    void guard();
 };
+
+#include "templates/scene.inl"

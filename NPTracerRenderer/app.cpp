@@ -31,7 +31,7 @@ void App::create(bool isStandalone)
 void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
 {
     // GEOMETRY
-    const size_t meshCount = mpScene->getMeshCount();
+    const size_t meshCount = mpScene->getPrimCount<NPMesh>();
     std::vector<NPMeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
 
@@ -40,7 +40,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
     std::vector<FLOAT4X4> globalTransforms;
     for (int i = 0; i < meshCount; i++)
     {
-        const NPMesh* mesh = mpScene->getMeshAtIndex(i);
+        NPMesh const* mesh = mpScene->getPrimAtIndex<NPMesh>(i);
 
         NPMeshRecord meshRecord{};
         meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
@@ -85,7 +85,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
                                      transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // LIGHTS
-    const size_t lightCount = mpScene->getLightCount();
+    const size_t lightCount = mpScene->getPrimCount<NPLight>();
     mNumLights = static_cast<uint32_t>(lightCount);  // push constant
     std::vector<NPLightRecord> lightRecords;
     meshRecords.reserve(meshCount);
@@ -95,7 +95,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
     {
         for (uint32_t i = 0; i < lightCount; i++)
         {
-            const NPLight* light = mpScene->getLightAtIndex(i);
+            NPLight const* light = mpScene->getPrimAtIndex<NPLight>(i);
 
             NPLightRecord lightRecord;
             lightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
@@ -140,15 +140,15 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
 
     // MATERIALS
 
-    const size_t materialCount = mpScene->getMaterialCount();
-    std::vector<NPMaterial> materialRecords;
+    const size_t materialCount = mpScene->getPrimCount<NPMaterial>();
+    std::vector<NPMaterialRecord> materialRecords;
     materialRecords.reserve(materialCount);
 
     for (uint32_t i = 0; i < materialCount; i++)
     {
         // right now NPMaterial and record are identical so just use the same struct here (still
         // looping for easy modification in the future)
-        const NPMaterial* material = mpScene->getMaterialAtIndex(i);
+        NPMaterial const* material = mpScene->getPrimAtIndex<NPMaterial>(i);
 
         materialRecords.push_back(*material);
     }
@@ -158,12 +158,12 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
                                      materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // TEXTURES
-    size_t textureCount = mpScene->getTextureCount();
+    size_t textureCount = mpScene->getPrimCount<NPTexture>();
     mTextures.reserve(textureCount);
     for (size_t i = 0; i < textureCount; i++)
     {
         NPImage textureImage;
-        auto texture = mpScene->getTextureAtIndex(i);
+        NPTexture const* texture = mpScene->getPrimAtIndex<NPTexture>(i);
 
         mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
 

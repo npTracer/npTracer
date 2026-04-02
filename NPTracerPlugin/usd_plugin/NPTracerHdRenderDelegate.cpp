@@ -3,7 +3,9 @@
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderPass.h"
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
+
 #include "usd_plugin/primitives/NPTracerHdMesh.h"
+#include "usd_plugin/primitives/NPTracerHdLight.h"
 
 #include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/sprim.h>
@@ -108,6 +110,10 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
     {
         return new HdCamera(sprimId);
     }
+    else if (typeId == HdPrimTypeTokens->sphereLight)
+    {
+        return new NPTracerHdSphereLight(sprimId, this);
+    }
     else
     {
         TF_FATAL_CODING_ERROR("Unknown Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
@@ -129,6 +135,10 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     if (typeId == HdPrimTypeTokens->camera)
     {
         return new HdCamera(SdfPath::EmptyPath());
+    }
+    else if (typeId == HdPrimTypeTokens->sphereLight)
+    {
+        return new NPTracerHdSphereLight(SdfPath::EmptyPath(), this);
     }
     else
     {
@@ -194,7 +204,7 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
 void NPTracerHdRenderDelegate::_Initialize()
 {
     _pApp = std::make_unique<App>();
-    //_pApp->create();
+    _pApp->create(false);
 
     _pRenderParam = std::make_unique<NPTracerHdRenderParam>();
     _pResourceRegistry = std::make_shared<HdResourceRegistry>();

@@ -55,7 +55,7 @@ struct NPBuffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
-    VmaAllocationInfo allocInfo = {};
+    VmaAllocationInfo allocInfo{};
 
     void destroy(VmaAllocator allocator)
     {
@@ -130,17 +130,17 @@ struct NPImage
 
     void destroy(VkDevice device, VmaAllocator allocator)
     {
+        if (view != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(device, view, nullptr);
+            view = VK_NULL_HANDLE;
+        }
+
         if (image != VK_NULL_HANDLE)
         {
             vmaDestroyImage(allocator, image, allocation);
             image = VK_NULL_HANDLE;
             allocInfo = {};
-        }
-
-        if (view != VK_NULL_HANDLE)
-        {
-            vkDestroyImageView(device, view, nullptr);
-            view = VK_NULL_HANDLE;
         }
     }
 };
@@ -234,6 +234,42 @@ struct NPQueue
     }
 };
 
+struct NPShaderBindingTable
+{
+    uint32_t handleSize;
+    uint32_t handleAlign;
+    uint32_t baseAlign;
+
+    NPBuffer buffer;
+    VkDeviceAddress deviceAddress;
+
+    VkStridedDeviceAddressRegionKHR rgen{};
+    VkStridedDeviceAddressRegionKHR miss{};
+    VkStridedDeviceAddressRegionKHR hit{};
+    VkStridedDeviceAddressRegionKHR callable{};
+
+    void destroy(VmaAllocator allocator)
+    {
+        buffer.destroy(allocator);
+    }
+};
+
+struct NPAccelerationStructure
+{
+    VkAccelerationStructureKHR accelerationStructure = VK_NULL_HANDLE;
+    NPBuffer handleBuffer;
+    NPBuffer scratchBuffer;
+    VkDeviceAddress deviceAddress;
+
+    void destroyBuffers(VkDevice device, VmaAllocator allocator)
+    {
+        // VkDestroyAccelerationStructure requires context so destroy it outside of struct
+
+        handleBuffer.destroy(allocator);
+        scratchBuffer.destroy(allocator);
+    }
+};
+
 // primitive types
 
 // meshes
@@ -295,9 +331,10 @@ struct NPMesh
 // camera
 struct NPCameraRecord
 {
-    alignas(16) FLOAT4X4 model;
     alignas(16) FLOAT4X4 view;
     alignas(16) FLOAT4X4 proj;
+    alignas(16) FLOAT4X4 invView;
+    alignas(16) FLOAT4X4 invProj;
 };
 
 using NPCamera = NPCameraRecord;
@@ -307,7 +344,7 @@ struct NPLightRecord
 {
     uint32_t lightTransformIndex;
     FLOAT4 color;
-    float intensity;
+    float intensity = UINT_MAX;
 };
 
 enum class NPLightType : uint8_t

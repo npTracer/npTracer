@@ -47,19 +47,23 @@ private:
     static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
 
     bool mIsStandalone = false;
-    uint32_t mCurrentFrame = 0;
+    uint32_t mCurrentRingFrame = 0;
 
     Context mContext{};
-    GLFWwindow* mpContext = nullptr;
+    GLFWwindow* mpWindow = nullptr;
 
     // push constants
     std::vector<uint32_t> mIndexCounts;
     uint32_t mNumLights = 0;
+    static constexpr int kPushConstantCount = 3;
 
     // rendering resources
     std::unique_ptr<Scene> mpScene;
 
-    NPPipeline mPipeline;
+    NPPipeline mRasterPipeline;
+    NPPipeline mRtPipeline;
+    NPShaderBindingTable mSbt{};
+
     std::vector<NPDescriptorSetLayout> mDescriptorSetLayouts;
     std::vector<VkDescriptorSet> mDescriptorSets;
     VkSampler mSampler = VK_NULL_HANDLE;
@@ -81,12 +85,21 @@ private:
     NPBuffer mMaterialRecordsBuffer;
     std::vector<NPImage> mTextures;
 
+    // SET 4: RT
+    std::vector<NPAccelerationStructure> mBlasses;
+    NPAccelerationStructure mTlas;
+
     // resource creation
     void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
+    void createRTPipeline();
+    void createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
+                                      std::vector<FLOAT4X4>& transforms,
+                                      VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
     void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
-    void populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex);
+    void populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex);
+    void populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

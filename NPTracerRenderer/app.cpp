@@ -12,15 +12,16 @@ void App::create(bool isStandalone)
 
     // create vulkan basics
     mContext.setFrameCount(FRAME_COUNT);
-    if (isStandalone) mContext.createWindow(mpContext, kWIDTH, kHEIGHT);
+    if (isStandalone) mContext.createWindow(mpWindow, kWIDTH, kHEIGHT);
     mContext.createInstance(kDEBUG);
-    if (isStandalone) mContext.createSurface(mpContext);
+    if (isStandalone) mContext.createSurface(mpWindow);
     mContext.createPhysicalDevice();
     mContext.createLogicalDeviceAndQueues();
     mContext.createAllocator();
-    if (isStandalone) mContext.createSwapchain(mpContext);
+    if (isStandalone) mContext.createSwapchain(mpWindow);
     mContext.createSyncAndFrameObjects();
     mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
+    mContext.createResultImages();
     mContext.createTextureSampler(mSampler);
     mContext.waitIdle();
 
@@ -38,7 +39,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
     std::vector<NPVertex> globalVertices;
     std::vector<uint32_t> globalIndices;
     std::vector<FLOAT4X4> globalTransforms;
-    for (int i = 0; i < meshCount; i++)
+    for (size_t i = 0; i < meshCount; i++)
     {
         NPMesh const* mesh = mpScene->getPrimAtIndex<NPMesh>(i);
 
@@ -77,10 +78,14 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
     VkDeviceSize transformBufferSize = sizeof(globalTransforms[0]) * globalTransforms.size();
 
-    mContext.createDeviceLocalBuffer(mVertexBuffer, globalVertices.data(), vertexBufferSize,
-                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    mContext.createDeviceLocalBuffer(mIndexBuffer, globalIndices.data(), indexBufferSize,
-                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mContext.createDeviceLocalBuffer(
+        mVertexBuffer, globalVertices.data(), vertexBufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+            | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+    mContext.createDeviceLocalBuffer(
+        mIndexBuffer, globalIndices.data(), indexBufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+            | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
     mContext.createDeviceLocalBuffer(mGeometryTransformsBuffer, globalTransforms.data(),
                                      transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
@@ -170,6 +175,12 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         mTextures.push_back(textureImage);
     }
 
+    // RT
+    VkDeviceAddress vertexAddress = mContext.getBufferDeviceAddress(mVertexBuffer);
+    VkDeviceAddress indexAddress = mContext.getBufferDeviceAddress(mIndexBuffer);
+
+    createAccelerationStructures(meshRecords, globalTransforms, vertexAddress, indexAddress);
+
     // SET 0: Mesh Records
     {
         NPDescriptorSetLayout descriptorSetLayout{};
@@ -181,28 +192,29 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+        b0.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                        | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
         // vertex ssbo
         VkDescriptorSetLayoutBinding b1{};
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
         // index ssbo
         VkDescriptorSetLayoutBinding b2{};
         b2.binding = 2;
         b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b2.descriptorCount = 1;
-        b2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
         // transforms
         VkDescriptorSetLayoutBinding b3{};
         b3.binding = 3;
         b3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b3.descriptorCount = 1;
-        b3.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b3.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -237,7 +249,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR;
         b0.pImmutableSamplers = nullptr;
 
         // light transforms
@@ -245,7 +257,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         b1.binding = 1;
         b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -276,7 +288,8 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                        | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
         b0.pImmutableSamplers = nullptr;
 
         bindings[0] = b0;
@@ -307,7 +320,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         b0.binding = 0;
         b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
         b0.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutBinding b1{};
@@ -315,7 +328,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         b1.descriptorCount = static_cast<uint32_t>(
             mTextures.size());  // TODO: this one SHOULD be a variable size descriptor
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
         b1.pImmutableSamplers = nullptr;
 
         bindings[0] = b0;
@@ -334,12 +347,70 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
 
         mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
         mContext.writeDescriptorSetImages(descriptorSet, 1, mTextures,
-                                          mSampler);  // write all textures
+                                          &mSampler);  // write all textures
 
         mDescriptorSets.push_back(descriptorSet);
     }
 
-    if (mIsStandalone)
+    // SET 4: RT
+    {
+        NPDescriptorSetLayout descriptorSetLayout{};
+
+        // acceleration structure
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        VkDescriptorSetLayoutBinding b0{};
+        b0.binding = 0;
+        b0.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        b0.descriptorCount = 1;
+        b0.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        b0.pImmutableSamplers = nullptr;
+
+        // result image
+        VkDescriptorSetLayoutBinding b1{};
+        b1.binding = 1;
+        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        b1.descriptorCount = 1;
+        b1.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        ;
+        b1.pImmutableSamplers = nullptr;
+
+        // accumulation image
+        VkDescriptorSetLayoutBinding b2{};
+        b2.binding = 2;
+        b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        b2.descriptorCount = 1;
+        b2.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        ;
+        b2.pImmutableSamplers = nullptr;
+
+        bindings[0] = b0;
+        bindings[1] = b1;
+        bindings[2] = b2;
+
+        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mDescriptorSetLayouts.push_back(descriptorSetLayout);
+
+        // allocate descriptors
+        mContext.allocateDesciptorSet(mContext.rtDescriptorSet, descriptorSetLayout);
+
+        // create descriptor set
+        std::unordered_map<uint32_t, NPAccelerationStructure*> bindingASMap;
+        bindingASMap[0] = &mTlas;
+
+        mContext.writeDescriptorSetAccelerationStructures(mContext.rtDescriptorSet, bindingASMap,
+                                                          bindings);
+
+        std::vector<NPImage> resultImages{ mContext.resultImage, mContext.accumulationImage };
+        mContext.writeDescriptorSetImages(mContext.rtDescriptorSet, 1, resultImages, &mSampler,
+                                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                          VK_IMAGE_LAYOUT_GENERAL);
+
+        mDescriptorSets.push_back(mContext.rtDescriptorSet);
+    }
+
+    createRTPipeline();
+
+    /*if (mIsStandalone)
     {
         createGraphicsPipeline(mContext.swapchainParams.extent.width,
                                mContext.swapchainParams.extent.height,
@@ -350,7 +421,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         DEV_ASSERT(aovsRef.has_value(), "no `aovs` given in non-standalone mode.");
         NPRendererAovs& aovs = aovsRef.value().get();
         createGraphicsPipeline(aovs.color->width, aovs.color->height, aovs.color->format);
-    }
+    }*/
 }
 
 void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format)
@@ -443,7 +514,6 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     VkPipelineDepthStencilStateCreateInfo depthInfo{};
     depthInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthInfo.depthTestEnable = VK_TRUE;
-    depthInfo.depthWriteEnable = VK_TRUE;
     depthInfo.depthCompareOp = VK_COMPARE_OP_LESS;
     depthInfo.depthBoundsTestEnable = VK_FALSE;
     depthInfo.stencilTestEnable = VK_FALSE;
@@ -459,7 +529,7 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = 2 * sizeof(uint32_t);
+    pushConstantRange.size = kPushConstantCount * sizeof(uint32_t);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -468,7 +538,7 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-    vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mPipeline.layout);
+    vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRasterPipeline.layout);
 
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -489,15 +559,297 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     pipelineInfo.pDepthStencilState = &depthInfo;
     pipelineInfo.pColorBlendState = &blendStateInfo;
     pipelineInfo.pDynamicState = &dynamicInfo;
-    pipelineInfo.layout = mPipeline.layout;
+    pipelineInfo.layout = mRasterPipeline.layout;
     pipelineInfo.renderPass = nullptr;
 
     VK_CHECK(vkCreateGraphicsPipelines(mContext.device, nullptr, 1, &pipelineInfo, nullptr,
-                                       &mPipeline.pipeline),
+                                       &mRasterPipeline.pipeline),
              "failed to create graphics pipeline");
 
     vkDestroyShaderModule(mContext.device, coreVertModule, nullptr);
     vkDestroyShaderModule(mContext.device, coreFragModule, nullptr);
+}
+
+void App::createRTPipeline()
+{
+    // pipeline layout
+    std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
+    vkDescriptorSetLayouts.reserve(mDescriptorSetLayouts.size());
+    for (auto& descriptorSetLayout : mDescriptorSetLayouts)
+    {
+        vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
+    }
+
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
+                                   | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = kPushConstantCount * sizeof(uint32_t);
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size());
+    pipelineLayoutInfo.pSetLayouts = vkDescriptorSetLayouts.data();
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRtPipeline.layout);
+
+    // shaders
+    VkShaderModule rgenModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_RT_RGEN));
+    VkShaderModule missModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_RT_MISS));
+    VkShaderModule hitModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_RT_HIT));
+    VkShaderModule shadowHitModule = mContext.createShaderModule(
+        readFile(NPTRACER_SHADER_RT_SHADOWHIT));
+    VkShaderModule shadowMissModule = mContext.createShaderModule(
+        readFile(NPTRACER_SHADER_RT_SHADOWMISS));
+
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+
+    // STAGE 0: Raygen
+    VkPipelineShaderStageCreateInfo rgenInfo{};
+    rgenInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    rgenInfo.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+    rgenInfo.module = rgenModule;
+    rgenInfo.pName = "rgenMain";
+    shaderStages.push_back(rgenInfo);
+
+    // STAGE 1: Miss
+    VkPipelineShaderStageCreateInfo missInfo{};
+    missInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    missInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+    missInfo.module = missModule;
+    missInfo.pName = "missMain";
+    shaderStages.push_back(missInfo);
+
+    // STAGE 2: Shadow Miss
+    VkPipelineShaderStageCreateInfo shadowMissInfo{};
+    shadowMissInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shadowMissInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+    shadowMissInfo.module = shadowMissModule;
+    shadowMissInfo.pName = "shadowmissMain";
+    shaderStages.push_back(shadowMissInfo);
+
+    // STAGE 3: Hit
+    VkPipelineShaderStageCreateInfo hitInfo{};
+    hitInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    hitInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    hitInfo.module = hitModule;
+    hitInfo.pName = "hitMain";
+    shaderStages.push_back(hitInfo);
+
+    // STAGE 4: Shadow Hit
+    VkPipelineShaderStageCreateInfo shadowHitInfo{};
+    shadowHitInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shadowHitInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    shadowHitInfo.module = shadowHitModule;
+    shadowHitInfo.pName = "shadowhitMain";
+    shaderStages.push_back(shadowHitInfo);
+
+    // groups
+    std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups;
+
+    // GROUP 0: Raygen
+    VkRayTracingShaderGroupCreateInfoKHR rgenGroup{};
+    rgenGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    rgenGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    rgenGroup.generalShader = 0;
+    rgenGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+    rgenGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    rgenGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(rgenGroup);
+
+    // GROUP 1: Miss
+    VkRayTracingShaderGroupCreateInfoKHR missGroup{};
+    missGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    missGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    missGroup.generalShader = 1;
+    missGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+    missGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    missGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(missGroup);
+
+    // GROUP 2: Shadow Miss
+    VkRayTracingShaderGroupCreateInfoKHR shadowMissGroup{};
+    shadowMissGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    shadowMissGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    shadowMissGroup.generalShader = 2;
+    shadowMissGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+    shadowMissGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    shadowMissGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(shadowMissGroup);
+
+    // GROUP 3: Hit
+    VkRayTracingShaderGroupCreateInfoKHR hitGroup{};
+    hitGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    hitGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    hitGroup.generalShader = VK_SHADER_UNUSED_KHR;
+    hitGroup.closestHitShader = 3;
+    hitGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    hitGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(hitGroup);
+
+    // GROUP 4: Shadow Hit
+    VkRayTracingShaderGroupCreateInfoKHR shadowHitGroup{};
+    shadowHitGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+    shadowHitGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    shadowHitGroup.generalShader = VK_SHADER_UNUSED_KHR;
+    shadowHitGroup.closestHitShader = 4;
+    shadowHitGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+    shadowHitGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    groups.push_back(shadowHitGroup);
+
+    VkRayTracingPipelineCreateInfoKHR pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineInfo.pStages = shaderStages.data();
+    pipelineInfo.groupCount = static_cast<uint32_t>(groups.size());
+    pipelineInfo.pGroups = groups.data();
+    pipelineInfo.maxPipelineRayRecursionDepth = 3;  // TODO: change accordingly
+    pipelineInfo.layout = mRtPipeline.layout;
+
+    VK_CHECK(mContext.vkCreateRayTracingPipelinesKHR(mContext.device, VK_NULL_HANDLE,
+                                                     VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                                     &mRtPipeline.pipeline),
+             "Failed to create ray tracing pipeline!");
+
+    // BINDING TABLE
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR properties{};
+    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+
+    VkPhysicalDeviceProperties2KHR properties2{};
+    properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+    properties2.pNext = &properties;
+
+    vkGetPhysicalDeviceProperties2(mContext.physicalDevice, &properties2);
+
+    mSbt.handleSize = properties.shaderGroupHandleSize;
+    mSbt.handleAlign = properties.shaderGroupHandleAlignment;
+    mSbt.baseAlign = properties.shaderGroupBaseAlignment;
+
+    uint32_t groupCount = static_cast<uint32_t>(groups.size());
+    size_t groupHandleSize = groupCount * mSbt.handleSize;
+    std::vector<uint8_t> shaderHandleStorage(groupHandleSize);
+
+    mContext.vkGetRayTracingShaderGroupHandlesKHR(mContext.device, mRtPipeline.pipeline, 0,
+                                                  groupCount, groupHandleSize,
+                                                  shaderHandleStorage.data());
+
+    VkDeviceSize rgenStride = alignUp(mSbt.handleSize, mSbt.handleAlign);
+    VkDeviceSize missStride = alignUp(mSbt.handleSize, mSbt.handleAlign);
+    VkDeviceSize hitStride = alignUp(mSbt.handleSize, mSbt.handleAlign);
+
+    VkDeviceSize rgenSize = rgenStride * 1;  // TODO: writing explicitly here for clarity
+    VkDeviceSize missSize = missStride * 2;
+    VkDeviceSize hitSize = hitStride * 2;
+
+    VkDeviceSize rgenOffset = 0;
+    VkDeviceSize missOffset = alignUpVk(rgenOffset + rgenSize, mSbt.baseAlign);
+    VkDeviceSize hitOffset = alignUpVk(missOffset + missSize, mSbt.baseAlign);
+    VkDeviceSize sbtSize = hitOffset + hitSize;
+
+    // create sbt buffer
+    std::vector<uint8_t> sbtBlob(sbtSize, 0);
+
+    const uint8_t* rgenHandle = shaderHandleStorage.data() + mSbt.handleSize * 0;
+    const uint8_t* primaryMissHandle = shaderHandleStorage.data() + mSbt.handleSize * 1;
+    const uint8_t* shadowMissHandle = shaderHandleStorage.data() + mSbt.handleSize * 2;
+    const uint8_t* primaryHitHandle = shaderHandleStorage.data() + mSbt.handleSize * 3;
+    const uint8_t* shadowHitHandle = shaderHandleStorage.data() + mSbt.handleSize * 4;
+
+    std::memcpy(sbtBlob.data() + rgenOffset, rgenHandle, mSbt.handleSize);
+    std::memcpy(sbtBlob.data() + missOffset + missStride * 0, primaryMissHandle, mSbt.handleSize);
+    std::memcpy(sbtBlob.data() + missOffset + missStride * 1, shadowMissHandle, mSbt.handleSize);
+    std::memcpy(sbtBlob.data() + hitOffset + hitStride * 0, primaryHitHandle, mSbt.handleSize);
+    std::memcpy(sbtBlob.data() + hitOffset + hitStride * 1, shadowHitHandle, mSbt.handleSize);
+
+    DEV_ASSERT(mContext.createDeviceLocalBuffer(mSbt.buffer, sbtBlob.data(), sbtSize,
+                                                VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR
+                                                    | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
+               "Failed to create device local buffer!");
+
+    mSbt.deviceAddress = mContext.getBufferDeviceAddress(mSbt.buffer);
+
+    mSbt.rgen.deviceAddress = mSbt.deviceAddress + rgenOffset;
+    mSbt.rgen.stride = rgenStride;
+    mSbt.rgen.size = rgenSize;
+
+    mSbt.miss.deviceAddress = mSbt.deviceAddress + missOffset;
+    mSbt.miss.stride = missStride;
+    mSbt.miss.size = missSize;
+
+    mSbt.hit.deviceAddress = mSbt.deviceAddress + hitOffset;
+    mSbt.hit.stride = hitStride;
+    mSbt.hit.size = hitSize;
+
+    mSbt.callable.deviceAddress = 0;
+    mSbt.callable.stride = 0;
+    mSbt.callable.size = 0;
+
+    vkDestroyShaderModule(mContext.device, rgenModule, nullptr);
+    vkDestroyShaderModule(mContext.device, missModule, nullptr);
+    vkDestroyShaderModule(mContext.device, hitModule, nullptr);
+    vkDestroyShaderModule(mContext.device, shadowHitModule, nullptr);
+    vkDestroyShaderModule(mContext.device, shadowMissModule, nullptr);
+}
+
+void App::createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
+                                       std::vector<FLOAT4X4>& transforms,
+                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
+{
+    VkCommandBuffer commandBuffer{};
+    mContext.createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    mContext.beginCommandBuffer(commandBuffer);
+
+    for (auto& mesh : meshes)
+    {
+        NPAccelerationStructure blas{};
+
+        mContext.createBottomLevelAccelerationStructure(commandBuffer, blas, vertexAddress,
+                                                        indexAddress, mesh.vertexOffset,
+                                                        mesh.vertexCount, mesh.indexOffset,
+                                                        mesh.indexCount);
+        mBlasses.push_back(blas);
+    }
+
+    // barrier
+    VkMemoryBarrier2 barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+    barrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR
+                           | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+    barrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR
+                            | VK_ACCESS_2_SHADER_READ_BIT;
+
+    VkDependencyInfo depInfo{};
+    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    depInfo.memoryBarrierCount = 1;
+    depInfo.pMemoryBarriers = &barrier;
+
+    vkCmdPipelineBarrier2(commandBuffer, &depInfo);
+
+    for (auto& blas : mBlasses)
+    {
+        VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{};
+        deviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+        deviceAddressInfo.accelerationStructure = blas.accelerationStructure;
+
+        blas.deviceAddress = mContext.vkGetAccelerationStructureDeviceAddressKHR(mContext.device,
+                                                                                 &deviceAddressInfo);
+    }
+
+    // top level
+    NPBuffer instanceBufferHandle{};
+    mContext.createTopLevelAccelerationStructure(commandBuffer, mTlas, instanceBufferHandle,
+                                                 transforms, mBlasses);
+
+    // barrier
+    vkCmdPipelineBarrier2(commandBuffer, &depInfo);
+
+    mContext.endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+
+    instanceBufferHandle.destroy(mContext.allocator);
 }
 
 // CALLABLE DRAW CALL
@@ -505,7 +857,7 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
 void App::executeDrawCall(NPRendererAovs& aovs)
 {
     // grab a frame
-    NPFrame& frame = mContext.getCurrentFrame(mCurrentFrame);
+    NPFrame& frame = mContext.getCurrentFrame(mCurrentRingFrame);
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -524,7 +876,7 @@ void App::executeDrawCall(NPRendererAovs& aovs)
                               frame.doneExecutingFence);
 
     // increment frame (within ring)
-    mCurrentFrame = (mCurrentFrame + 1) % FRAME_COUNT;
+    mCurrentRingFrame = (mCurrentRingFrame + 1) % FRAME_COUNT;
 }
 
 // WIP IGNORE FOR NOW WILL NEVER BE CALLED
@@ -576,7 +928,7 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
     renderingInfo.pColorAttachments = &colorAttachmentInfo;
 
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRasterPipeline.pipeline);
 
     VkViewport viewport{
         0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f
@@ -588,8 +940,8 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.layout, 0,
-                            mDescriptorSets.size(), mDescriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRasterPipeline.layout,
+                            0, mDescriptorSets.size(), mDescriptorSets.data(), 0, nullptr);
 
     for (size_t i = 0; i < mIndexCounts.size(); i++)
     {
@@ -609,7 +961,7 @@ void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
 void App::executeDrawCallSwapchain()
 {
     // grab a frame
-    NPFrame& frame = mContext.frames[mCurrentFrame];
+    NPFrame& frame = mContext.frames[mCurrentRingFrame];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -620,12 +972,33 @@ void App::executeDrawCallSwapchain()
                               frame.donePresentingSemaphore, nullptr, &imageIndex)
         == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        mContext.recreateSwapchain(mpContext);
+        mContext.recreateSwapchain(mpWindow);
         return;
     }
 
-    populateDrawCallSwapchain(frame,
-                              imageIndex);  // record commands into frame's command buffer
+    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a macro
+    populateDrawCallRT(frame.commandBuffer, imageIndex);
+    vkResetFences(
+        mContext.device, 1,
+        &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
+
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores
+        = &frame.donePresentingSemaphore;  // wait until image is no longer being presented
+    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &frame.commandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores
+        = &mContext.doneRenderingSemaphores[imageIndex];  // signal when rendering finishes
+
+    VK_CHECK(vkQueueSubmit(mContext.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
+                           frame.doneExecutingFence),
+             "vk queue submit failed");
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -641,14 +1014,15 @@ void App::executeDrawCallSwapchain()
         || mContext.framebufferResized)
     {
         mContext.framebufferResized = false;
-        mContext.recreateSwapchain(mpContext);
+        mContext.recreateSwapchain(mpWindow);
     }
 
     // increment frame (within ring)
-    mCurrentFrame = (mCurrentFrame + 1) % FRAME_COUNT;
+    mCurrentRingFrame = (mCurrentRingFrame + 1) % FRAME_COUNT;
+    mContext.frameIndex++;
 }
 
-void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
+void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
 {
     vkResetCommandBuffer(frame.commandBuffer, 0);
     mContext.beginCommandBuffer(frame.commandBuffer);
@@ -693,7 +1067,8 @@ void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
 
     // record commands
     vkCmdBeginRendering(frame.commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.pipeline);
+    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      mRasterPipeline.pipeline);
 
     VkViewport viewport{ 0.0f,
                          0.0f,
@@ -708,18 +1083,22 @@ void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
     vkCmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
 
     VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline.layout,
-                            0, static_cast<uint32_t>(mDescriptorSets.size()),
-                            mDescriptorSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            mRasterPipeline.layout, 0,
+                            static_cast<uint32_t>(mDescriptorSets.size()), mDescriptorSets.data(),
+                            0, nullptr);
 
     for (size_t i = 0; i < mIndexCounts.size(); i++)
-    {
-        std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), mNumLights };
-        vkCmdPushConstants(frame.commandBuffer, mPipeline.layout, VK_SHADER_STAGE_ALL_GRAPHICS, 0,
-                           sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
-                           pushConstants.data());
-        vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
-    }
+        for (size_t i = 0; i < mIndexCounts.size(); i++)
+        {
+            std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), mNumLights,
+                                                 mContext.frameIndex };
+            vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
+                               VK_SHADER_STAGE_ALL_GRAPHICS, 0,
+                               sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
+                               pushConstants.data());
+            vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
+        }
 
     vkCmdEndRendering(frame.commandBuffer);
 
@@ -730,15 +1109,61 @@ void App::populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex)
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
-    vkResetFences(
-        mContext.device, 1,
-        &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
+    // signal that fence is ready to be associated with a new queue submission
+    vkResetFences(mContext.device, 1, &frame.doneExecutingFence);
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
     mContext.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
                               frame.doneExecutingFence, frame.donePresentingSemaphore,
                               mContext.doneRenderingSemaphores[imageIndex]);
+}
+
+void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex)
+{
+    vkResetCommandBuffer(commandBuffer, 0);
+    mContext.beginCommandBuffer(commandBuffer);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mRtPipeline.pipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                            mRtPipeline.layout, 0, static_cast<uint32_t>(mDescriptorSets.size()),
+                            mDescriptorSets.data(), 0, nullptr);
+
+    std::vector<uint32_t> pushConstants{ 0, mNumLights, mContext.frameIndex };
+    vkCmdPushConstants(commandBuffer, mRtPipeline.layout,
+                       VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
+                           | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                       0, sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
+                       pushConstants.data());
+
+    mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
+                               mContext.swapchainParams.extent.width,
+                               mContext.swapchainParams.extent.height, 1);
+
+    mContext.transitionImageLayout(commandBuffer, mContext.swapchainImages[imageIndex],
+                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+    VkImageCopy region{};
+    region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+    region.extent = { mContext.swapchainParams.extent.width, mContext.swapchainParams.extent.height,
+                      1 };
+
+    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL,
+                   mContext.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                   &region);
+
+    mContext.transitionImageLayout(commandBuffer, mContext.swapchainImages[imageIndex],
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+
+    vkEndCommandBuffer(commandBuffer);
 }
 
 void App::destroy()
@@ -802,17 +1227,44 @@ void App::destroy()
         texture.destroy(mContext.device, mContext.allocator);
     }
 
-    if (mPipeline.pipeline != VK_NULL_HANDLE)
+    // SET 4: RT
+    mSbt.destroy(mContext.allocator);
+
+    for (auto& blas : mBlasses)
     {
-        mPipeline.destroy(mContext.device);
+        if (blas.accelerationStructure != VK_NULL_HANDLE)
+        {
+            mContext.vkDestroyAccelerationStructureKHR(mContext.device, blas.accelerationStructure,
+                                                       nullptr);
+        }
+        blas.destroyBuffers(mContext.device, mContext.allocator);
+    }
+
+    if (mRtPipeline.pipeline != VK_NULL_HANDLE)
+        if (mTlas.accelerationStructure != VK_NULL_HANDLE)
+        {
+            mContext.vkDestroyAccelerationStructureKHR(mContext.device, mTlas.accelerationStructure,
+                                                       nullptr);
+            mTlas.destroyBuffers(mContext.device, mContext.allocator);
+        }
+
+    // PIPELINES
+    if (mRasterPipeline.pipeline != VK_NULL_HANDLE)
+    {
+        mRasterPipeline.destroy(mContext.device);
+    }
+
+    if (mRtPipeline.pipeline != VK_NULL_HANDLE)
+    {
+        mRtPipeline.destroy(mContext.device);
     }
 
     mContext.destroy();
 
-    if (mpContext)
+    if (mpWindow)
     {
-        glfwDestroyWindow(mpContext);
-        mpContext = nullptr;
+        glfwDestroyWindow(mpWindow);
+        mpWindow = nullptr;
         glfwTerminate();
     }
 }
@@ -824,7 +1276,7 @@ void App::loadSceneFromPath(const char* path)
 
 void App::render()
 {
-    while (!glfwWindowShouldClose(mpContext))
+    while (!glfwWindowShouldClose(mpWindow))
     {
         glfwPollEvents();
         executeDrawCallSwapchain();

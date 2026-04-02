@@ -276,7 +276,6 @@ void AssimpScene::processAiCamera(const aiScene* scene)
 
         glm::vec3 center = eye + look;
 
-        cameraRecord.model = glm::mat4(1.0f);
         cameraRecord.view = glm::lookAt(eye, center, upVec);
 
         float aspect = aiCam->mAspect != 0.0f ? aiCam->mAspect : (2560.0f / 1440.0f);
@@ -286,8 +285,6 @@ void AssimpScene::processAiCamera(const aiScene* scene)
     }
     else
     {
-        cameraRecord.model = glm::mat4(1.0f);
-
         cameraRecord.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f),  // eye
                                         glm::vec3(0.0f, 0.0f, 0.0f),  // center
                                         glm::vec3(0.0f, -1.0f, 0.0f)  // up
@@ -296,5 +293,9 @@ void AssimpScene::processAiCamera(const aiScene* scene)
         cameraRecord.proj = glm::perspective(glm::radians(75.0f), 2560.0f / 1440.0f, 0.1f, 1000.0f);
         cameraRecord.proj[1][1] *= 1.0f;
     }
+
+    cameraRecord.invView = glm::inverse(cameraRecord.view);
+    cameraRecord.invProj = glm::inverse(cameraRecord.proj);
+
     _camera = cameraRecord;
 }

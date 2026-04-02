@@ -758,14 +758,14 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NP
 }
 
 void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,
-                                uint32_t width, uint32_t height)
+                                uint32_t width, uint32_t height, VkImageAspectFlags aspectFlags)
 {
     VkBufferImageCopy region{};  // copy specifier
     region.bufferOffset = 0;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.aspectMask = aspectFlags;
     region.imageSubresource.mipLevel = 0;
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;

@@ -28,6 +28,7 @@ protected:
     virtual void _PrepareLight() = 0;
 };
 
+// in USD (specifically Houdini Solaris USD), sphere light is essentially a point light
 class NPTracerHdSphereLight : public NPTracerHdLight
 {
 public:

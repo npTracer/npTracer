@@ -1,7 +1,6 @@
 #pragma once
 
 #include "structs.h"
-#include "utils.h"
 
 #include <vector>
 #include <memory>

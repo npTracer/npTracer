@@ -86,7 +86,8 @@ public:
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                            uint32_t width, uint32_t height);
     void copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,
-                           uint32_t width, uint32_t height);
+                           uint32_t width, uint32_t height,
+                           VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                VkImageLayout oldLayout, VkImageLayout newLayout,
                                VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,

@@ -11,6 +11,7 @@
 #include <pxr/imaging/hd/sprim.h>
 #include <pxr/imaging/hd/bprim.h>
 #include <pxr/imaging/hd/camera.h>
+#include <pxr/imaging/hdSt/light.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -138,7 +139,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     }
     else if (typeId == HdPrimTypeTokens->sphereLight)
     {
-        return new NPTracerHdSphereLight(SdfPath::EmptyPath(), this);
+        return nullptr;  // do not corrupt our scene with this fallback prim as it its data is not correct
     }
     else
     {

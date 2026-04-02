@@ -64,8 +64,8 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     NPCameraRecord* cam = app->getScene()->getCamera();
     _SyncCamera(renderPassState, cam);  // fill in camera data after all buffers have been requested
 
-    app->createRenderingResources(payload);
-    app->executeDrawCall(payload);
+    // app->createRenderingResources(payload);
+    // app->executeDrawCall(payload);
 
     for (NPTracerHdRenderBuffer* buffer : requestedWriters)
     {

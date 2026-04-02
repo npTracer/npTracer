@@ -56,9 +56,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     PREPARE_UNIQUE_PTR(_pImage, NPImage,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
     _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
-                       _fmtTokens.usage,
-                       0  // device local
-    );
+                       _fmtTokens.usage, 0, _fmtTokens.aspect, true);
 
     VkCommandBuffer commandBuffer;
     _pCtx->createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
@@ -90,29 +88,6 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     NP_DBG("Allocated render buffer: id=%s, dimensions=(%i, %i, %i), format=%i\n",
            GetId().GetText(), dimensions[0], dimensions[1], dimensions[2], format);
-
-    _cpuDebugBuffer.resize(size);
-
-    // Fill with solid red depending on format
-    if (_format == HdFormatUNorm8Vec4)
-    {
-        for (size_t i = 0; i < size; i += 4)
-        {
-            _cpuDebugBuffer[i + 0] = 255;  // R
-            _cpuDebugBuffer[i + 1] = 0;  // G
-            _cpuDebugBuffer[i + 2] = 0;  // B
-            _cpuDebugBuffer[i + 3] = 255;  // A
-        }
-    }
-    else if (_format == HdFormatFloat32)
-    {
-        float* data = reinterpret_cast<float*>(_cpuDebugBuffer.data());
-        size_t count = size / sizeof(float);
-        for (size_t i = 0; i < count; i++)
-        {
-            data[i] = 1.0f;  // depth = 1 (far plane)
-        }
-    }
 
     return true;
 }
@@ -165,20 +140,6 @@ void* NPTracerHdRenderBuffer::Map()
         std::this_thread::yield();  // for now ensure reading can only occur during writing
     }
 
-    uint8_t* dbgData = _cpuDebugBuffer.data();
-
-    // print a few pixels
-    // if (_format == HdFormatUNorm8Vec4)
-    // {
-    //     for (int i = 0; i < 5; i++)
-    //     {
-    //         int idx = i * 4;
-    //         NP_DBG("[CPU] Pixel %d: (%u, %u, %u, %u)\n", i, dbgData[idx + 0], dbgData[idx + 1],
-    //                dbgData[idx + 2], dbgData[idx + 3]);
-    //     }
-    // }
-    // return dbgData;
-
     if (_transferCmdBuffer != VK_NULL_HANDLE) vkResetCommandBuffer(_transferCmdBuffer, 0);
 
     _pCtx->createCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
@@ -191,7 +152,7 @@ void* NPTracerHdRenderBuffer::Map()
 
     _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
                              static_cast<uint32_t>(_dimensions[0]),
-                             static_cast<uint32_t>(_dimensions[1]));
+                             static_cast<uint32_t>(_dimensions[1]), _fmtTokens.aspect);
 
     // restore image layout for future passes
     /*_pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image,
@@ -202,16 +163,6 @@ void* NPTracerHdRenderBuffer::Map()
 
     _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
-
-    uint8_t* data = static_cast<uint8_t*>(_pStagingBuffer->allocInfo.pMappedData);
-
-    const size_t size = GetSize();
-    for (size_t i = 0; i < size; i += 4)
-    {
-        if (size > 23 && i > 20) continue;  // only debug log a few
-        NP_DBG("[Pixel %d] (%u, %u, %u, %u)\n", i / 4, data[i + 0], data[i + 1], data[i + 2],
-               data[i + 3]);
-    }
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }

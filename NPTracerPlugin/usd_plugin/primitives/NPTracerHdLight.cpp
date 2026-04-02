@@ -20,9 +20,10 @@ NPTracerHdLight::~NPTracerHdLight()
 
 HdDirtyBits NPTracerHdLight::GetInitialDirtyBitsMask() const
 {
-    return DirtyParams;
+    return HdLight::DirtyParams;
 }
 
+// TODO: make a base case class for all hd prim types with add and remove
 void NPTracerHdLight::_AddToScene()
 {
     if (Scene* scene = _pCreator->GetScene())
@@ -47,6 +48,8 @@ void NPTracerHdLight::_RemoveFromScene()
         NP_DBG("Removed light '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
     }
 }
+
+// below is all sphere light specific
 
 NPTracerHdSphereLight::NPTracerHdSphereLight(const SdfPath& sprimId,
                                              NPTracerHdRenderDelegate* renderDelegate)

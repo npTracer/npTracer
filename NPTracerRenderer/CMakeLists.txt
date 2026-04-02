@@ -88,7 +88,7 @@ add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 target_link_libraries(${PROJECT_NAME} PUBLIC 
     glfw
     Vulkan::Vulkan 
-    glm::glm-header-only # use header-only GLM
+    glm
     assimp
 )
 

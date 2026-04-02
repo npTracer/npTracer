@@ -80,6 +80,7 @@ endfunction()
 
 function(FilterInstallableTargets out_variable_name)
     set(${out_variable_name} "")
+    message(STATUS "Listing all current targets created by '${CMAKE_PROJECT_NAME}'...")
 
     foreach(tgt ${ARGN})
         get_target_property(TGT_TYPE ${tgt} TYPE)
@@ -99,17 +100,16 @@ function(FilterInstallableTargets out_variable_name)
     set(${out_variable_name} ${${out_variable_name}} PARENT_SCOPE)
 endfunction()
 
-function(SetupInstallationAfterBuild target_name install_dir)
+function(SetupInstallationAfterBuild target_name install_dir install_component)
     # ensure install command retains configurations
     if(IS_MULTI_CONFIG)
-        set(INSTALL_CMD_ARGS --config $<CONFIG>)
+        set(CMAKE_CMD_ARGS --config=$<CONFIG>)
     else()
-        set(INSTALL_CMD_ARGS -DCMAKE_BUILD_TYPE=$<CONFIG>)
+        set(CMAKE_CMD_ARGS -DCMAKE_BUILD_TYPE=$<CONFIG>)
     endif()
     
     add_custom_command(TARGET ${target_name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --prefix "${install_dir}"
-        ${INSTALL_CMD_ARGS} 
+        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --prefix="${install_dir}" --component=${install_component} --component=${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME} ${CMAKE_CMD_ARGS}
         COMMENT "Installed '${target_name}' after building to '${install_dir}'."
     )
 endfunction()

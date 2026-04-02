@@ -71,6 +71,7 @@ ConfigureUSDPluginTarget(${USD_PLUGIN_TARGET_NAME} "${CUSTOM_USD_DSO_PATH}"
         INCLUDES ${_houdini_include_dir}
         DEBUG_CMD "${HOUDINI_INSTALL_PATH}/bin/houdini.exe"
         DEBUG_CMD_ARGS ${HOUDINI_DEBUG_CMD_ARGS}
+        INSTALL_COMPONENT "Runtime"
     )
 add_dependencies(${PROJECT_NAME} ${USD_PLUGIN_TARGET_NAME})
 
@@ -84,5 +85,6 @@ if(SHOULD_CREATE_STANDALONE_USD_PLUGIN)
         INCLUDES ${PXR_INCLUDE_DIRS}
         DEBUG_CMD "${STANDALONE_DEBUG_CMD}"
         DEBUG_CMD_ARGS ${STANDALONE_DEBUG_CMD_ARGS}
+        INSTALL_COMPONENT "Development"
     )
 endif()

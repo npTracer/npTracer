@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 project(NPTracerRenderer)
 
@@ -19,19 +19,24 @@ set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/shaders")
 
 find_package(Vulkan REQUIRED)
 
+add_subdirectory(templates)
+
 set(CURR_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
 set(LIB_SOURCES
     "${NPTracerRenderer_ROOT_DIR}/context.cpp"
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
     "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
+    "${NPTracerRenderer_ROOT_DIR}/assimp_scene.cpp"
 )
 
 set(LIB_HEADERS
+    "${NPTracerRenderer_ROOT_DIR}/utils.h"
+    "${NPTracerRenderer_ROOT_DIR}/structs.h"
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
     "${NPTracerRenderer_ROOT_DIR}/scene.h"
-    "${NPTracerRenderer_ROOT_DIR}/utils.h"
-    "${NPTracerRenderer_ROOT_DIR}/structs.h"
+    "${NPTracerRenderer_ROOT_DIR}/assimp_scene.h"
+    ${NPTracerRenderer_INLINE_TEMPLATES}
 )
 
 set(CURR_SHADER_SPECS
@@ -62,21 +67,24 @@ target_include_directories(${PROJECT_NAME}
 
 find_program(SLANGC_EXECUTABLE slangc REQUIRED)
 
+set(ALL_SPV_OUTPUTS "")
 foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}") # add as source beforehand
     AddSlangShaderTarget(
-        ${COMPILE_SHADERS_TARGET}
         "${CURR_SHADER_FILE}"
         "${CURR_SHADER_STAGES}"
         "${SHADER_OUTPUT_DIR}"
         "${PROJECT_NAME}"
     )
-    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
+    list(APPEND ALL_SPV_OUTPUTS ${CURR_SPV_OUTPUTS})
 endforeach()
 
-get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
-add_custom_target(${COMPILE_SHADERS_TARGET} ALL DEPENDS ${ALL_SPV_OUTPUTS})
-target_sources(${PROJECT_NAME} PRIVATE "${ALL_SPV_OUTPUTS}") # specify that the project depends on the output files
+target_sources(${PROJECT_NAME} PRIVATE ${ALL_SPV_OUTPUTS})
+add_custom_target(${COMPILE_SHADERS_TARGET} 
+    DEPENDS ${ALL_SPV_OUTPUTS}
+    COMMENT "Compiling all shaders."
+)
 
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
@@ -86,7 +94,7 @@ add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 target_link_libraries(${PROJECT_NAME} PUBLIC 
     glfw
     Vulkan::Vulkan 
-    glm::glm-header-only # use header-only GLM
+    glm
     assimp
 )
 
@@ -144,5 +152,3 @@ target_compile_definitions(${PROJECT_NAME}
         NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
         NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
 )
-
-add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${COMPILE_SHADERS_TARGET})

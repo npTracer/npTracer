@@ -21,14 +21,6 @@ using FLOAT4X4 = glm::f32mat4;
 using NPScenePath = std::string;
 using NPScenePathCollection = std::vector<NPScenePath>;
 
-struct Dummy
-{
-    float a;
-    float b;
-    float c;
-    float d;
-};
-
 struct NPVertex
 {
     FLOAT4 pos;
@@ -143,7 +135,7 @@ struct NPImage
             vkDestroyImageView(device, view, nullptr);
             view = VK_NULL_HANDLE;
         }
-        
+
         if (image != VK_NULL_HANDLE)
         {
             vmaDestroyImage(allocator, image, allocation);
@@ -187,6 +179,33 @@ struct NPFrame
     }
 };
 
+struct NPSwapchainParams
+{
+    VkSurfaceFormatKHR surfaceFormat;
+    VkPresentModeKHR presentMode;
+    VkExtent2D extent;
+    VkFormat depthFormat;
+};
+
+struct NPDescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+
+    void destroy(VkDevice device)
+    {
+        if (pool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(device, pool, nullptr);
+        }
+
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        }
+    }
+};
+
 enum class NPQueueType : uint8_t
 {
     GRAPHICS,
@@ -215,15 +234,45 @@ struct NPQueue
     }
 };
 
-// shared structs
-struct NPCameraRecord
+struct NPShaderBindingTable
 {
-    alignas(16) FLOAT4X4 view;
-    alignas(16) FLOAT4X4 proj;
-    alignas(16) FLOAT4X4 invView;
-    alignas(16) FLOAT4X4 invProj;
+    uint32_t handleSize;
+    uint32_t handleAlign;
+    uint32_t baseAlign;
+
+    NPBuffer buffer;
+    VkDeviceAddress deviceAddress;
+
+    VkStridedDeviceAddressRegionKHR rgen{};
+    VkStridedDeviceAddressRegionKHR miss{};
+    VkStridedDeviceAddressRegionKHR hit{};
+    VkStridedDeviceAddressRegionKHR callable{};
+
+    void destroy(VmaAllocator allocator)
+    {
+        buffer.destroy(allocator);
+    }
 };
 
+struct NPAccelerationStructure
+{
+    VkAccelerationStructureKHR accelerationStructure = VK_NULL_HANDLE;
+    NPBuffer handleBuffer;
+    NPBuffer scratchBuffer;
+    VkDeviceAddress deviceAddress;
+
+    void destroyBuffers(VkDevice device, VmaAllocator allocator)
+    {
+        // VkDestroyAccelerationStructure requires context so destroy it outside of struct
+
+        handleBuffer.destroy(allocator);
+        scratchBuffer.destroy(allocator);
+    }
+};
+
+// primitive types
+
+// meshes
 struct NPMeshRecord
 {
     uint32_t vertexOffset;
@@ -279,27 +328,29 @@ struct NPMesh
     }
 };
 
-struct NPMaterial
+// camera
+struct NPCameraRecord
 {
-    FLOAT4 ambient;
-    FLOAT4 diffuse;
-    FLOAT4 specular;
-    FLOAT4 emission;
-    
-    uint32_t diffuseTextureIdx = UINT_MAX;
+    alignas(16) FLOAT4X4 view;
+    alignas(16) FLOAT4X4 proj;
+    alignas(16) FLOAT4X4 invView;
+    alignas(16) FLOAT4X4 invProj;
+};
+
+using NPCamera = NPCameraRecord;
+
+// lights
+struct NPLightRecord
+{
+    uint32_t lightTransformIndex;
+    FLOAT4 color;
+    float intensity = UINT_MAX;
 };
 
 enum class NPLightType : uint8_t
 {
     POINT,
     AREA
-};
-
-struct NPLightRecord
-{
-    uint32_t lightTransformIndex;
-    FLOAT4 color;
-    float intensity;
 };
 
 struct NPLight
@@ -320,6 +371,36 @@ struct NPLight
 
     uint32_t lightId;
 };
+
+struct NPMaterialRecord
+{
+    FLOAT4 ambient;
+    FLOAT4 diffuse;
+    FLOAT4 specular;
+    FLOAT4 emission;
+
+    uint32_t diffuseTextureIdx = UINT32_MAX;
+};
+
+struct NPMaterial : NPMaterialRecord
+{
+    uint64_t objectId;  // the hash of the object's `SdfPath`
+    NPScenePath scenePath;
+
+    NPMaterialRecord toRecord() const
+    {
+        return { ambient, diffuse, specular, emission };
+    }
+};
+
+struct NPTextureRecord
+{
+    void* pixels;
+    uint32_t width;
+    uint32_t height;
+};
+
+using NPTexture = NPTextureRecord;
 
 enum class NPStylizationFunction : uint8_t
 {
@@ -343,81 +424,9 @@ struct NPRendererAovs
     // normals?
 };
 
-struct SwapchainParams
-{
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR presentMode;
-    VkExtent2D extent;
-    VkFormat depthFormat;
-};
-
-struct NPDescriptorSetLayout
-{
-    VkDescriptorSetLayout layout;
-    VkDescriptorPool pool;
-
-    void destroy(VkDevice device)
-    {
-        if (pool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(device, pool, nullptr);
-        }
-
-        if (layout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
-        }
-    }
-};
-
 enum class TextureOwnership
 {
     NONE,
     STB,
     MALLOC
-};
-
-// TODO: move this to scene
-struct PendingTexture
-{
-    void* pixels;
-    uint32_t width;
-    uint32_t height;
-    TextureOwnership ownership = TextureOwnership::NONE;
-};
-
-struct ShaderBindingTable
-{
-    uint32_t handleSize;
-    uint32_t handleAlign;
-    uint32_t baseAlign;
-    
-    NPBuffer buffer;
-    VkDeviceAddress deviceAddress;
-    
-    VkStridedDeviceAddressRegionKHR rgen{};
-    VkStridedDeviceAddressRegionKHR miss{};
-    VkStridedDeviceAddressRegionKHR hit{};
-    VkStridedDeviceAddressRegionKHR callable{};
-    
-    void destroy(VmaAllocator allocator)
-    {
-        buffer.destroy(allocator);
-    }
-};
-
-struct NPAccelerationStructure
-{
-    VkAccelerationStructureKHR accelerationStructure = VK_NULL_HANDLE;
-    NPBuffer handleBuffer;
-    NPBuffer scratchBuffer;
-    VkDeviceAddress deviceAddress;
-    
-    void destroyBuffers(VkDevice device, VmaAllocator allocator)
-    {
-        // VkDestroyAccelerationStructure requires context so destroy it outside of struct
-        
-        handleBuffer.destroy(allocator);
-        scratchBuffer.destroy(allocator);
-    }
 };

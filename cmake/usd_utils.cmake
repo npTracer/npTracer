@@ -4,6 +4,7 @@ function(ConfigureUSDPluginTarget target_name install_dir)
     set(oneValueArgs
         DEBUG_CMD
         DEBUG_CMD_ARGS
+        INSTALL_COMPONENT
     )
 
     set(multiValueArgs
@@ -61,8 +62,10 @@ function(ConfigureUSDPluginTarget target_name install_dir)
     # install
     install(TARGETS ${target_name}
         DESTINATION "."
+        COMPONENT ${arg_INSTALL_COMPONENT}
     )
-    SetupInstallationAfterBuild(${target_name} ${install_dir}) # install as a post-build command
+
+    SetupInstallationAfterBuild(${target_name} ${install_dir} ${arg_INSTALL_COMPONENT}) # install as a post-build command
 
     # set some useful VS settings for QOL
     if(CMAKE_GENERATOR MATCHES "Visual Studio")

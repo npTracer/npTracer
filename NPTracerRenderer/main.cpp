@@ -7,16 +7,16 @@
 int main(int argc, char** argv)
 {
     App app;
-    app.create();
+    app.create(true);
     if (argc == 2)
     {
         std::string scenePath = argv[1];
 
         try
         {
-            app.loadScene(scenePath.c_str());
+            app.loadSceneFromPath(scenePath.c_str());
             app.createRenderingResources();
-            app.run();
+            app.render();
         }
         catch (const std::exception e)
         {

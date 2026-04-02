@@ -32,10 +32,10 @@ public:
     }
 
     // interface
-    void create();
+    void create(bool isStandalone);
     void destroy();
 
-    void loadScene(const char* path);
+    void loadSceneFromPath(const char* path);
 
     void createRenderingResources();
     void executeDrawCallCallable(NPRendererAovs* aovs = nullptr);
@@ -47,7 +47,7 @@ private:
     static constexpr int FRAME_COUNT = 2;
     static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
     uint32_t currentRingFrame = 0;
-    
+
     Context context;
     GLFWwindow* window = nullptr;
 
@@ -57,11 +57,11 @@ private:
 
     // rendering resources
     std::unique_ptr<Scene> scene;
-    
+
     NPPipeline rasterPipeline;
     NPPipeline rtPipeline;
-    ShaderBindingTable sbt;
-    
+    NPShaderBindingTable sbt;
+
     std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkDescriptorSet> descriptorSets;
     VkSampler sampler = VK_NULL_HANDLE;
@@ -82,25 +82,23 @@ private:
     // SET 3: MATERIALS
     NPBuffer materialRecordsBuffer;
     std::vector<NPImage> textures;
-    
+
     // SET 4: RT
     std::vector<NPAccelerationStructure> blasses;
     NPAccelerationStructure tlas;
-    
+
     // resource creation
     void createGraphicsPipeline();
     void createRTPipeline();
-    void createAccelerationStructures(
-        std::vector<NPMeshRecord>& meshes, 
-        std::vector<FLOAT4X4>& transforms, 
-        VkDeviceAddress vertexAddress, 
-        VkDeviceAddress indexAddress);
-    
+    void createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
+                                      std::vector<FLOAT4X4>& transforms,
+                                      VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
+
     // render commands recording
     void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
     void populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex);
     void populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
-    
+
     // private execute draw call standalone
     void executeDrawCallSwapchain();
 };

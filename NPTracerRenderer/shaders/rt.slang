@@ -86,17 +86,17 @@ StructuredBuffer<Vertex> globalVertices;
 [[vk::binding(2, 0)]]
 StructuredBuffer<uint> globalIndices;
 
-[[vk::binding(0, 1)]]
+[[vk::binding(3, 0)]]
 StructuredBuffer<float4x4> globalTransforms;
+
+[[vk::binding(0, 1)]]
+StructuredBuffer<LightRecord> lights;
 
 [[vk::binding(1, 1)]]
 StructuredBuffer<float4x4> lightTransforms;
 
 [[vk::binding(0, 2)]]
 ConstantBuffer<CameraRecord> camera;
-
-[[vk::binding(1, 2)]]
-StructuredBuffer<LightRecord> lights;
 
 [[vk::binding(0, 3)]]
 StructuredBuffer<MaterialRecord> materials;

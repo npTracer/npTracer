@@ -34,7 +34,7 @@ public:
 
     // swapchain
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    SwapchainParams swapchainParams;
+    NPSwapchainParams swapchainParams;
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
     std::vector<VkSemaphore> doneRenderingSemaphores;
@@ -92,7 +92,8 @@ public:
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                            uint32_t width, uint32_t height);
     void copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,
-                           uint32_t width, uint32_t height);
+                           uint32_t width, uint32_t height,
+                           VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                VkImageLayout oldLayout, VkImageLayout newLayout,
                                VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
@@ -101,42 +102,37 @@ public:
                                VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     // acceleration structures
-    void createBottomLevelAccelerationStructure(
-        VkCommandBuffer& commandBuffer, 
-        NPAccelerationStructure& handle, 
-        VkDeviceAddress vertexAddress, 
-        VkDeviceAddress indexAddress,
-        uint32_t firstVertex,
-        uint32_t vertexCount,
-        uint32_t firstIndex,
-        uint32_t indexCount);
-    
-    void createTopLevelAccelerationStructure(
-        VkCommandBuffer& commandBuffer, 
-        NPAccelerationStructure& handle,
-        NPBuffer& instanceBufferHandle,
-        std::vector<FLOAT4X4>& transforms,
-        std::vector<NPAccelerationStructure>& blasses);
-    
+    void createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
+                                                NPAccelerationStructure& handle,
+                                                VkDeviceAddress vertexAddress,
+                                                VkDeviceAddress indexAddress, uint32_t firstVertex,
+                                                uint32_t vertexCount, uint32_t firstIndex,
+                                                uint32_t indexCount);
+
+    void createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
+                                             NPAccelerationStructure& handle,
+                                             NPBuffer& instanceBufferHandle,
+                                             std::vector<FLOAT4X4>& transforms,
+                                             std::vector<NPAccelerationStructure>& blasses);
+
     // descriptors
-    void createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
-    void allocateDesciptorSet(VkDescriptorSet& descriptorSet, NPDescriptorSetLayout& descriptorSetLayout);
-    void writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
-    std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
-    void writeDescriptorSetImages(
-        VkDescriptorSet& descriptorSet, 
-        uint32_t binding, 
-        const std::vector<NPImage>& images,
-        VkSampler* sampler, 
-        VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    void createDescriptorSetLayout(
+        NPDescriptorSetLayout& descriptorSetLayout,
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
+    void allocateDesciptorSet(VkDescriptorSet& descriptorSet,
+                              NPDescriptorSetLayout& descriptorSetLayout);
+    void writeDescriptorSetBuffers(
+        VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, NPBuffer*>& bindingBufferMap,
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
+                                  const std::vector<NPImage>& images, VkSampler* sampler,
+                                  VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                  VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     void writeDescriptorSetAccelerationStructures(
-        VkDescriptorSet& descriptorSet, 
+        VkDescriptorSet& descriptorSet,
         std::unordered_map<uint32_t, NPAccelerationStructure*>& bindingASMap,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap
-        );
-    
-    
+        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+
     // utility
     NPFrame& getCurrentFrame(uint32_t currentFrame);
     void loadRayTracingFunctionPointers();
@@ -150,11 +146,12 @@ public:
     PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR = nullptr;
     PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR = nullptr;
     PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR = nullptr;
-    PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR = nullptr;
+    PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR
+        = nullptr;
     PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR = nullptr;
     PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR = nullptr;
     PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR = nullptr;
-    
+
 private:
     static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 project(NPTracer)
 
@@ -37,6 +37,7 @@ add_subdirectory(${NPTracer_EXTERNAL_DIR}/glfw)
 # add GLM
 add_subdirectory(${NPTracer_EXTERNAL_DIR}/glm)
 
+# add assimp
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
@@ -52,7 +53,7 @@ set(EXTERNAL_TARGETS
     "glfw"
     "update_mappings" # a target from `glfw`
     "glm"
-    "glm-header-only"
+    "glm-header-only" # required by `glm`
     "assimp"
     "zlibstatic"
     "UpdateAssimpLibsDebugSymbolsAndDLLs"

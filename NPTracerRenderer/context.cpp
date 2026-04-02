@@ -161,7 +161,7 @@ void Context::createLogicalDeviceAndQueues()
 
         queueCreateInfos.push_back(queueCreateInfo);
     }
-    
+
     // TODO add more device extensions
     std::vector<const char*> requiredDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -171,75 +171,67 @@ void Context::createLogicalDeviceAndQueues()
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
         VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
     };
-    
+
     // probe for support
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asProbe{};
     asProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    
+
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtProbe{};
     rtProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
     rtProbe.pNext = &asProbe;
-    
+
     VkPhysicalDeviceBufferDeviceAddressFeatures bdaProbe{};
     bdaProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
     bdaProbe.pNext = &rtProbe;
-    
+
     VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferProbe{};
     descriptorBufferProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
     descriptorBufferProbe.pNext = &bdaProbe;
-    
+
     VkPhysicalDeviceDescriptorIndexingFeatures indexingProbe{};
     indexingProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
     indexingProbe.pNext = &descriptorBufferProbe;
-    
+
     VkPhysicalDeviceVulkan13Features vulkan13Probe{};
     vulkan13Probe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Probe.pNext = &indexingProbe;
-    
+
     VkPhysicalDeviceVulkan11Features vulkan11Probe{};
     vulkan11Probe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     vulkan11Probe.pNext = &vulkan13Probe;
-        
+
     VkPhysicalDeviceFeatures2 features2Probe{};
     features2Probe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2Probe.pNext = &vulkan11Probe;
-    
+
     vkGetPhysicalDeviceFeatures2(physicalDevice, &features2Probe);
-        
-    bool valid =
-        asProbe.accelerationStructure &&
-            rtProbe.rayTracingPipeline &&
-            bdaProbe.bufferDeviceAddress &&
-            descriptorBufferProbe.descriptorBuffer &&
-            indexingProbe.shaderSampledImageArrayNonUniformIndexing &&
-            indexingProbe.runtimeDescriptorArray &&
-            indexingProbe.descriptorBindingPartiallyBound &&
-            vulkan13Probe.synchronization2 &&
-            vulkan13Probe.dynamicRendering &&
-            vulkan11Probe.shaderDrawParameters &&
-            features2Probe.features.shaderInt64 &&
-            features2Probe.features.samplerAnisotropy;
-    
-    if (!valid)
-    {
-        throw std::runtime_error("required features not supported");
-    }
-    
+
+    bool valid = asProbe.accelerationStructure && rtProbe.rayTracingPipeline
+                 && bdaProbe.bufferDeviceAddress && descriptorBufferProbe.descriptorBuffer
+                 && indexingProbe.shaderSampledImageArrayNonUniformIndexing
+                 && indexingProbe.runtimeDescriptorArray
+                 && indexingProbe.descriptorBindingPartiallyBound && vulkan13Probe.synchronization2
+                 && vulkan13Probe.dynamicRendering && vulkan11Probe.shaderDrawParameters
+                 && features2Probe.features.shaderInt64
+                 && features2Probe.features.samplerAnisotropy;
+
+    DEV_ASSERT(valid, "required features not supported\n");
+
     // enable features
     VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{};
     asFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     asFeatures.accelerationStructure = VK_TRUE;
-    
+
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeatures{};
     rtFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
     rtFeatures.rayTracingPipeline = VK_TRUE;
     rtFeatures.pNext = &asFeatures;
-    
+
     VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeatures{};
     bdaFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
     bdaFeatures.bufferDeviceAddress = VK_TRUE;
     bdaFeatures.pNext = &rtFeatures;
-    
+
     VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferFeatures{};
     descriptorBufferFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
     descriptorBufferFeatures.descriptorBuffer = VK_TRUE;
@@ -251,18 +243,18 @@ void Context::createLogicalDeviceAndQueues()
     indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     indexingFeatures.runtimeDescriptorArray = VK_TRUE;
     indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
-    
+
     VkPhysicalDeviceVulkan13Features vulkan13Features{};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.pNext = &indexingFeatures;
     vulkan13Features.synchronization2 = VK_TRUE;
     vulkan13Features.dynamicRendering = VK_TRUE;
-        
+
     VkPhysicalDeviceVulkan11Features vulkan11Features{};
     vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     vulkan11Features.pNext = &vulkan13Features;
     vulkan11Features.shaderDrawParameters = VK_TRUE;
-        
+
     VkPhysicalDeviceFeatures2 features2{};
     features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features2.pNext = &vulkan11Features;
@@ -278,11 +270,8 @@ void Context::createLogicalDeviceAndQueues()
     createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
     createInfo.pEnabledFeatures = nullptr;
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create logical device");
-    }
-    
+    VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device),
+             "failed to create logical device\n");
     loadRayTracingFunctionPointers();
 
     for (auto& [type, queue] : queues)
@@ -304,13 +293,11 @@ void Context::createLogicalDeviceAndQueues()
             poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             poolInfo.queueFamilyIndex = queue.index.value();
 
-            if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
-            {
-                throw std::runtime_error("Failed to create command pool\n");
-            }
+            VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool),
+                     "failed to create command pool\n");
         }
     }
-    
+
     // query acceleration structure properties
     VkPhysicalDeviceAccelerationStructurePropertiesKHR accelProps{};
     accelProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
@@ -318,9 +305,9 @@ void Context::createLogicalDeviceAndQueues()
     VkPhysicalDeviceProperties2 props2{};
     props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     props2.pNext = &accelProps;
-    
+
     vkGetPhysicalDeviceProperties2(physicalDevice, &props2);
-    
+
     scratchAlignment = accelProps.minAccelerationStructureScratchOffsetAlignment;
 }
 
@@ -333,10 +320,7 @@ void Context::createAllocator()
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 
-    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create vma allocator!\n");
-    }
+    VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator), "failed to create vma allocator!\n");
 }
 
 void Context::createSwapchain(GLFWwindow* window)
@@ -410,7 +394,8 @@ void Context::createSwapchain(GLFWwindow* window)
     swapchainCreateInfo.imageColorSpace = format.colorSpace;
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                                     | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
     swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -418,10 +403,8 @@ void Context::createSwapchain(GLFWwindow* window)
     swapchainCreateInfo.clipped = VK_TRUE;
     swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain))
-    {
-        throw std::runtime_error("failed to create swapchain");
-    }
+    VK_CHECK(vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain),
+             "failed to create swapchain\n");
 
     uint32_t swapchainImageCount;
     vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
@@ -434,7 +417,7 @@ void Context::createSwapchain(GLFWwindow* window)
     VkImageViewCreateInfo imageViewCreateInfo{};
     imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCreateInfo.format = swapchainParams.format.format;
+    imageViewCreateInfo.format = swapchainParams.surfaceFormat.format;
 
     imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
@@ -465,9 +448,10 @@ void Context::recreateSwapchain(GLFWwindow* window)
     createSwapchain(window);
     createDepthImage(width, height);
     createResultImages();
-    
-    std::vector<NPImage> resultImages{resultImage, accumulationImage};
-    writeDescriptorSetImages(rtDescriptorSet, 1, resultImages, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
+
+    std::vector<NPImage> resultImages{ resultImage, accumulationImage };
+    writeDescriptorSetImages(rtDescriptorSet, 1, resultImages, VK_NULL_HANDLE,
+                             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
     frameIndex = 0;
 }
 
@@ -483,17 +467,17 @@ void Context::cleanupSwapchain()
     {
         depthImage.destroy(device, allocator);
     }
-    
+
     if (resultImage.image != VK_NULL_HANDLE)
     {
         resultImage.destroy(device, allocator);
     }
-    
+
     if (accumulationImage.image != VK_NULL_HANDLE)
     {
         accumulationImage.destroy(device, allocator);
     }
-    
+
     if (swapchain != VK_NULL_HANDLE)
     {
         vkDestroySwapchainKHR(device, swapchain, nullptr);
@@ -536,10 +520,8 @@ void Context::createSyncAndFrameObjects()
 
 void Context::createSurface(GLFWwindow* window)
 {
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-    {
-        throw std::runtime_error("surface creation failed");
-    }
+    VK_CHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface),
+             "surface creation failed\n");
 }
 
 // COMMAND BUFFERS
@@ -692,12 +674,9 @@ void Context::createImage(NPImage& handle, VkImageType type, VkFormat format, ui
     allocCreateInfo.flags = allocationFlags;
     allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-    if (vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image, &handle.allocation,
-                       &handle.allocInfo)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create image!\n");
-    }
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image,
+                            &handle.allocation, &handle.allocInfo),
+             "failed to create image!\n");
 
     handle.width = width;
     handle.height = height;
@@ -803,38 +782,28 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
 
 void Context::createResultImages()
 {
-    std::vector<NPImage*> handles {&resultImage, &accumulationImage};
-    
+    std::vector<NPImage*> handles{ &resultImage, &accumulationImage };
+
     VkCommandBuffer commandBuffer;
     createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     beginCommandBuffer(commandBuffer);
-    
+
     for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); i++)
     {
         // result image
-        createImage(
-            *handles[i], 
-            VK_IMAGE_TYPE_2D, 
-            VK_FORMAT_R8G8B8A8_UNORM, 
-            swapchainParams.extent.width,
-            swapchainParams.extent.height,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-            VK_IMAGE_ASPECT_COLOR_BIT
-            );
-        
-        transitionImageLayout(
-            commandBuffer,
-            handles[i]->image,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_GENERAL,
-            0,
-            VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-            VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-            VK_IMAGE_ASPECT_COLOR_BIT
-        );
+        createImage(*handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
+                    swapchainParams.extent.width, swapchainParams.extent.height,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VK_IMAGE_USAGE_STORAGE_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT);
+
+        transitionImageLayout(commandBuffer, handles[i]->image, VK_IMAGE_LAYOUT_UNDEFINED,
+                              VK_IMAGE_LAYOUT_GENERAL, 0, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                              VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                              VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                              VK_IMAGE_ASPECT_COLOR_BIT);
     }
-    
+
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     vkQueueWaitIdle(queues[NPQueueType::GRAPHICS].queue);
 }
@@ -887,14 +856,14 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NP
 }
 
 void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, NPImage& src, NPBuffer& dst,
-                                uint32_t width, uint32_t height)
+                                uint32_t width, uint32_t height, VkImageAspectFlags aspectFlags)
 {
     VkBufferImageCopy region{};  // copy specifier
     region.bufferOffset = 0;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.aspectMask = aspectFlags;
     region.imageSubresource.mipLevel = 0;
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;
@@ -941,21 +910,16 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
-void Context::createBottomLevelAccelerationStructure(
-    VkCommandBuffer& commandBuffer, 
-    NPAccelerationStructure& handle, 
-    VkDeviceAddress vertexAddress, 
-    VkDeviceAddress indexAddress,
-    uint32_t firstVertex,
-    uint32_t vertexCount,
-    uint32_t firstIndex,
-    uint32_t indexCount)
+void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
+                                                     NPAccelerationStructure& handle,
+                                                     VkDeviceAddress vertexAddress,
+                                                     VkDeviceAddress indexAddress,
+                                                     uint32_t firstVertex, uint32_t vertexCount,
+                                                     uint32_t firstIndex, uint32_t indexCount)
 {
-    if (indexCount == 0 || (indexCount % 3) != 0)
-    {
-        throw std::runtime_error("BLAS build requires a non-zero triangle index count.");
-    }
-    
+    DEV_ASSERT(indexCount != 0 && (indexCount % 3) == 0,
+               "BLAS build requires a non-zero triangle index count.\n");
+
     VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
     triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
     triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
@@ -965,21 +929,20 @@ void Context::createBottomLevelAccelerationStructure(
     triangles.indexType = VK_INDEX_TYPE_UINT32;
     triangles.indexData.deviceAddress = indexAddress;
     triangles.transformData.deviceAddress = 0;
-    
+
     VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
     accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
     accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
     accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
     accelerationStructureGeometry.geometry.triangles = triangles;
-    
-    
+
     const uint32_t primitiveCount = indexCount / 3;
     VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
     buildRangeInfo.primitiveCount = primitiveCount;
     buildRangeInfo.primitiveOffset = firstIndex * sizeof(uint32_t);
     buildRangeInfo.firstVertex = 0;
     buildRangeInfo.transformOffset = 0;
-    
+
     // BUILD
     VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
     geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -988,34 +951,38 @@ void Context::createBottomLevelAccelerationStructure(
     geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     geometryInfo.geometryCount = 1;
     geometryInfo.pGeometries = &accelerationStructureGeometry;
-    
+
     VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
     sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-    
-    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &geometryInfo, &primitiveCount, &sizeInfo);
-    
+
+    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                            &geometryInfo, &primitiveCount, &sizeInfo);
+
     // allocate scratch buffer
     VkDeviceSize scratchSize = sizeInfo.buildScratchSize + scratchAlignment - 1;
-    
-    createBuffer(handle.scratchBuffer, scratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
+
+    createBuffer(handle.scratchBuffer, scratchSize,
+                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
     VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(handle.scratchBuffer);
     VkDeviceAddress scratchAddress = alignUpVk(rawScratchAddress, scratchAlignment);
-    
+
     // allocate blas storage buffer
-    createBuffer(handle.handleBuffer, sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
-    
+    createBuffer(handle.handleBuffer, sizeInfo.accelerationStructureSize,
+                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+                     | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                 0);
+
     VkAccelerationStructureCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
     createInfo.buffer = handle.handleBuffer.buffer;
     createInfo.offset = 0;
     createInfo.size = sizeInfo.accelerationStructureSize;
     createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    
-    if (vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &handle.accelerationStructure) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create acceleration structure!");
-    }
-    
+
+    VK_CHECK(vkCreateAccelerationStructureKHR(device, &createInfo, nullptr,
+                                              &handle.accelerationStructure),
+             "failed to create acceleration structure!\n");
+
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
     buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
     buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
@@ -1025,19 +992,18 @@ void Context::createBottomLevelAccelerationStructure(
     buildInfo.geometryCount = 1;
     buildInfo.pGeometries = &accelerationStructureGeometry;
     buildInfo.scratchData.deviceAddress = scratchAddress;
-    
+
     // build it
-    
+
     const VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &buildRangeInfo;
     vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &pBuildRangeInfo);
 }
 
-void Context::createTopLevelAccelerationStructure(
-    VkCommandBuffer& commandBuffer, 
-    NPAccelerationStructure& handle, 
-    NPBuffer& instanceBufferHandle,
-    std::vector<FLOAT4X4>& transforms,
-    std::vector<NPAccelerationStructure>& blasses)
+void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
+                                                  NPAccelerationStructure& handle,
+                                                  NPBuffer& instanceBufferHandle,
+                                                  std::vector<FLOAT4X4>& transforms,
+                                                  std::vector<NPAccelerationStructure>& blasses)
 {
     std::vector<VkAccelerationStructureInstanceKHR> instances;
     instances.reserve(transforms.size());
@@ -1050,31 +1016,31 @@ void Context::createTopLevelAccelerationStructure(
         instance.instanceShaderBindingTableRecordOffset = 0;
         instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
         instance.accelerationStructureReference = blasses[i].deviceAddress;
-        
+
         instances.push_back(instance);
     }
-    
+
     const uint32_t instanceCount = static_cast<uint32_t>(instances.size());
     VkDeviceSize instanceBufferSize = sizeof(VkAccelerationStructureInstanceKHR) * instanceCount;
-    
-    if (!createDeviceLocalBuffer(instanceBufferHandle, instances.data(), instanceBufferSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))
-    {
-        throw std::runtime_error("failed to create device local memory buffer!");
-    }
-    
+
+    DEV_ASSERT(createDeviceLocalBuffer(instanceBufferHandle, instances.data(), instanceBufferSize,
+                                       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+                                           | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
+               "failed to create device local memory buffer!\n");
+
     VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(instanceBufferHandle);
-    
+
     VkAccelerationStructureGeometryDataKHR geometry{};
     geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
     geometry.instances.arrayOfPointers = VK_FALSE;
     geometry.instances.data.deviceAddress = instanceBufferAddress;
-    
+
     VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
     accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
     accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
     accelerationStructureGeometry.geometry = geometry;
     accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-    
+
     VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
     geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
     geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
@@ -1082,36 +1048,40 @@ void Context::createTopLevelAccelerationStructure(
     geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     geometryInfo.geometryCount = 1;
     geometryInfo.pGeometries = &accelerationStructureGeometry;
-    
+
     VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
     sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-    
-    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &geometryInfo, &instanceCount, &sizeInfo);
-    
-    
-    createBuffer(handle.handleBuffer, sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
-    
+
+    vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                            &geometryInfo, &instanceCount, &sizeInfo);
+
+    createBuffer(handle.handleBuffer, sizeInfo.accelerationStructureSize,
+                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
+                     | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                 0);
+
     VkAccelerationStructureCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
     createInfo.buffer = handle.handleBuffer.buffer;
     createInfo.size = sizeInfo.accelerationStructureSize;
     createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-    
+
     vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &handle.accelerationStructure);
-    
+
     // allocate scratch buffer
     VkDeviceSize scratchSize = sizeInfo.buildScratchSize + scratchAlignment - 1;
-    
-    createBuffer(handle.scratchBuffer, scratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
+
+    createBuffer(handle.scratchBuffer, scratchSize,
+                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
     VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(handle.scratchBuffer);
     VkDeviceAddress scratchAddress = alignUpVk(rawScratchAddress, scratchAlignment);
-    
+
     VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
     buildRangeInfo.primitiveCount = instanceCount;
     buildRangeInfo.primitiveOffset = 0;
     buildRangeInfo.firstVertex = 0;
     buildRangeInfo.transformOffset = 0;
-    
+
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
     buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
     buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
@@ -1121,13 +1091,15 @@ void Context::createTopLevelAccelerationStructure(
     buildInfo.geometryCount = 1;
     buildInfo.pGeometries = &accelerationStructureGeometry;
     buildInfo.scratchData.deviceAddress = scratchAddress;
-    
+
     // build it
     const VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &buildRangeInfo;
     vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &pBuildRangeInfo);
 }
 
-void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayout, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings)
+void Context::createDescriptorSetLayout(
+    NPDescriptorSetLayout& descriptorSetLayout,
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings)
 {
     std::vector<VkDescriptorSetLayoutBinding> bindingVec;
     bindingVec.reserve(bindings.size());
@@ -1142,11 +1114,8 @@ void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayo
     layoutInfo.bindingCount = static_cast<uint32_t>(bindingVec.size());
     layoutInfo.pBindings = bindingVec.data();
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create mesh descriptor set layout");
-    }
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout),
+             "failed to create mesh descriptor set layout\n");
 
     // get binding types and number
     std::unordered_map<VkDescriptorType, uint32_t> countMap;
@@ -1171,11 +1140,8 @@ void Context::createDescriptorSetLayout(NPDescriptorSetLayout& descriptorSetLayo
     descriptorPoolInfo.pPoolSizes = poolSizes.data();
     descriptorPoolInfo.maxSets = 1;  // maybe change later
 
-    if (vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool)
-        != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create mesh descriptor pool");
-    }
+    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool),
+             "failed to create mesh descriptor pool\n");
 }
 
 void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
@@ -1187,10 +1153,8 @@ void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
     allocInfo.descriptorSetCount = 1;  // maybe change later
     allocInfo.pSetLayouts = &descriptorSetLayout.layout;
 
-    if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to allocate mesh descriptor set");
-    }
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet),
+             "failed to allocate mesh descriptor set\n");
 }
 
 void Context::writeDescriptorSetBuffers(
@@ -1228,13 +1192,9 @@ void Context::writeDescriptorSetBuffers(
                            writeDescriptorSets.data(), 0, nullptr);
 }
 
-void Context::writeDescriptorSetImages(
-    VkDescriptorSet& descriptorSet, 
-    uint32_t binding, 
-    const std::vector<NPImage>& images, 
-    VkSampler* sampler, 
-    VkDescriptorType type,
-    VkImageLayout layout)
+void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
+                                       const std::vector<NPImage>& images, VkSampler* sampler,
+                                       VkDescriptorType type, VkImageLayout layout)
 {
     std::vector<VkDescriptorImageInfo> imageInfos;
     for (auto& image : images)
@@ -1242,12 +1202,12 @@ void Context::writeDescriptorSetImages(
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageView = image.view;
         imageInfo.imageLayout = layout;
-        
+
         if (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
         {
             imageInfo.sampler = *sampler;
         }
-        
+
         imageInfos.push_back(imageInfo);
     }
 
@@ -1263,10 +1223,9 @@ void Context::writeDescriptorSetImages(
 }
 
 void Context::writeDescriptorSetAccelerationStructures(
-    VkDescriptorSet& descriptorSet, 
+    VkDescriptorSet& descriptorSet,
     std::unordered_map<uint32_t, NPAccelerationStructure*>& bindingASMap,
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap
-    )
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap)
 {
     std::unordered_map<uint32_t, VkWriteDescriptorSetAccelerationStructureKHR> bindingInfoMap;
     for (auto& pair : bindingASMap)
@@ -1275,15 +1234,15 @@ void Context::writeDescriptorSetAccelerationStructures(
         asInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
         asInfo.accelerationStructureCount = 1;
         asInfo.pAccelerationStructures = &pair.second->accelerationStructure;
-        
+
         bindingInfoMap[pair.first] = asInfo;
     }
-    
+
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
     for (auto& pair : bindingInfoMap)
     {
         uint32_t binding = pair.first;
-        
+
         VkWriteDescriptorSet writeDescriptorSet{};
         writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writeDescriptorSet.dstSet = descriptorSet;
@@ -1291,11 +1250,12 @@ void Context::writeDescriptorSetAccelerationStructures(
         writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
         writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
         writeDescriptorSet.pNext = &pair.second;
-        
+
         writeDescriptorSets.push_back(writeDescriptorSet);
     }
-    
-    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()),
+                           writeDescriptorSets.data(), 0, nullptr);
 }
 
 // UTILITY
@@ -1306,49 +1266,39 @@ NPFrame& Context::getCurrentFrame(uint32_t currentFrame)
 
 void Context::loadRayTracingFunctionPointers()
 {
-    vkCreateAccelerationStructureKHR =
-        reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(
-            vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureKHR"));
+    vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(
+        vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureKHR"));
 
-    vkDestroyAccelerationStructureKHR =
-        reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(
-            vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureKHR"));
+    vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(
+        vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureKHR"));
 
-    vkGetAccelerationStructureBuildSizesKHR =
-        reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(
+    vkGetAccelerationStructureBuildSizesKHR
+        = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(
             vkGetDeviceProcAddr(device, "vkGetAccelerationStructureBuildSizesKHR"));
 
-    vkCmdBuildAccelerationStructuresKHR =
-        reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(
-            vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructuresKHR"));
+    vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(
+        vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructuresKHR"));
 
-    vkGetAccelerationStructureDeviceAddressKHR =
-        reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(
+    vkGetAccelerationStructureDeviceAddressKHR
+        = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(
             vkGetDeviceProcAddr(device, "vkGetAccelerationStructureDeviceAddressKHR"));
 
-    vkCreateRayTracingPipelinesKHR =
-        reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(
-            vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesKHR"));
+    vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(
+        vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesKHR"));
 
-    vkGetRayTracingShaderGroupHandlesKHR =
-        reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
-            vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesKHR"));
+    vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
+        vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesKHR"));
 
-    vkCmdTraceRaysKHR =
-        reinterpret_cast<PFN_vkCmdTraceRaysKHR>(
-            vkGetDeviceProcAddr(device, "vkCmdTraceRaysKHR"));
+    vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(
+        vkGetDeviceProcAddr(device, "vkCmdTraceRaysKHR"));
 
-    if (!vkCreateAccelerationStructureKHR ||
-        !vkDestroyAccelerationStructureKHR ||
-        !vkGetAccelerationStructureBuildSizesKHR ||
-        !vkCmdBuildAccelerationStructuresKHR ||
-        !vkGetAccelerationStructureDeviceAddressKHR ||
-        !vkCreateRayTracingPipelinesKHR ||
-        !vkGetRayTracingShaderGroupHandlesKHR ||
-        !vkCmdTraceRaysKHR)
-    {
-        throw std::runtime_error("failed to load ray tracing Vulkan function pointers");
-    }
+    bool pointers = vkCreateAccelerationStructureKHR && vkDestroyAccelerationStructureKHR
+                    && vkGetAccelerationStructureBuildSizesKHR
+                    && vkCmdBuildAccelerationStructuresKHR
+                    && vkGetAccelerationStructureDeviceAddressKHR && vkCreateRayTracingPipelinesKHR
+                    && vkGetRayTracingShaderGroupHandlesKHR && vkCmdTraceRaysKHR;
+
+    DEV_ASSERT(pointers, "failed to load ray tracing Vulkan function pointers\n");
 }
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const

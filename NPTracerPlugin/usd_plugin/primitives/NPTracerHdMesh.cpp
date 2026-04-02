@@ -64,6 +64,7 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
 {
     const SdfPath& id = GetId();
 
+    // TODO: figure out how to handle visibility for meshes, if desired
     // _RemoveFromScene();  // remove existing mesh from scene
     //
     // if (!delegate->GetVisible(GetId()))
@@ -74,6 +75,26 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
     // _AddToScene();
 
     sConstructMesh(id, delegate, _pMesh);
+
+    SdfPath materialId = delegate->GetMaterialId(id);
+    if (!materialId.IsEmpty())
+    {
+        Scene* scene = _pCreator->GetScene();
+
+        // TODO: move this to `Scene` as a helper function?
+        for (size_t i = 0; i < scene->getPrimCount<NPMaterial>(); i++)
+        {
+            auto* mat = scene->getPrimAtIndex<NPMaterial>(i);
+
+            if (mat->scenePath == materialId.GetString())
+            {
+                _pMesh->materialIndex = i;
+                NP_DBG("Found material '%s' in scene for mesh '%s'.\n", mat->scenePath.c_str(),
+                       id.GetText());
+                break;
+            }
+        }
+    }
 }
 
 VtValue NPTracerHdMesh::sGetPrimvar(const SdfPath& id, HdSceneDelegate* delegate,

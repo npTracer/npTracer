@@ -5,10 +5,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-void App::create(bool isStandalone)
+void App::create(bool isStandalone, NPSceneType sceneType)
 {
-    // define `scene`
-    mpScene = isStandalone ? std::make_unique<AssimpScene>() : std::make_unique<Scene>();
+    // switch on scene type
+    switch (sceneType)
+    {
+        case NPSceneType::ASSIMP: mpScene = std::make_unique<AssimpScene>(); break;
+        default: mpScene = std::make_unique<Scene>();
+    }
 
     // create vulkan basics
     mContext.setFrameCount(FRAME_COUNT);

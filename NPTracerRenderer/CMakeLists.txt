@@ -145,10 +145,7 @@ install(FILES "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
 
-option(NPTRACER_STANDALONE "Compile NPTracer with standalone swapchain runtime." OFF)
-
 target_compile_definitions(${PROJECT_NAME}
     PUBLIC
-        NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
-        NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
+        NPTRACER_DEBUG=$<BOOL:$<CONFIG:RelWithDebInfo>>
 )

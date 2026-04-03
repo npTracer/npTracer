@@ -76,7 +76,7 @@ ConfigureUSDPluginTarget(${USD_PLUGIN_TARGET_NAME} "${CUSTOM_USD_DSO_PATH}"
 add_dependencies(${PROJECT_NAME} ${USD_PLUGIN_TARGET_NAME})
 
 if(SHOULD_CREATE_STANDALONE_USD_PLUGIN)
-    EnsureVariable("USD_INSTALL_PATH" FALSE)
+    EnsureVariable("USD_INSTALL_PATH" FALSE TRUE)
     list(PREPEND CMAKE_PREFIX_PATH "${USD_INSTALL_PATH}") # forces search at given path BEFORE system `PATH`
     find_package(pxr CONFIG REQUIRED PATHS "${USD_INSTALL_PATH}")
 

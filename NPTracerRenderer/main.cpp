@@ -7,7 +7,7 @@
 int main(int argc, char** argv)
 {
     App app;
-    app.create(true);
+    app.create(true, NPSceneType::ASSIMP);
     if (argc == 2)
     {
         std::string scenePath = argv[1];

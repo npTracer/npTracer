@@ -154,23 +154,6 @@ void* NPTracerHdRenderBuffer::Map()
     _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
 
-#if NPTRACER_DEBUG
-    uint8_t* data = static_cast<uint8_t*>(_pStagingBuffer->allocInfo.pMappedData);
-    size_t pixelCount = _dimensions[0] * _dimensions[1];
-
-    for (size_t i = 0; i < pixelCount; i++)
-    {
-        uint8_t r = data[i * 4 + 0];
-        uint8_t g = data[i * 4 + 1];
-        uint8_t b = data[i * 4 + 2];
-
-        if (r != 0 || g != 0 || b != 0)
-        {
-            NP_DBG("Pixel[%zu] = (%u, %u, %u)\n", i, r, g, b);
-        }
-    }
-#endif
-
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
 

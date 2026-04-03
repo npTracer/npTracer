@@ -50,7 +50,15 @@ function(ConfigureUSDPluginTarget target_name install_dir)
     )
 
     # set a compile definition for whether debugging is enabled
-    target_compile_definitions(${target_name} PUBLIC "NPTRACER_DEBUG=$<BOOL:${NPTracerPlugin_USD_PLUG_DEBUG}>")
+    target_compile_definitions(${target_name} PUBLIC 
+        "NPTRACER_DEBUG=$<BOOL:${NPTracerPlugin_USD_PLUG_DEBUG}>"
+    )
+    if(DEFINED NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH)
+        set(NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH "${NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH}" CACHE PATH "Path to a 3D model file on disk that will override the actual USD scene and load the file via Assimp." FORCE)
+        target_compile_definitions(${target_name} PUBLIC 
+            "NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH=\"${NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH}\""
+        )
+    endif()
     if(MSVC)
         target_compile_definitions(${target_name}
             PRIVATE

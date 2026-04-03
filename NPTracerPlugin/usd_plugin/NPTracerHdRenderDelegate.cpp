@@ -86,6 +86,7 @@ void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
     NP_DBG("Create Rprim type: type=%s id=%s\n", typeId.GetText(), rprimId.GetText());
+    return nullptr;  // TEMP
 
     if (typeId == HdPrimTypeTokens->mesh)
     {
@@ -108,6 +109,7 @@ void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
     NP_DBG("Create Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
+    return nullptr;  // TEMP
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -142,6 +144,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
     if (typeId == HdPrimTypeTokens->camera)
     {
+        return nullptr;  // TEMP
         return new HdCamera(SdfPath::EmptyPath());
     }
     else if (typeId == HdPrimTypeTokens->material || typeId == HdPrimTypeTokens->sphereLight)
@@ -213,7 +216,15 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
 void NPTracerHdRenderDelegate::_Initialize()
 {
     _pApp = std::make_unique<App>();
-    _pApp->create(false);
+
+    NPSceneType sceneType = overrideSceneWithAssimp ? NPSceneType::ASSIMP : NPSceneType::DEFAULT;
+    _pApp->create(false, sceneType);  // TEMP: use assimp scene to test
+
+    if (overrideSceneWithAssimp)
+    {
+        std::string testScenePath = std::string(NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH);
+        _pApp->loadSceneFromPath(testScenePath.c_str());
+    }
 
     _pRenderParam = std::make_unique<NPTracerHdRenderParam>();
     _pResourceRegistry = std::make_shared<HdResourceRegistry>();

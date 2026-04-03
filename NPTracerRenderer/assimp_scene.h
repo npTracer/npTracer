@@ -13,6 +13,11 @@ class AssimpScene final : public Scene
 public:
     ~AssimpScene() override;
 
+    inline NPSceneType getSceneType() override
+    {
+        return NPSceneType::ASSIMP;
+    }
+
     void loadSceneFromPath(const char* path) override;
 
 private:

@@ -21,13 +21,8 @@ public:
         return mpScene.get();
     }
 
-    void setAov(std::unique_ptr<NPRendererAovs> aovs)
-    {
-        aovs = std::move(aovs);
-    }
-
     // interface
-    void create(bool isStandalone);
+    void create(bool isStandalone, NPSceneType sceneType);
     void destroy();
 
     void loadSceneFromPath(const char* path);

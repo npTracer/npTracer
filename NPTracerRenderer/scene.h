@@ -6,12 +6,23 @@
 #include <memory>
 #include <mutex>
 
+enum NPSceneType
+{
+    ASSIMP,
+    DEFAULT
+};
+
 class Scene
 {
 public:
     virtual ~Scene() = default;
 
     virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
+
+    inline virtual NPSceneType getSceneType()
+    {
+        return NPSceneType::DEFAULT;
+    }
 
     template<typename T>
     T* makePrim();

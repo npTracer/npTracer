@@ -4,7 +4,7 @@ include_guard(GLOBAL)
 function(HouUtilsEnsureVariables)
     include(core_utils)
     
-    EnsureVariable("HOUDINI_INSTALL_PATH" FALSE)
+    EnsureVariable("HOUDINI_INSTALL_PATH" FALSE TRUE)
 
     # normalize path before checking if it exists
     cmake_path(CONVERT "${HOUDINI_INSTALL_PATH}" TO_CMAKE_PATH_LIST HOUDINI_INSTALL_PATH NORMALIZE)
@@ -18,18 +18,12 @@ function(HouUtilsEnsureVariables)
         message(FATAL_ERROR "'HOUDINI_LIB_PATH' is not a valid directory: ${HOUDINI_LIB_PATH}. Ensure that 'HOUDINI_INSTALL_PATH' is set correctly: ${HOUDINI_INSTALL_PATH}")
     endif()
 
-    EnsureVariable("CUSTOM_DSO_PATH" TRUE)
-    # normalize path
-    cmake_path(CONVERT "${CUSTOM_DSO_PATH}" TO_CMAKE_PATH_LIST CUSTOM_DSO_PATH NORMALIZE)
-
-    # normalize path
-    cmake_path(CONVERT "${CUSTOM_USD_DSO_PATH}" TO_CMAKE_PATH_LIST CUSTOM_USD_DSO_PATH NORMALIZE)
-
-    EnsureVariable("CUSTOM_USD_DSO_PATH" TRUE)
+    EnsureVariable("CUSTOM_DSO_PATH" TRUE TRUE)
+    EnsureVariable("CUSTOM_USD_DSO_PATH" TRUE TRUE)
 
     # verify the full environment variables as well
-    EnsureVariable("HOUDINI_DSO_PATH" TRUE)
-    EnsureVariable("HOUDINI_USD_DSO_PATH" TRUE)
+    EnsureVariable("HOUDINI_DSO_PATH" TRUE TRUE)
+    EnsureVariable("HOUDINI_USD_DSO_PATH" TRUE TRUE)
 
     # make paths into cmake cache variables
     set(HOUDINI_INSTALL_PATH "${HOUDINI_INSTALL_PATH}" CACHE PATH "Houdini Installation Path")

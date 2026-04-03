@@ -44,12 +44,12 @@ HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* 
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedRprimTypes() const
 {
-    return SUPPORTED_RPRIM_TYPES;
+    return kOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_RPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedSprimTypes() const
 {
-    return SUPPORTED_SPRIM_TYPES;
+    return kOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_SPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
@@ -86,7 +86,6 @@ void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
     NP_DBG("Create Rprim type: type=%s id=%s\n", typeId.GetText(), rprimId.GetText());
-    return nullptr;  // TEMP
 
     if (typeId == HdPrimTypeTokens->mesh)
     {
@@ -109,7 +108,6 @@ void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfPath& sprimId)
 {
     NP_DBG("Create Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
-    return nullptr;  // TEMP
 
     if (typeId == HdPrimTypeTokens->camera)
     {
@@ -144,7 +142,6 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
     if (typeId == HdPrimTypeTokens->camera)
     {
-        return nullptr;  // TEMP
         return new HdCamera(SdfPath::EmptyPath());
     }
     else if (typeId == HdPrimTypeTokens->material || typeId == HdPrimTypeTokens->sphereLight)
@@ -206,10 +203,12 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
     {
         return { HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)) };
     }
-    /*else if (aovName == HdAovTokens->depth)
+#if 0
+    else if (aovName == HdAovTokens->depth)
     {
         return { HdFormatFloat32, false, VtValue(1.0f) };
-    }*/
+    }
+#endif
     return {};
 }
 
@@ -217,13 +216,12 @@ void NPTracerHdRenderDelegate::_Initialize()
 {
     _pApp = std::make_unique<App>();
 
-    NPSceneType sceneType = overrideSceneWithAssimp ? NPSceneType::ASSIMP : NPSceneType::DEFAULT;
-    _pApp->create(false, sceneType);  // TEMP: use assimp scene to test
+    NPSceneType sceneType = kOverrideSceneWithAssimp ? NPSceneType::ASSIMP : NPSceneType::DEFAULT;
+    _pApp->create(false, sceneType);
 
-    if (overrideSceneWithAssimp)
+    if (kOverrideSceneWithAssimp)
     {
-        std::string testScenePath = std::string(NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH);
-        _pApp->loadSceneFromPath(testScenePath.c_str());
+        _pApp->loadSceneFromPath(kAssimpOverrideFilePath);
     }
 
     _pRenderParam = std::make_unique<NPTracerHdRenderParam>();

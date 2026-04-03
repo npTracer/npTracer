@@ -7,7 +7,6 @@ function(HouUtilsEnsureVariables)
     EnsureVariable("HOUDINI_INSTALL_PATH" FALSE TRUE)
 
     # normalize path before checking if it exists
-    cmake_path(CONVERT "${HOUDINI_INSTALL_PATH}" TO_CMAKE_PATH_LIST HOUDINI_INSTALL_PATH NORMALIZE)
     if (NOT EXISTS "${HOUDINI_INSTALL_PATH}")
         message(FATAL_ERROR "'HOUDINI_INSTALL_PATH' was set but the directory is invalid: ${HOUDINI_INSTALL_PATH}")
     endif()

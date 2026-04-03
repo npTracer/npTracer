@@ -1,3 +1,16 @@
+include_guard(GLOBAL)
+
+function(ValidateUSDPluginCMakeOptions)
+    if(SHOULD_CREATE_STANDALONE_USD_PLUGIN AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+        message(FATAL_ERROR "To create a standalone USD plugin specify an installation prefix. This can be done through the `CMAKE_INSTALL_PREFIX` variable.")
+    endif()
+    if(OVERRIDE_USD_PLUGIN_SCENE_WITH_ASSIMP AND DEFINED NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH)
+        set(NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH "${NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH}" CACHE PATH "Path to a 3D model file on disk that will override the actual USD scene and load the file via Assimp." FORCE)
+    elseif(OVERRIDE_USD_PLUGIN_SCENE_WITH_ASSIMP)
+        message(FATAL_ERROR "To override USD plugin scene with a 3D scene loaded from Assimp, specify a path to a valid 3D file using the `NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH` CMake variable.")
+    endif()
+endfunction()
+
 function(ConfigureUSDPluginTarget target_name install_dir)
     set(options)
 
@@ -50,15 +63,11 @@ function(ConfigureUSDPluginTarget target_name install_dir)
     )
 
     # set a compile definition for whether debugging is enabled
-    target_compile_definitions(${target_name} PUBLIC 
+    target_compile_definitions(${target_name} PRIVATE 
         "NPTRACER_DEBUG=$<BOOL:${NPTracerPlugin_USD_PLUG_DEBUG}>"
+        "ASSIMP_OVERRIDE=$<BOOL:${OVERRIDE_USD_PLUGIN_SCENE_WITH_ASSIMP}>"
+        "ASSIMP_OVERRIDE_FILE_PATH=\"${NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH}\""
     )
-    if(DEFINED NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH)
-        set(NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH "${NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH}" CACHE PATH "Path to a 3D model file on disk that will override the actual USD scene and load the file via Assimp." FORCE)
-        target_compile_definitions(${target_name} PUBLIC 
-            "NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH=\"${NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH}\""
-        )
-    endif()
     if(MSVC)
         target_compile_definitions(${target_name}
             PRIVATE

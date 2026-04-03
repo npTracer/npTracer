@@ -13,8 +13,9 @@ PXR_NAMESPACE_OPEN_SCOPE
 class NPTracerHdRenderDelegate : public HdRenderDelegate
 {
 public:
-    static constexpr bool overrideSceneWithAssimp = static_cast<bool>(
-        NPTRACER_PLUGIN_ASSIMP_OVERRIDE_FILE_PATH);
+    static constexpr bool kOverrideSceneWithAssimp = ASSIMP_OVERRIDE && ASSIMP_OVERRIDE_FILE_PATH;
+    static constexpr char kAssimpOverrideFilePath[512] = ASSIMP_OVERRIDE_FILE_PATH;
+
     NPTracerHdRenderDelegate();
 
     NPTracerHdRenderDelegate(const HdRenderSettingsMap& settingsMap);

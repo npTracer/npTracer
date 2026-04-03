@@ -20,7 +20,7 @@ function(EnsureVariable variable_name env_only is_path)
         cmake_path(CONVERT "${${variable_name}}" TO_CMAKE_PATH_LIST ${variable_name} NORMALIZE)
     endif()
         
-    set(${variable_name} "${${variable_name}}" PARENT_NAME)
+    set(${variable_name} "${${variable_name}}" PARENT_SCOPE)
 endfunction()
 
 function(ConfigureFilePostBuild target_name)

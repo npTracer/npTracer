@@ -93,7 +93,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         = mContext.createDeviceLocalBuffer(mMeshRecordBuffer, meshRecords.data(), meshRecordSize,
                                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.");
+    DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.\n");
 
     VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
@@ -162,7 +162,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
         = mContext.createDeviceLocalBuffer(mCameraRecordBuffer, mpScene->getCamera(), cameraSize,
                                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.");
+    DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.\n");
 
     // MATERIALS
 

@@ -17,10 +17,9 @@ endif()
 
 option(NPTracerPlugin_USD_PLUG_DEBUG "Enable messages written to debugger output via USD's `TfDebug` class." ON)
 option(SHOULD_CREATE_STANDALONE_USD_PLUGIN FALSE)
+option(OVERRIDE_USD_PLUGIN_SCENE_WITH_ASSIMP FALSE)
 
-if(SHOULD_CREATE_STANDALONE_USD_PLUGIN AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    message(FATAL_ERROR "To create a standalone USD plugin specify an installation prefix. This can be done through the `CMAKE_INSTALL_PREFIX` variable.")
-endif()
+ValidateUSDPluginCMakeOptions()
 
 set(USD_PLUGIN_TARGET_NAME "NPTracerHdRendererPlugin")
 set(STANDALONE_USD_PLUGIN_TARGET_NAME "NPTracerHdRendererPlugin_standalone")

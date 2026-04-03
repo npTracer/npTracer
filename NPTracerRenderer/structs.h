@@ -389,7 +389,7 @@ struct NPMaterial : NPMaterialRecord
 
     NPMaterialRecord toRecord() const
     {
-        return { ambient, diffuse, specular, emission };
+        return NPMaterialRecord(*this);
     }
 };
 

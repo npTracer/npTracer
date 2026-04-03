@@ -17,7 +17,6 @@ set(USD_PLUG_SOURCES
 
 set(USD_PLUG_HEADERS
     "${NPTracerPlugin_USD_PLUG_DIR}/debugCodes.h"
-    "${NPTracerPlugin_USD_PLUG_DIR}/npTokens.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/hdMathUtils.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.h"

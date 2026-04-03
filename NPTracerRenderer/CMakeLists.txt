@@ -31,6 +31,7 @@ set(LIB_SOURCES
 
 set(LIB_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
+    "${NPTracerRenderer_ROOT_DIR}/tokens.h"
     "${NPTracerRenderer_ROOT_DIR}/structs.h"
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"

@@ -21,8 +21,6 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPassState,
                                     const TfTokenVector& renderTags)
 {
-    NP_DBG("Render pass executed.\n");
-
     this->SetConverged(false);
 
     App* app = _pCreator->GetRendererApp();
@@ -32,16 +30,13 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 
     NPRendererAovs payload;
 
-    std::vector<NPTracerHdRenderBuffer*> requestedWriters;
-    requestedWriters.reserve(aovBindings.size());
+    std::vector<NPTracerHdRenderBuffer*> aovsRequestedForWrite;
+    aovsRequestedForWrite.reserve(aovBindings.size());
 
     for (const HdRenderPassAovBinding& binding : aovBindings)
     {
         auto buffer = dynamic_cast<NPTracerHdRenderBuffer*>(binding.renderBuffer);
-        if (!buffer)  // `dynamic_cast` failed
-        {
-            continue;
-        }
+        if (!buffer) continue;  // `dynamic_cast` failed
 
         TF_DEV_AXIOM(buffer->IsConverged() && !buffer->IsMapped());
 
@@ -58,7 +53,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
             continue;  // skip pushing onto buffer vector
         }
 
-        requestedWriters.push_back(buffer);
+        aovsRequestedForWrite.push_back(buffer);
     }
 
     // fill in camera data after all buffers have been requested
@@ -76,12 +71,14 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 
     app->executeDrawCall(payload);
 
-    for (NPTracerHdRenderBuffer* buffer : requestedWriters)
+    for (NPTracerHdRenderBuffer* buffer : aovsRequestedForWrite)
     {
         buffer->EndWrite();  // mark all requested buffers
     }
 
     this->SetConverged(true);
+
+    NP_DBG("Render pass executed.\n");
 }
 
 bool NPTracerHdRenderPass::IsConverged() const

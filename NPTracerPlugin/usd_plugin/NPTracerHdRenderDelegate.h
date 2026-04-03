@@ -91,8 +91,8 @@ public:
 private:
     void _Initialize();
 
-    static constexpr bool bOverrideSceneWithAssimp = ASSIMP_OVERRIDE;
-    static constexpr char kAssimpOverrideFilePath[512] = ASSIMP_OVERRIDE_FILE_PATH;
+    static constexpr bool _bOverrideSceneWithAssimp = ASSIMP_OVERRIDE;
+    static constexpr char _kAssimpOverrideFilePath[512] = ASSIMP_OVERRIDE_FILE_PATH;
 
     std::unique_ptr<App> _pApp;  // `App` lasts delegate's lifetime
 

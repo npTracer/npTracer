@@ -5,16 +5,19 @@
 #include "usd_plugin/NPTracerHdRenderParam.h"
 
 #define PREPARE_UNIQUE_PTR(_ptr, _ptrType, _destroyer)                                             \
-    if (_ptr == nullptr)                                                                           \
+    do                                                                                             \
     {                                                                                              \
-        _ptr = std::make_unique<_ptrType>();                                                       \
-    }                                                                                              \
-    else                                                                                           \
-    {                                                                                              \
-        _destroyer();                                                                              \
-        _ptr.reset();                                                                              \
-        _ptr = std::make_unique<_ptrType>();                                                       \
-    }
+        if (_ptr == nullptr)                                                                       \
+        {                                                                                          \
+            _ptr = std::make_unique<_ptrType>();                                                   \
+        }                                                                                          \
+        else                                                                                       \
+        {                                                                                          \
+            _destroyer();                                                                          \
+            _ptr.reset();                                                                          \
+            _ptr = std::make_unique<_ptrType>();                                                   \
+        }                                                                                          \
+    } while (0)
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -23,7 +26,7 @@ NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* 
     , _pCtx(context)
     , _pImage(nullptr)
     , _pStagingBuffer(nullptr)
-    , _fmtTokens(Np::GetFormatTokens(HdFormatInvalid))
+    , _aovTokens(npTracer::getAovTokens(npTracer::NPAovType::INVALID))
 {
 }
 
@@ -38,8 +41,8 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     _dimensions = dimensions;
     _format = format;
-    _multiSampled = multiSampled;
-    _fmtTokens = Np::GetFormatTokens(format);
+    _bMultiSampled = multiSampled;
+    _aovTokens = npTracer::getAovTokens(sHdFormatToNPAovType(format));
 
     const VkDeviceSize size = GetSize();
 
@@ -48,7 +51,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
         return false;
     }
 
-    VkFormat vkFormat = _fmtTokens.vkFormat;
+    VkFormat vkFormat = _aovTokens.format;
     if (vkFormat == VK_FORMAT_UNDEFINED)
     {
         return false;
@@ -57,7 +60,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     PREPARE_UNIQUE_PTR(_pImage, NPImage,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
     _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
-                       _fmtTokens.usage, 0, _fmtTokens.aspect, true);
+                       _aovTokens.imageUsage, 0, _aovTokens.imageAspect, true);
 
     VkCommandBuffer commandBuffer;
     _pCtx->createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
@@ -117,12 +120,12 @@ HdFormat NPTracerHdRenderBuffer::GetFormat() const
 size_t NPTracerHdRenderBuffer::GetSize() const
 {
     TF_DEV_AXIOM(_dimensions[0] > 0 && _dimensions[1] > 0 && _dimensions[2]);
-    return _fmtTokens.bytesPerPixel * _dimensions[0] * _dimensions[1];
+    return _aovTokens.bytesPerPixel * _dimensions[0] * _dimensions[1];
 }
 
 bool NPTracerHdRenderBuffer::IsMultiSampled() const
 {
-    return _multiSampled;
+    return _bMultiSampled;
 }
 
 // copy underlying image data to a staging buffer for i/o mapping
@@ -149,7 +152,7 @@ void* NPTracerHdRenderBuffer::Map()
 
     _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
                              static_cast<uint32_t>(_dimensions[0]),
-                             static_cast<uint32_t>(_dimensions[1]), _fmtTokens.aspect);
+                             static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
 
     _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
@@ -171,12 +174,12 @@ bool NPTracerHdRenderBuffer::IsMapped() const
 
 bool NPTracerHdRenderBuffer::IsConverged() const
 {
-    return _converged.load();
+    return _bConverged.load();
 }
 
 void NPTracerHdRenderBuffer::SetConverged(bool converged)
 {
-    _converged.store(converged);
+    _bConverged.store(converged);
 }
 
 void NPTracerHdRenderBuffer::Resolve()
@@ -186,7 +189,7 @@ void NPTracerHdRenderBuffer::Resolve()
 
 bool NPTracerHdRenderBuffer::HasWriter() const
 {
-    return _hasWriter.load();
+    return _bHasWriter.load();
 }
 
 NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
@@ -202,7 +205,7 @@ NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
     if (!HasWriter() && !IsMapped())
     {
         SetConverged(false);  // first mark not converged
-        _hasWriter.store(true);
+        _bHasWriter.store(true);
         return _pImage.get();
     }
     return nullptr;
@@ -211,7 +214,7 @@ NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 void NPTracerHdRenderBuffer::EndWrite()
 {
     SetConverged(true);
-    _hasWriter.store(false);
+    _bHasWriter.store(false);
 }
 
 void NPTracerHdRenderBuffer::_Deallocate()
@@ -244,9 +247,19 @@ void NPTracerHdRenderBuffer::_Deallocate()
     _format = HdFormatInvalid;
 
     _readers.store(0);
-    _converged.store(false);
+    _bConverged.store(false);
 
     NP_DBG("Deallocate complete of render buffer: id=%s\n", GetId().GetText());
+}
+
+npTracer::NPAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
+{
+    switch (format)
+    {
+        case HdFormatUNorm8Vec4: return npTracer::NPAovType::RGB;
+        case HdFormatFloat32: return npTracer::NPAovType::DEPTH;
+        default: return npTracer::NPAovType::INVALID;
+    }
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

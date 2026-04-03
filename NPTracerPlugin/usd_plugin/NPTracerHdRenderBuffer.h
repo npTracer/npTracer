@@ -1,7 +1,6 @@
 #pragma once
 
-#include "usd_plugin/npTokens.h"
-
+#include "NPTracerRenderer/tokens.h"
 #include <NPTracerRenderer/context.h>
 
 #include <pxr/imaging/hd/renderBuffer.h>
@@ -45,26 +44,29 @@ public:
     // returns nullptr if `waitForSuccess` is false and another entity is already writing
     NPImage* RequestImageForWrite(bool waitUntilSuccess = true);
 
+    // TODO: technically, we cannot assume aov type based on format along. but for now we will make this assumption
+    static npTracer::NPAovType sHdFormatToNPAovType(const HdFormat format);
+
 private:
     // release any allocated resources
     void _Deallocate() override;
 
     // the actual underlying buffer
     std::unique_ptr<NPImage> _pImage;
-    Np::FormatTokens _fmtTokens;
+    npTracer::AovTokens _aovTokens;
 
     // reused GPU buffer for image to GPU buffer transfer
     std::unique_ptr<NPBuffer> _pStagingBuffer;
 
     GfVec3i _dimensions = GfVec3i(-1);
     HdFormat _format = HdFormatInvalid;
-    bool _multiSampled = false;
+    bool _bMultiSampled = false;
 
     // the number of entities that are reading this buffer
     std::atomic<int> _readers{ 0 };
-    std::atomic<bool> _hasWriter{ false };
+    std::atomic<bool> _bHasWriter{ false };
 
-    std::atomic<bool> _converged{ true };
+    std::atomic<bool> _bConverged{ true };
 
     Context* _pCtx;
     VkCommandBuffer _transferCmdBuffer = VK_NULL_HANDLE;

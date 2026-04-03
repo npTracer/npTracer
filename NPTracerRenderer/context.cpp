@@ -12,7 +12,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-void Context::createWindow(GLFWwindow*& window, int width, int height)
+void Context::createWindow(GLFWwindow*& window, uint32_t width, uint32_t height)
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -343,7 +343,7 @@ void Context::createSwapchain(GLFWwindow* window)
     // format selection
     auto is_format = [](const VkSurfaceFormatKHR& format)
     {
-        return format.format == VK_FORMAT_B8G8R8_SRGB
+        return format.format == VK_FORMAT_R8G8B8A8_SRGB
                && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
     };
 
@@ -452,7 +452,7 @@ void Context::recreateSwapchain(GLFWwindow* window)
     std::vector<NPImage> resultImages{ resultImage, accumulationImage };
     writeDescriptorSetImages(rtDescriptorSet, 1, resultImages, VK_NULL_HANDLE,
                              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL);
-    frameIndex = 0;
+    frameIndex.store(0);  // reset atomic
 }
 
 void Context::cleanupSwapchain()
@@ -502,9 +502,9 @@ void Context::createSyncAndFrameObjects(size_t numRenderingSemaphores)
         doneRenderingSemaphores.push_back(doneRenderingSemaphore);
     }
 
-    frames.reserve(kFrameCount);
+    frames.reserve(kFramesInFlight);
 
-    for (int i = 0; i < kFrameCount; i++)
+    for (int i = 0; i < kFramesInFlight; i++)
     {
         NPFrame& frame = frames[i];
 
@@ -1377,7 +1377,7 @@ void Context::destroy()
 {
     cleanupSwapchain();
 
-    for (int i = 0; i < kFrameCount; i++)
+    for (int i = 0; i < kFramesInFlight; i++)
     {
         frames[i].destroy(device, allocator);
     }

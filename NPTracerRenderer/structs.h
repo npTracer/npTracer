@@ -21,6 +21,28 @@ using FLOAT4X4 = glm::f32mat4;
 using NPScenePath = std::string;
 using NPScenePathCollection = std::vector<NPScenePath>;
 
+enum class NPSceneType : uint8_t
+{
+    ASSIMP,
+    DEFAULT
+};
+
+enum class NPExecutionMode : uint8_t
+{
+    OFFSCREEN,
+    SWAPCHAIN
+};
+
+// these values are renderer-level and thus differ from render settings
+struct NPRendererConstants
+{
+    NPExecutionMode executionMode = NPExecutionMode::OFFSCREEN;
+    NPSceneType sceneType = NPSceneType::DEFAULT;
+
+    // `false` assumes top-left of image coordinate system is {0,0} (vulkan-default), `true` assumes bottom-left
+    bool flipNDCY = true;
+};
+
 struct NPVertex
 {
     FLOAT4 pos;

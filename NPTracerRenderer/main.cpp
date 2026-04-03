@@ -4,10 +4,13 @@
 #include <stdexcept>
 #include <string>
 
+constexpr NPRendererConstants RENDERER_CONSTANTS = { NPExecutionMode::SWAPCHAIN,
+                                                     NPSceneType::ASSIMP, false };
+
 int main(int argc, char** argv)
 {
     App app;
-    app.create(true, NPSceneType::ASSIMP);
+    app.create(RENDERER_CONSTANTS);
     if (argc == 2)
     {
         std::string scenePath = argv[1];

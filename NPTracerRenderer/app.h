@@ -21,8 +21,9 @@ public:
         return mpScene.get();
     }
 
-    // interface
-    void create(bool isStandalone, NPSceneType sceneType);
+    // public interface
+
+    void create(const NPRendererConstants& rendererConstants);
     void destroy();
 
     void loadSceneFromPath(const char* path);
@@ -33,24 +34,16 @@ public:
     void render();
 
 private:
-    static constexpr bool kDEBUG = NPTRACER_DEBUG;
+    static constexpr bool kDebugEnabled = NPTRACER_DEBUG;
 
-    static constexpr uint32_t kWIDTH = 2560;  // default width when standalone
-    static constexpr uint32_t kHEIGHT = 1440;  // default width when standalone
-
-    static constexpr int FRAME_COUNT = 2;
-    static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
-
-    bool mIsStandalone = false;
-    uint32_t mCurrentRingFrame = 0;
+    // this is a runtime constant, just update whenever needed
+    static constexpr size_t kPushConstantCount = 4;
 
     Context mContext{};
     GLFWwindow* mpWindow = nullptr;
 
-    // push constants
-    std::vector<uint32_t> mIndexCounts;
-    uint32_t mNumLights = 0;
-    static constexpr int kPushConstantCount = 3;
+    // renderer-level constants
+    NPRendererConstants mRendererConstants{};
 
     // rendering resources
     std::unique_ptr<Scene> mpScene;
@@ -62,6 +55,10 @@ private:
     std::vector<NPDescriptorSetLayout> mDescriptorSetLayouts;
     std::vector<VkDescriptorSet> mDescriptorSets;
     VkSampler mSampler = VK_NULL_HANDLE;
+
+    uint32_t mCurrentFrameInFlight = 0u;
+    uint32_t mNumLights = 0;
+    std::vector<uint32_t> mIndexCounts;
 
     // SET 0: GEOMETRY
     NPBuffer mMeshRecordBuffer;
@@ -82,7 +79,7 @@ private:
 
     // SET 4: RT
     std::vector<NPAccelerationStructure> mBlasses;
-    NPAccelerationStructure mTlas;
+    NPAccelerationStructure mTlas{};
 
     // resource creation
     void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
@@ -93,7 +90,8 @@ private:
 
     // render commands recording
     void populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex);
-    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent);
+    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent,
+                            VkImageLayout dstImageLayout);
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

@@ -5,34 +5,41 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-void App::create(bool isStandalone, NPSceneType sceneType)
+constexpr uint32_t DEFAULT_WIDTH = 2560;  // default width for swapchain
+constexpr uint32_t DEFAULT_HEIGHT = 1440;  // default width for swapchain
+constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;
+
+// for ease-of-use
+#define USE_SWAPCHAIN mRendererConstants.executionMode == NPExecutionMode::SWAPCHAIN
+
+void App::create(const NPRendererConstants& rendererConstants)
 {
+    mRendererConstants = rendererConstants;
+
     // switch on scene type
-    switch (sceneType)
+    switch (mRendererConstants.sceneType)
     {
         case NPSceneType::ASSIMP: mpScene = std::make_unique<AssimpScene>(); break;
         default: mpScene = std::make_unique<Scene>();
     }
 
     // create vulkan basics
-    mContext.setFrameCount(FRAME_COUNT);
-    if (isStandalone) mContext.createWindow(mpWindow, kWIDTH, kHEIGHT);
-    mContext.createInstance(kDEBUG);
-    if (isStandalone) mContext.createSurface(mpWindow);
+    mContext.setFramesInFlight(DEFAULT_FRAMES_IN_FLIGHT);
+    if (USE_SWAPCHAIN) mContext.createWindow(mpWindow, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    mContext.createInstance(kDebugEnabled);
+    if (USE_SWAPCHAIN) mContext.createSurface(mpWindow);
     mContext.createPhysicalDevice();
     mContext.createLogicalDeviceAndQueues();
     mContext.createAllocator();
-    if (isStandalone) mContext.createSwapchain(mpWindow);
+    if (USE_SWAPCHAIN) mContext.createSwapchain(mpWindow);
 
     // TODO: see if semaphores are needed in execution mode
-    size_t numRenderingSemaphores = isStandalone ? mContext.swapchainImages.size() : 0;
+    size_t numRenderingSemaphores = USE_SWAPCHAIN ? mContext.swapchainImages.size() : 0;
     mContext.createSyncAndFrameObjects(numRenderingSemaphores);
 
     // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
     mContext.createTextureSampler(mSampler);
     mContext.waitIdle();
-
-    mIsStandalone = isStandalone;
 }
 
 // RESOURCE CREATION
@@ -40,7 +47,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
 {
     {  // this block is so very very TEMP oh god
 
-        if (mIsStandalone)
+        if (USE_SWAPCHAIN)
         {
             mContext.createResultImages(mContext.swapchainParams.extent.width,
                                         mContext.swapchainParams.extent.height);
@@ -132,7 +139,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
             lightRecords.push_back(lightRecord);
         }
     }
-    else if (kDEBUG)
+    else if (kDebugEnabled)
     {
         mNumLights = 1;
 
@@ -537,7 +544,7 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = kPushConstantCount * sizeof(uint32_t);
+    pushConstantRange.size = static_cast<uint32_t>(kPushConstantCount) * sizeof(uint32_t);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -592,7 +599,7 @@ void App::createRTPipeline()
     pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
                                    | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = kPushConstantCount * sizeof(uint32_t);
+    pushConstantRange.size = static_cast<uint32_t>(kPushConstantCount) * sizeof(uint32_t);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -866,14 +873,15 @@ void App::executeDrawCall(NPRendererAovs& aovs)
     NPImage* rgb = aovs.rgb;
 
     // grab a frame
-    NPFrame& frame = mContext.frames[mCurrentRingFrame];
+    NPFrame& frame = mContext.frames[mCurrentFrameInFlight];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a macro
+    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
     VkExtent2D extent = { rgb->width, rgb->height };
-    populateDrawCallRT(frame.commandBuffer, rgb->image, extent);
+    populateDrawCallRT(frame.commandBuffer, rgb->image, extent,
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -888,15 +896,15 @@ void App::executeDrawCall(NPRendererAovs& aovs)
              "vk queue submit failed");
 
     // increment frame (within ring)
-    mCurrentRingFrame = (mCurrentRingFrame + 1) % FRAME_COUNT;
-    mContext.frameIndex++;
+    mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % DEFAULT_FRAMES_IN_FLIGHT;
+    mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
 // SWAPCHAIN DRAW CALL
 void App::executeDrawCallSwapchain()
 {
     // grab a frame
-    NPFrame& frame = mContext.frames[mCurrentRingFrame];
+    NPFrame& frame = mContext.frames[mCurrentFrameInFlight];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -911,9 +919,9 @@ void App::executeDrawCallSwapchain()
         return;
     }
 
-    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a macro
+    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
     populateDrawCallRT(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                       mContext.swapchainParams.extent);
+                       mContext.swapchainParams.extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -954,8 +962,8 @@ void App::executeDrawCallSwapchain()
     }
 
     // increment frame (within ring)
-    mCurrentRingFrame = (mCurrentRingFrame + 1) % FRAME_COUNT;
-    mContext.frameIndex++;
+    mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % DEFAULT_FRAMES_IN_FLIGHT;
+    mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
 void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
@@ -1026,11 +1034,13 @@ void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
 
     for (size_t i = 0; i < mIndexCounts.size(); i++)
     {
-        std::vector<uint32_t> pushConstants{ static_cast<uint32_t>(i), mNumLights,
-                                             mContext.frameIndex };
+        std::array<uint32_t, kPushConstantCount> pushConstants{
+            static_cast<uint32_t>(i), mNumLights, mContext.frameIndex,
+            static_cast<uint32_t>(mRendererConstants.flipNDCY)
+        };
         vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
                            VK_SHADER_STAGE_ALL_GRAPHICS, 0,
-                           sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
+                           sizeof(uint32_t) * static_cast<uint32_t>(kPushConstantCount),
                            pushConstants.data());
         vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
     }
@@ -1054,7 +1064,8 @@ void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
                               mContext.doneRenderingSemaphores[imageIndex]);
 }
 
-void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent)
+void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent,
+                             VkImageLayout dstImageLayout)
 {
     vkResetCommandBuffer(commandBuffer, 0);
     mContext.beginCommandBuffer(commandBuffer);
@@ -1064,11 +1075,13 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExte
                             mRtPipeline.layout, 0, static_cast<uint32_t>(mDescriptorSets.size()),
                             mDescriptorSets.data(), 0, nullptr);
 
-    std::vector<uint32_t> pushConstants{ 0, mNumLights, mContext.frameIndex };
+    std::array<uint32_t, kPushConstantCount> pushConstants{
+        0, mNumLights, mContext.frameIndex, static_cast<uint32_t>(mRendererConstants.flipNDCY)
+    };
     vkCmdPushConstants(commandBuffer, mRtPipeline.layout,
                        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                       0, sizeof(uint32_t) * static_cast<uint32_t>(pushConstants.size()),
+                       0, sizeof(uint32_t) * static_cast<uint32_t>(kPushConstantCount),
                        pushConstants.data());
 
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
@@ -1088,11 +1101,8 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExte
     vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, rgb,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    VkImageLayout newLayout = mIsStandalone ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                                            : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-
     mContext.transitionImageLayout(commandBuffer, rgb, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   newLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+                                   dstImageLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 

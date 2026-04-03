@@ -6,12 +6,6 @@
 #include <memory>
 #include <mutex>
 
-enum NPSceneType
-{
-    ASSIMP,
-    DEFAULT
-};
-
 class Scene
 {
 public:

@@ -1,6 +1,8 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
 
+// TODO: move all shared structs and bindings to a common shader module
+
 struct MeshRecord
 {
     uint vertexOffset;
@@ -59,6 +61,7 @@ struct PushConstants
     uint meshIndex;
     uint numLights;
     uint frameIndex;
+    uint flipNDCY;
 };
 
 struct Payload
@@ -248,6 +251,7 @@ void rgenMain()
         // generate a ray for this pixel
         float2 jitter = float2(rand(seed), rand(seed));
         float2 uv = (float2(pixel) + jitter) / dims;
+        uv.y = lerp(uv.y, 1.0 - uv.y, float(pushConstants.flipNDCY)); // use lerp to flip coord system Y w/o a boolean check
         float3 origin = cameraOrigin;
         float3 dir = generateCameraRayDir(uv);
         
@@ -307,17 +311,17 @@ void rgenMain()
     
     if (pushConstants.frameIndex == 0)
     {
-        accumulationImage[pixel] = float4(curr.bgr, 1.0);
-        resultImage[pixel] = float4(curr.bgr, 1.0);
+        accumulationImage[pixel] = float4(curr.rgb, 1.0);
+        resultImage[pixel] = float4(curr.rgb, 1.0);
         return;
     }
     
-    float3 prev = accumulationImage[pixel].bgr;
+    float3 prev = accumulationImage[pixel].rgb;
     float n = float(pushConstants.frameIndex);
     float3 blended = (prev * n + curr) / (n + 1.0);
     
-    accumulationImage[pixel] = float4(blended.bgr, 1.0);
-    resultImage[pixel] = float4(blended.bgr, 1.0);
+    accumulationImage[pixel] = float4(blended.rgb, 1.0);
+    resultImage[pixel] = float4(blended.rgb, 1.0);
 }
 
 [shader("miss")]

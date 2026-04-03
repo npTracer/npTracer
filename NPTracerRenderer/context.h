@@ -8,15 +8,16 @@
 
 #include <vector>
 #include <unordered_map>
+#include <atomic>
 
 #include "structs.h"
 
 class Context
 {
 public:
-    int kFrameCount;
+    uint32_t kFramesInFlight;
     bool framebufferResized = false;
-    uint32_t frameIndex = 0;
+    std::atomic<uint32_t> frameIndex = 0u;
 
     // vulkan basics
     VkInstance instance = VK_NULL_HANDLE;
@@ -44,12 +45,12 @@ public:
     std::vector<uint32_t> queueFamilyIndices;  // stored indices based on if they are supported
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
-    void setFrameCount(const int frameCount)
+    void setFramesInFlight(const uint32_t count)
     {
-        kFrameCount = frameCount;
+        kFramesInFlight = count;
     }
 
-    void createWindow(GLFWwindow*& window, int width, int height);
+    void createWindow(GLFWwindow*& window, uint32_t width, uint32_t height);
     void createInstance(bool enableDebug);
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();

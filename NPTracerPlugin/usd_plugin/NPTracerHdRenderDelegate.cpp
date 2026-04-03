@@ -44,12 +44,12 @@ HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* 
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedRprimTypes() const
 {
-    return kOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_RPRIM_TYPES;
+    return bOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_RPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedSprimTypes() const
 {
-    return kOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_SPRIM_TYPES;
+    return bOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_SPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
@@ -216,10 +216,9 @@ void NPTracerHdRenderDelegate::_Initialize()
 {
     _pApp = std::make_unique<App>();
 
-    NPSceneType sceneType = kOverrideSceneWithAssimp ? NPSceneType::ASSIMP : NPSceneType::DEFAULT;
-    _pApp->create(false, sceneType);
+    _pApp->create(RENDERER_CONSTANTS);  // hydra assumes bottom-left origin for NDC
 
-    if (kOverrideSceneWithAssimp)
+    if (bOverrideSceneWithAssimp)
     {
         _pApp->loadSceneFromPath(kAssimpOverrideFilePath);
     }

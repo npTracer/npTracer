@@ -27,10 +27,12 @@ protected:
 private:
     NPTracerHdRenderDelegate* _pCreator;
 
-    std::atomic<bool> _converged{ false };
+    std::atomic<bool> _bConverged{ false };
 
-    void _SyncCamera(HdRenderPassStateSharedPtr const& renderPassState,
-                     NPCameraRecord* outCam) const;
+    // camera should not be synced if we are overriding
+    static constexpr bool _bSyncCameraPerPass = !ASSIMP_OVERRIDE;
+    static void sSyncCameraToState(HdRenderPassStateSharedPtr const& renderPassState,
+                                   NPCameraRecord* outCam);
 
     // TEMP: only create rendering resources once
     std::atomic<bool> _resourcesCreatedFlag{ false };

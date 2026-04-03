@@ -13,9 +13,6 @@ PXR_NAMESPACE_OPEN_SCOPE
 class NPTracerHdRenderDelegate : public HdRenderDelegate
 {
 public:
-    static constexpr bool kOverrideSceneWithAssimp = ASSIMP_OVERRIDE && ASSIMP_OVERRIDE_FILE_PATH;
-    static constexpr char kAssimpOverrideFilePath[512] = ASSIMP_OVERRIDE_FILE_PATH;
-
     NPTracerHdRenderDelegate();
 
     NPTracerHdRenderDelegate(const HdRenderSettingsMap& settingsMap);
@@ -29,6 +26,22 @@ public:
     const TfTokenVector& GetSupportedRprimTypes() const override;
     const TfTokenVector& GetSupportedSprimTypes() const override;
     const TfTokenVector& GetSupportedBprimTypes() const override;
+
+    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };  // renderable primitives
+    const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera,
+                                                  HdPrimTypeTokens->material,
+                                                  HdPrimTypeTokens->sphereLight };  // state prims
+    const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
+
+    static constexpr NPRendererConstants RENDERER_CONSTANTS = {
+        NPExecutionMode::OFFSCREEN,
+#if ASSIMP_OVERRIDE
+        NPSceneType::ASSIMP,
+#else
+        NPSceneType::DEFAULT,
+#endif
+        true  // hydra assumes bottom-left corner for NDC origin
+    };
 
     // return this delegate's render param, which provides top-level scene state
     HdRenderParam* GetRenderParam() const override;
@@ -78,11 +91,8 @@ public:
 private:
     void _Initialize();
 
-    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };  // renderable primitives
-    const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera,
-                                                  HdPrimTypeTokens->material,
-                                                  HdPrimTypeTokens->sphereLight };  // state prims
-    const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
+    static constexpr bool bOverrideSceneWithAssimp = ASSIMP_OVERRIDE;
+    static constexpr char kAssimpOverrideFilePath[512] = ASSIMP_OVERRIDE_FILE_PATH;
 
     std::unique_ptr<App> _pApp;  // `App` lasts delegate's lifetime
 

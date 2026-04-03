@@ -61,8 +61,12 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
         requestedWriters.push_back(buffer);
     }
 
-    NPCameraRecord* cam = app->getScene()->getCamera();
-    _SyncCamera(renderPassState, cam);  // fill in camera data after all buffers have been requested
+    // fill in camera data after all buffers have been requested
+    if (_bSyncCameraPerPass)
+    {
+        NPCameraRecord* cam = app->getScene()->getCamera();
+        sSyncCameraToState(renderPassState, cam);
+    }
 
     if (!_resourcesCreatedFlag.load())
     {
@@ -82,20 +86,21 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 
 bool NPTracerHdRenderPass::IsConverged() const
 {
-    return _converged.load();
+    return _bConverged.load();
 }
 
 void NPTracerHdRenderPass::SetConverged(bool converged)
 {
-    _converged.store(converged);
+    _bConverged.store(converged);
 }
 
-void NPTracerHdRenderPass::_SyncCamera(const HdRenderPassStateSharedPtr& renderPassState,
-                                       NPCameraRecord* outCam) const
+void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
+                                              NPCameraRecord* outCam)
 {
-    const HdCamera* hdCam = renderPassState->GetCamera();
     outCam->view = GfMatrix4dToGLM(renderPassState->GetWorldToViewMatrix());
     outCam->proj = GfMatrix4dToGLM(renderPassState->GetProjectionMatrix());
+    outCam->invView = glm::inverse(outCam->view);
+    outCam->invProj = glm::inverse(outCam->proj);
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

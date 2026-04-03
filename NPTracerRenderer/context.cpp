@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 void Context::createWindow(GLFWwindow*& window, uint32_t width, uint32_t height)
 {
     glfwInit();
@@ -1429,3 +1431,5 @@ void Context::sFramebufferResizeCallback(GLFWwindow* window, int width, int heig
     auto* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
     context->framebufferResized = true;
 }
+
+NP_TRACER_NAMESPACE_END

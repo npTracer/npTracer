@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 project(NPTracerRenderer)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
@@ -30,6 +30,7 @@ set(LIB_SOURCES
 )
 
 set(LIB_HEADERS
+    "${NPTracerRenderer_ROOT_DIR}/framework.h"
     "${NPTracerRenderer_ROOT_DIR}/utils.h"
     "${NPTracerRenderer_ROOT_DIR}/tokens.h"
     "${NPTracerRenderer_ROOT_DIR}/structs.h"

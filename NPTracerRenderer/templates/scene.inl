@@ -1,6 +1,8 @@
 #pragma once
 #include "utils.h"
 
+NP_TRACER_NAMESPACE_BEGIN
+
 // definitions of all template functions for `scene.h`
 
 template<typename T>
@@ -79,3 +81,5 @@ const std::vector<std::unique_ptr<T>>& Scene::getPrimVector() const
 {
     return const_cast<Scene*>(this)->getPrimVector<T>();
 }
+
+NP_TRACER_NAMESPACE_END

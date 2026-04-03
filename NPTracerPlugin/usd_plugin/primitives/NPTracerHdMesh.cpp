@@ -79,12 +79,12 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
     SdfPath materialId = delegate->GetMaterialId(id);
     if (!materialId.IsEmpty())
     {
-        Scene* scene = _pCreator->GetScene();
+        np::Scene* scene = _pCreator->GetScene();
 
         // TODO: move this to `Scene` as a helper function?
-        for (size_t i = 0; i < scene->getPrimCount<NPMaterial>(); i++)
+        for (size_t i = 0; i < scene->getPrimCount<np::NPMaterial>(); i++)
         {
-            auto* mat = scene->getPrimAtIndex<NPMaterial>(i);
+            auto* mat = scene->getPrimAtIndex<np::NPMaterial>(i);
 
             if (mat->scenePath == materialId.GetString())
             {
@@ -114,7 +114,8 @@ bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const std::string& primvarName)
     return primvarName == HdTokens->normals;
 }
 
-void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, NPMesh* outMesh)
+void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate,
+                                    np::NPMesh* outMesh)
 {
     // retrieve the transform first (it only gets more convoluted from here)
     FLOAT4X4 xform = GfMatrix4dToGLM(delegate->GetTransform(id));
@@ -291,10 +292,10 @@ bool NPTracerHdMesh::sReadMeshPrimvars(const SdfPath& id, HdSceneDelegate* deleg
 
 void NPTracerHdMesh::_AddToScene()
 {
-    if (Scene* scene = _pCreator->GetScene())
+    if (np::Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pMesh = scene->makePrim<NPMesh>();
+        _pMesh = scene->makePrim<np::NPMesh>();
         _pMesh->objectId = id.GetHash();
         _pMesh->scenePath = id.GetString();
 
@@ -304,10 +305,10 @@ void NPTracerHdMesh::_AddToScene()
 
 void NPTracerHdMesh::_RemoveFromScene()
 {
-    Scene* scene = _pCreator->GetScene();
+    np::Scene* scene = _pCreator->GetScene();
     if (scene && _pMesh)
     {
-        bool removed = scene->deletePrim<NPMesh>(_pMesh);
+        bool removed = scene->deletePrim<np::NPMesh>(_pMesh);
         _pMesh = nullptr;
 
         NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);

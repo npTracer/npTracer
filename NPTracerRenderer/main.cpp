@@ -4,12 +4,12 @@
 #include <stdexcept>
 #include <string>
 
-constexpr NPRendererConstants RENDERER_CONSTANTS = { NPExecutionMode::SWAPCHAIN,
-                                                     NPSceneType::ASSIMP, false };
+constexpr np::NPRendererConstants RENDERER_CONSTANTS = { np::NPExecutionMode::SWAPCHAIN,
+                                                         np::NPSceneType::ASSIMP, false };
 
 int main(int argc, char** argv)
 {
-    App app;
+    np::App app;
     app.create(RENDERER_CONSTANTS);
     if (argc == 2)
     {

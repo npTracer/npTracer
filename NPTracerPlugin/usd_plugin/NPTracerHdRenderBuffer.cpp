@@ -21,12 +21,12 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context)
+NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, np::Context* context)
     : HdRenderBuffer(bprimId)
     , _pCtx(context)
     , _pImage(nullptr)
     , _pStagingBuffer(nullptr)
-    , _aovTokens(npTracer::getAovTokens(npTracer::NPAovType::INVALID))
+    , _aovTokens(np::getAovTokens(np::NPAovType::INVALID))
 {
 }
 
@@ -42,7 +42,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     _dimensions = dimensions;
     _format = format;
     _bMultiSampled = multiSampled;
-    _aovTokens = npTracer::getAovTokens(sHdFormatToNPAovType(format));
+    _aovTokens = np::getAovTokens(sHdFormatToNPAovType(format));
 
     const VkDeviceSize size = GetSize();
 
@@ -57,13 +57,13 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
         return false;
     }
 
-    PREPARE_UNIQUE_PTR(_pImage, NPImage,
+    PREPARE_UNIQUE_PTR(_pImage, np::NPImage,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
     _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
                        _aovTokens.imageUsage, 0, _aovTokens.imageAspect, true);
 
     VkCommandBuffer commandBuffer;
-    _pCtx->createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    _pCtx->createCommandBuffer(commandBuffer, np::NPQueueType::GRAPHICS);
     _pCtx->beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     // transition into transfer src optimal for renderer
@@ -74,12 +74,12 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
 
-    _pCtx->endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    _pCtx->endCommandBuffer(commandBuffer, np::NPQueueType::GRAPHICS);
 
-    vkQueueWaitIdle(_pCtx->queues[NPQueueType::GRAPHICS].queue);
-    _pCtx->freeCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    vkQueueWaitIdle(_pCtx->queues[np::NPQueueType::GRAPHICS].queue);
+    _pCtx->freeCommandBuffer(commandBuffer, np::NPQueueType::GRAPHICS);
 
-    PREPARE_UNIQUE_PTR(_pStagingBuffer, NPBuffer,
+    PREPARE_UNIQUE_PTR(_pStagingBuffer, np::NPBuffer,
                        [this]() { _pStagingBuffer->destroy(_pCtx->allocator); });
     _pCtx->createBuffer(*_pStagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                         VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -147,15 +147,15 @@ void* NPTracerHdRenderBuffer::Map()
 
     if (_transferCmdBuffer != VK_NULL_HANDLE) vkResetCommandBuffer(_transferCmdBuffer, 0);
 
-    _pCtx->createCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
+    _pCtx->createCommandBuffer(_transferCmdBuffer, np::NPQueueType::TRANSFER);
     _pCtx->beginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
                              static_cast<uint32_t>(_dimensions[0]),
                              static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
 
-    _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
-    vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
+    _pCtx->endCommandBuffer(_transferCmdBuffer, np::NPQueueType::TRANSFER);
+    vkQueueWaitIdle(_pCtx->queues[np::NPQueueType::TRANSFER].queue);
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
@@ -192,7 +192,7 @@ bool NPTracerHdRenderBuffer::HasWriter() const
     return _bHasWriter.load();
 }
 
-NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
+np::NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 {
     if (waitUntilSuccess)
     {
@@ -239,7 +239,7 @@ void NPTracerHdRenderBuffer::_Deallocate()
 
     if (_transferCmdBuffer != VK_NULL_HANDLE)
     {
-        _pCtx->freeCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
+        _pCtx->freeCommandBuffer(_transferCmdBuffer, np::NPQueueType::TRANSFER);
         _transferCmdBuffer = VK_NULL_HANDLE;
     }
 
@@ -252,13 +252,13 @@ void NPTracerHdRenderBuffer::_Deallocate()
     NP_DBG("Deallocate complete of render buffer: id=%s\n", GetId().GetText());
 }
 
-npTracer::NPAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
+np::NPAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
 {
     switch (format)
     {
-        case HdFormatUNorm8Vec4: return npTracer::NPAovType::RGB;
-        case HdFormatFloat32: return npTracer::NPAovType::DEPTH;
-        default: return npTracer::NPAovType::INVALID;
+        case HdFormatUNorm8Vec4: return np::NPAovType::RGB;
+        case HdFormatFloat32: return np::NPAovType::DEPTH;
+        default: return np::NPAovType::INVALID;
     }
 }
 

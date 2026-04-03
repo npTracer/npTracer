@@ -6,6 +6,8 @@
 #include <memory>
 #include <mutex>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 class Scene
 {
 public:
@@ -57,5 +59,7 @@ protected:
 
     void guard();
 };
+
+NP_TRACER_NAMESPACE_END
 
 #include "templates/scene.inl"

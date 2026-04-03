@@ -1,12 +1,12 @@
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
-#include "primitives/NPTracerHdMaterial.h"
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderPass.h"
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
 #include "usd_plugin/primitives/NPTracerHdMesh.h"
 #include "usd_plugin/primitives/NPTracerHdLight.h"
+#include "usd_plugin/primitives/NPTracerHdMaterial.h"
 
 #include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/sprim.h>
@@ -214,7 +214,7 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
 
 void NPTracerHdRenderDelegate::_Initialize()
 {
-    _pApp = std::make_unique<App>();
+    _pApp = std::make_unique<np::App>();
 
     _pApp->create(RENDERER_CONSTANTS);  // hydra assumes bottom-left origin for NDC
 

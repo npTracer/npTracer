@@ -29,7 +29,7 @@ public:
     static bool sIsUVPrimvarDescriptor(const std::string& primvarName);
     static bool sIsNormalsPrimvarDescriptor(const std::string& primvarName);
 
-    static void sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, NPMesh* outMesh);
+    static void sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, np::NPMesh* outMesh);
 
     static bool sReadMeshPrimvars(const SdfPath& id, HdSceneDelegate* delegate,
                                   const HdMeshUtil& meshUtil, VtValue* pvValueOut,
@@ -41,7 +41,7 @@ protected:
 
 private:
     NPTracerHdRenderDelegate* _pCreator;
-    NPMesh* _pMesh = nullptr;
+    np::NPMesh* _pMesh = nullptr;
 
     void _UpdateInScene(HdSceneDelegate* delegate);
     void _AddToScene();

@@ -38,14 +38,14 @@ function(ConfigureUSDPluginTarget target_name install_dir)
     add_library(${target_name} SHARED ${USD_PLUG_SOURCES} ${USD_PLUG_HEADERS})
 
     target_link_libraries(${target_name}
-        ${arg_LIBS}
-        ${RENDERER_TARGET_NAME}
+        PRIVATE
+            ${arg_LIBS}
+            ${RENDERER_TARGET_NAME}
     )
 
     target_include_directories(${target_name}
         PRIVATE
             "${NPTracerPlugin_ROOT_DIR}"
-        PUBLIC
             ${arg_INCLUDES}
     )
 

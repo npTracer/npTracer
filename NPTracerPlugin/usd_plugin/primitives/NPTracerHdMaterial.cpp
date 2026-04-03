@@ -27,30 +27,21 @@ HdDirtyBits NPTracerHdMaterial::GetInitialDirtyBitsMask() const
 // TODO: make a base case class for all hd prim types with add and remove
 void NPTracerHdMaterial::_AddToScene()
 {
-    if (Scene* scene = _pCreator->GetScene())
+    if (np::Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pMaterial = scene->makePrim<NPMaterial>();
+        _pMaterial = scene->makePrim<np::NPMaterial>();
         _pMaterial->objectId = id.GetHash();
         _pMaterial->scenePath = id.GetString();
-
-#if NPTRACER_DEBUG
-        // TEMP
-        _pMaterial->diffuse = FLOAT4(1.f);
-        _pMaterial->ambient = FLOAT4(1.f);
-        _pMaterial->specular = FLOAT4(1.f);
-        _pMaterial->emission = FLOAT4(1.f);
-        _pMaterial->diffuseTextureIdx = -1;
-#endif
     }
 }
 
 void NPTracerHdMaterial::_RemoveFromScene()
 {
-    Scene* scene = _pCreator->GetScene();
+    np::Scene* scene = _pCreator->GetScene();
     if (scene && _pMaterial)
     {
-        scene->deletePrim<NPMaterial>(_pMaterial);
+        scene->deletePrim<np::NPMaterial>(_pMaterial);
         _pMaterial = nullptr;
     }
 }
@@ -58,7 +49,7 @@ void NPTracerHdMaterial::_RemoveFromScene()
 void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirtyBits* dirtyBits)
 {
     const SdfPath& id = GetId();
-    Scene* scene = _pCreator->GetScene();
+    np::Scene* scene = _pCreator->GetScene();
 
     // has similar API to `std::unordered_map`? if not just a wrapper, I suspect
     HdMaterialNetworkMap networkMap = delegate->GetMaterialResource(id).Get<HdMaterialNetworkMap>();
@@ -118,7 +109,7 @@ void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirty
 
             // create texture
             // TODO: pull this into another static function
-            NPTexture* tex = scene->makePrim<NPTexture>();
+            np::NPTexture* tex = scene->makePrim<np::NPTexture>();
 
             int w, h, c;
             unsigned char* data = stbi_load(path.c_str(), &w, &h, &c, 4);
@@ -127,7 +118,7 @@ void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirty
             tex->width = w;
             tex->height = h;
 
-            uint32_t texIdx = scene->getPrimCount<NPTexture>() - 1;
+            uint32_t texIdx = scene->getPrimCount<np::NPTexture>() - 1;
 
             _pMaterial->diffuseTextureIdx = texIdx;
         }

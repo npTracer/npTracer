@@ -8,6 +8,8 @@
 #include <functional>
 #include <string>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 class AssimpScene final : public Scene
 {
 public:
@@ -40,3 +42,5 @@ private:
     void processAiCamera(const aiScene* scene);
     void processAiLight(const aiLight* light);
 };
+
+NP_TRACER_NAMESPACE_END

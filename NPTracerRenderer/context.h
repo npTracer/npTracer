@@ -12,6 +12,8 @@
 
 #include "structs.h"
 
+NP_TRACER_NAMESPACE_BEGIN
+
 class Context
 {
 public:
@@ -167,3 +169,5 @@ private:
 
     static void sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 };
+
+NP_TRACER_NAMESPACE_END

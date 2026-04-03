@@ -5,8 +5,10 @@
 
 #include <memory>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 template<typename T>
-using REF = std::reference_wrapper<T>;
+using Ref = std::reference_wrapper<T>;
 
 class App
 {
@@ -28,7 +30,7 @@ public:
 
     void loadSceneFromPath(const char* path);
 
-    void createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef = std::nullopt);
+    void createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef = std::nullopt);
     void executeDrawCall(NPRendererAovs& aovs);
 
     void render();
@@ -96,3 +98,5 @@ private:
     // private execute draw call standalone
     void executeDrawCallSwapchain();
 };
+
+NP_TRACER_NAMESPACE_END

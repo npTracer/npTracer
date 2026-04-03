@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 project(NPTracer)
 
-set(CMAKE_CXX_STANDARD 17) # c++17 will be enforced globally to match Houdini library code
+set(CMAKE_CXX_STANDARD 20) # c++17 will be enforced globally to match Houdini library code
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

@@ -8,7 +8,7 @@ endif()
 
 project(NPTracerPlugin)
 
-set(CMAKE_CXX_STANDARD 17) # houdini libs cannot compile with c++20 currently
+set(CMAKE_CXX_STANDARD 20) # houdini libs cannot compile with c++20 currently
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT DEFINED NPTracerPlugin_ROOT_DIR)

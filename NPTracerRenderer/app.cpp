@@ -5,6 +5,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 constexpr uint32_t DEFAULT_WIDTH = 2560;  // default width for swapchain
 constexpr uint32_t DEFAULT_HEIGHT = 1440;  // default width for swapchain
 constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;
@@ -43,7 +45,7 @@ void App::create(const NPRendererConstants& rendererConstants)
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
+void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 {
     {  // this block is so very very TEMP oh god
 
@@ -1226,3 +1228,5 @@ void App::render()
         executeDrawCallSwapchain();
     }
 }
+
+NP_TRACER_NAMESPACE_END

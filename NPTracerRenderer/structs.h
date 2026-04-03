@@ -3,6 +3,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 
+#include "framework.h"
+
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
@@ -17,6 +19,8 @@ using FLOAT2 = glm::f32vec2;
 using FLOAT3 = glm::f32vec3;
 using FLOAT4 = glm::f32vec4;
 using FLOAT4X4 = glm::f32mat4;
+
+NP_TRACER_NAMESPACE_BEGIN
 
 using NPScenePath = std::string;
 using NPScenePathCollection = std::vector<NPScenePath>;
@@ -396,17 +400,17 @@ struct NPLight
 
 struct NPMaterialRecord
 {
-    FLOAT4 ambient;
-    FLOAT4 diffuse;
-    FLOAT4 specular;
-    FLOAT4 emission;
+    FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 diffuse = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 specular = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f);
 
-    uint32_t diffuseTextureIdx;
+    uint32_t diffuseTextureIdx = UINT32_MAX;
 };
 
 struct NPMaterial : NPMaterialRecord
 {
-    uint64_t objectId;  // the hash of the object's `SdfPath`
+    uint64_t objectId = UINT64_MAX;  // the hash of the object's `SdfPath`
     NPScenePath scenePath;
 
     NPMaterialRecord toRecord() const
@@ -445,3 +449,5 @@ struct NPRendererAovs
     NPImage* depth = nullptr;
     // normals?
 };
+
+NP_TRACER_NAMESPACE_END

@@ -26,10 +26,10 @@ HdDirtyBits NPTracerHdLight::GetInitialDirtyBitsMask() const
 // TODO: make a base case class for all hd prim types with add and remove
 void NPTracerHdLight::_AddToScene()
 {
-    if (Scene* scene = _pCreator->GetScene())
+    if (np::Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pLight = scene->makePrim<NPLight>();
+        _pLight = scene->makePrim<np::NPLight>();
 
         _PrepareLight();
 
@@ -39,10 +39,10 @@ void NPTracerHdLight::_AddToScene()
 
 void NPTracerHdLight::_RemoveFromScene()
 {
-    Scene* scene = _pCreator->GetScene();
+    np::Scene* scene = _pCreator->GetScene();
     if (scene && _pLight)
     {
-        bool removed = scene->deletePrim<NPLight>(_pLight);
+        bool removed = scene->deletePrim<np::NPLight>(_pLight);
         _pLight = nullptr;
 
         NP_DBG("Removed light '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
@@ -80,7 +80,7 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
 void NPTracerHdSphereLight::_PrepareLight()
 {
     DEV_ASSERT(_pLight, "Light should exist before preparation");
-    _pLight->type = NPLightType::POINT;
+    _pLight->type = np::NPLightType::POINT;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

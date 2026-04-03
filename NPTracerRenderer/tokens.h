@@ -1,9 +1,9 @@
 #pragma once
 
+#include "framework.h"
 #include "vulkan/vulkan.h"
 
-namespace npTracer  // match casing of other Usd libraries
-{
+NP_TRACER_NAMESPACE_BEGIN
 
 enum class NPAovType : uint8_t
 {
@@ -54,4 +54,4 @@ inline const AovTokens& getAovTokens(const NPAovType aovType)
     }
 }
 
-}  // namespace npTracer
+NP_TRACER_NAMESPACE_END

@@ -1,10 +1,12 @@
 #pragma once
 
-#include <fstream>
-#include <filesystem>
-#include <vulkan/vulkan.h>
+#include "framework.h"
 
-#define TEXTURE(name) (std::filesystem::path(TEXTURE_PATH) / name)
+#include <fstream>
+#include <vector>
+#include <string>
+
+NP_TRACER_NAMESPACE_BEGIN
 
 #define DEV_ASSERT(_cond, ...)                                                                     \
     do                                                                                             \
@@ -81,3 +83,5 @@ static VkTransformMatrixKHR toVkTransform(const FLOAT4X4& m)
     out.matrix[2][3] = m[3][2];
     return out;
 }
+
+NP_TRACER_NAMESPACE_END

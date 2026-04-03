@@ -12,7 +12,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 class NPTracerHdRenderBuffer final : public HdRenderBuffer
 {
 public:
-    NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context);
+    NPTracerHdRenderBuffer(const SdfPath& bprimId, np::Context* context);
 
     // allocate a new buffer with the given dimensions and format
     bool Allocate(const GfVec3i& dimensions, HdFormat format, bool multiSampled) override;
@@ -42,21 +42,21 @@ public:
     bool HasWriter() const;
     void EndWrite();
     // returns nullptr if `waitForSuccess` is false and another entity is already writing
-    NPImage* RequestImageForWrite(bool waitUntilSuccess = true);
+    np::NPImage* RequestImageForWrite(bool waitUntilSuccess = true);
 
     // TODO: technically, we cannot assume aov type based on format along. but for now we will make this assumption
-    static npTracer::NPAovType sHdFormatToNPAovType(const HdFormat format);
+    static np::NPAovType sHdFormatToNPAovType(const HdFormat format);
 
 private:
     // release any allocated resources
     void _Deallocate() override;
 
     // the actual underlying buffer
-    std::unique_ptr<NPImage> _pImage;
-    npTracer::AovTokens _aovTokens;
+    std::unique_ptr<np::NPImage> _pImage;
+    np::AovTokens _aovTokens;
 
     // reused GPU buffer for image to GPU buffer transfer
-    std::unique_ptr<NPBuffer> _pStagingBuffer;
+    std::unique_ptr<np::NPBuffer> _pStagingBuffer;
 
     GfVec3i _dimensions = GfVec3i(-1);
     HdFormat _format = HdFormatInvalid;
@@ -68,7 +68,7 @@ private:
 
     std::atomic<bool> _bConverged{ true };
 
-    Context* _pCtx;
+    np::Context* _pCtx;
     VkCommandBuffer _transferCmdBuffer = VK_NULL_HANDLE;
 
     std::vector<uint8_t> _cpuDebugBuffer;

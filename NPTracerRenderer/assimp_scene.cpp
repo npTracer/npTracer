@@ -4,6 +4,8 @@
 #include "assimp/postprocess.h"
 #include <stb_image.h>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 static FLOAT4X4 sAiToGLM(const aiMatrix4x4& m)
 {
     auto mat = FLOAT4X4(m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3,
@@ -117,13 +119,6 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
 
     // get material
     auto mat = std::make_unique<NPMaterial>();
-
-    mat->ambient = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-    mat->diffuse = FLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-    mat->specular = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-    mat->emission = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-    mat->scenePath = "";
-    mat->objectId = -1;
 
     const aiMaterial* aiMat = scene->mMaterials[currMesh->mMaterialIndex];
 
@@ -293,3 +288,5 @@ void AssimpScene::processAiCamera(const aiScene* scene)
 
     _camera = cameraRecord;
 }
+
+NP_TRACER_NAMESPACE_END

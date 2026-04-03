@@ -33,10 +33,10 @@ public:
                                                   HdPrimTypeTokens->sphereLight };  // state prims
     const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
 
-    static constexpr NPRendererConstants RENDERER_CONSTANTS = {
-        NPExecutionMode::OFFSCREEN,
+    static constexpr np::NPRendererConstants RENDERER_CONSTANTS = {
+        np::NPExecutionMode::OFFSCREEN,
 #if ASSIMP_OVERRIDE
-        NPSceneType::ASSIMP,
+        np::NPSceneType::ASSIMP,
 #else
         NPSceneType::DEFAULT,
 #endif
@@ -78,12 +78,12 @@ public:
     // return the AOV description for `aovName`. This will be used to initialize the aov buffers.
     HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
 
-    App* GetRendererApp() const
+    np::App* GetRendererApp() const
     {
         return _pApp.get();
     }
 
-    Scene* GetScene() const
+    np::Scene* GetScene() const
     {
         return _pApp != nullptr ? _pApp->getScene() : nullptr;
     }
@@ -94,7 +94,7 @@ private:
     static constexpr bool _bOverrideSceneWithAssimp = ASSIMP_OVERRIDE;
     static constexpr char _kAssimpOverrideFilePath[512] = ASSIMP_OVERRIDE_FILE_PATH;
 
-    std::unique_ptr<App> _pApp;  // `App` lasts delegate's lifetime
+    std::unique_ptr<np::App> _pApp;  // `App` lasts delegate's lifetime
 
     HdRenderSettingDescriptorList _settingDescriptors;
     std::unique_ptr<NPTracerHdRenderParam> _pRenderParam;

@@ -89,10 +89,6 @@ private:
     std::vector<NPAccelerationStructure> mBlasses;
     NPAccelerationStructure mTlas;
 
-    // SET 4: RT
-    std::vector<NPAccelerationStructure> blasses;
-    NPAccelerationStructure tlas;
-
     // resource creation
     void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
     void createRTPipeline();

@@ -1,5 +1,6 @@
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
+#include "external/assimp/contrib/openddlparser/include/openddlparser/OpenDDLCommon.h"
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
 
@@ -31,7 +32,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     NP_DBG("Requested allocation of render buffer: id=%s, dimensions=(%i, %i, %i), format=%i\n",
            GetId().GetText(), dimensions[0], dimensions[1], dimensions[2], format);
 
-    TF_DEV_AXIOM(dimensions[2] == 1);  // temp: only support 2D buffers
+    TF_DEV_AXIOM(dimensions[2] == 1);  // TEMP: only support 2D buffers
 
     _Deallocate();
 
@@ -62,8 +63,9 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     _pCtx->createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
     _pCtx->beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    // temp: transition into general with all access and stage.
-    _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, 0,
+    // transition into transfer src optimal for renderer
+    // TEMP: set all access and stage for ease-of-use
+    _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0,
                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT
                                   | VK_ACCESS_2_SHADER_WRITE_BIT,
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -145,24 +147,29 @@ void* NPTracerHdRenderBuffer::Map()
     _pCtx->createCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
     _pCtx->beginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    /*_pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image, VK_IMAGE_LAYOUT_GENERAL,
-                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _fmtTokens.writeAccess,
-                                 VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeStage,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.aspect);*/
-
     _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
                              static_cast<uint32_t>(_dimensions[0]),
                              static_cast<uint32_t>(_dimensions[1]), _fmtTokens.aspect);
 
-    // restore image layout for future passes
-    /*_pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image,
-                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-                                 VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
-                                 _fmtTokens.aspect);*/
-
     _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
     vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
+
+#if NPTRACER_DEBUG
+    uint8_t* data = static_cast<uint8_t*>(_pStagingBuffer->allocInfo.pMappedData);
+    size_t pixelCount = _dimensions[0] * _dimensions[1];
+
+    for (size_t i = 0; i < pixelCount; i++)
+    {
+        uint8_t r = data[i * 4 + 0];
+        uint8_t g = data[i * 4 + 1];
+        uint8_t b = data[i * 4 + 2];
+
+        if (r != 0 || g != 0 || b != 0)
+        {
+            NP_DBG("Pixel[%zu] = (%u, %u, %u)\n", i, r, g, b);
+        }
+    }
+#endif
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
@@ -229,6 +236,8 @@ void NPTracerHdRenderBuffer::_Deallocate()
     NP_DBG("Requested deallocate of render buffer: id=%s\n", GetId().GetText());
 
     TF_DEV_AXIOM(!HasWriter() && !IsMapped() && IsConverged());
+
+    _pCtx->waitIdle();  // TEMP: we should use fences instead
 
     // reset to default/empty values
     if (_pImage)

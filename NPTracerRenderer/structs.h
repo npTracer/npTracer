@@ -419,7 +419,7 @@ struct NPRenderSettings
 
 struct NPRendererAovs
 {
-    NPImage* color = nullptr;
+    NPImage* rgb = nullptr;
     NPImage* depth = nullptr;
     // normals?
 };

@@ -31,6 +31,9 @@ private:
 
     void _SyncCamera(HdRenderPassStateSharedPtr const& renderPassState,
                      NPCameraRecord* outCam) const;
+
+    // TEMP: only create rendering resources once
+    std::atomic<bool> _resourcesCreatedFlag{ false };
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

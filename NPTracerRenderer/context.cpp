@@ -447,7 +447,7 @@ void Context::recreateSwapchain(GLFWwindow* window)
     cleanupSwapchain();
     createSwapchain(window);
     createDepthImage(width, height);
-    createResultImages();
+    createResultImages(width, height);
 
     std::vector<NPImage> resultImages{ resultImage, accumulationImage };
     writeDescriptorSetImages(rtDescriptorSet, 1, resultImages, VK_NULL_HANDLE,
@@ -485,7 +485,7 @@ void Context::cleanupSwapchain()
     }
 }
 
-void Context::createSyncAndFrameObjects()
+void Context::createSyncAndFrameObjects(size_t numRenderingSemaphores)
 {
     VkSemaphoreCreateInfo semInfo{};
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -494,9 +494,8 @@ void Context::createSyncAndFrameObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    const size_t kNumRenderingSemaphores = swapchainImages.size();
-    doneRenderingSemaphores.reserve(kNumRenderingSemaphores);
-    for (int i = 0; i < kNumRenderingSemaphores; i++)
+    doneRenderingSemaphores.reserve(numRenderingSemaphores);
+    for (int i = 0; i < numRenderingSemaphores; i++)
     {
         VkSemaphore doneRenderingSemaphore;
         vkCreateSemaphore(device, &semInfo, nullptr, &doneRenderingSemaphore);
@@ -711,7 +710,6 @@ void Context::createTextureImage(NPImage& handle, void* pixels, uint32_t width, 
                      | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     memcpy(stagingBuffer.allocInfo.pMappedData, pixels, size);
-    free(pixels);
 
     createImage(handle, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
@@ -780,7 +778,7 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
     endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
 }
 
-void Context::createResultImages()
+void Context::createResultImages(uint32_t width, uint32_t height)
 {
     std::vector<NPImage*> handles{ &resultImage, &accumulationImage };
 
@@ -791,8 +789,7 @@ void Context::createResultImages()
     for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); i++)
     {
         // result image
-        createImage(*handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
-                    swapchainParams.extent.width, swapchainParams.extent.height,
+        createImage(*handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                         | VK_IMAGE_USAGE_STORAGE_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);

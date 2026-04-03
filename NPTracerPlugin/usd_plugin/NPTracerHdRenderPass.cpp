@@ -47,7 +47,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 
         if (binding.aovName == HdAovTokens->color)
         {
-            payload.color = buffer->RequestImageForWrite(true);
+            payload.rgb = buffer->RequestImageForWrite(true);
         }
         else if (binding.aovName == HdAovTokens->depth)
         {
@@ -64,9 +64,13 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     NPCameraRecord* cam = app->getScene()->getCamera();
     _SyncCamera(renderPassState, cam);  // fill in camera data after all buffers have been requested
 
-    /*
-    app->createRenderingResources(payload);
-    app->executeDrawCall(payload);*/
+    if (!_resourcesCreatedFlag.load())
+    {
+        app->createRenderingResources(payload);
+        _resourcesCreatedFlag.store(true);
+    }
+
+    app->executeDrawCall(payload);
 
     for (NPTracerHdRenderBuffer* buffer : requestedWriters)
     {

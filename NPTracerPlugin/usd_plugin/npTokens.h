@@ -20,7 +20,8 @@ struct FormatTokens
 
 inline constexpr FormatTokens kColorFormatTokens = { VK_FORMAT_R8G8B8A8_UNORM,
                                                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                                                         | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                                         | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                                                         | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                                      VK_IMAGE_ASPECT_COLOR_BIT,
                                                      VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -29,7 +30,8 @@ inline constexpr FormatTokens kColorFormatTokens = { VK_FORMAT_R8G8B8A8_UNORM,
 
 inline constexpr FormatTokens kDepthFormatTokens = { VK_FORMAT_D32_SFLOAT,
                                                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-                                                         | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                                         | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                                                         | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                                      VK_IMAGE_ASPECT_DEPTH_BIT,
                                                      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                                      VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
@@ -38,7 +40,8 @@ inline constexpr FormatTokens kDepthFormatTokens = { VK_FORMAT_D32_SFLOAT,
 
 inline constexpr FormatTokens kNormalFormatTokens = {
     VK_FORMAT_R32G32B32_SFLOAT,
-    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+        | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
     VK_IMAGE_ASPECT_COLOR_BIT,
     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -48,7 +51,8 @@ inline constexpr FormatTokens kNormalFormatTokens = {
 
 inline constexpr FormatTokens kIdFormatTokens = { VK_FORMAT_R32_SINT,
                                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                                                      | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                                      | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                                                      | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,

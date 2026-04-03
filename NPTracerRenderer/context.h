@@ -54,7 +54,7 @@ public:
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
     void createAllocator();
-    void createSyncAndFrameObjects();
+    void createSyncAndFrameObjects(size_t numRenderingSemaphores);
 
     // swapchain
     void createSurface(GLFWwindow* window);
@@ -87,7 +87,7 @@ public:
                      bool shouldCreateView = true) const;
     void createTextureImage(NPImage& handle, void* pixels, uint32_t width, uint32_t height);
     void createDepthImage(uint32_t width, uint32_t height);
-    void createResultImages();
+    void createResultImages(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);
     void copyBufferToImage(VkCommandBuffer commandBuffer, NPBuffer& src, NPImage& dst,
                            uint32_t width, uint32_t height);

@@ -97,9 +97,8 @@ private:
                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
     void populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex);
-    void populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
+    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent);
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

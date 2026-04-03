@@ -35,7 +35,7 @@ void NPTracerHdMaterial::_AddToScene()
         _pMaterial->scenePath = id.GetString();
 
 #if NPTRACER_DEBUG
-        // temp
+        // TEMP
         _pMaterial->diffuse = FLOAT4(1.f);
         _pMaterial->ambient = FLOAT4(1.f);
         _pMaterial->specular = FLOAT4(1.f);

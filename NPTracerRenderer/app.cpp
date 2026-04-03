@@ -19,9 +19,12 @@ void App::create(bool isStandalone)
     mContext.createLogicalDeviceAndQueues();
     mContext.createAllocator();
     if (isStandalone) mContext.createSwapchain(mpWindow);
-    mContext.createSyncAndFrameObjects();
-    mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
-    mContext.createResultImages();
+
+    // TODO: see if semaphores are needed in execution mode
+    size_t numRenderingSemaphores = isStandalone ? mContext.swapchainImages.size() : 0;
+    mContext.createSyncAndFrameObjects(numRenderingSemaphores);
+
+    // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
     mContext.createTextureSampler(mSampler);
     mContext.waitIdle();
 
@@ -31,6 +34,20 @@ void App::create(bool isStandalone)
 // RESOURCE CREATION
 void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
 {
+    {  // this block is so very very TEMP oh god
+
+        if (mIsStandalone)
+        {
+            mContext.createResultImages(mContext.swapchainParams.extent.width,
+                                        mContext.swapchainParams.extent.height);
+        }
+        else
+        {
+            NPRendererAovs& aovs = aovsRef.value();
+            mContext.createResultImages(aovs.rgb->width, aovs.rgb->height);
+        }
+    }
+
     // GEOMETRY
     const size_t meshCount = mpScene->getPrimCount<NPMesh>();
     std::vector<NPMeshRecord> meshRecords;
@@ -93,7 +110,7 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
     const size_t lightCount = mpScene->getPrimCount<NPLight>();
     mNumLights = static_cast<uint32_t>(lightCount);  // push constant
     std::vector<NPLightRecord> lightRecords;
-    meshRecords.reserve(meshCount);
+    lightRecords.reserve(lightCount);
     std::vector<FLOAT4X4> lightTransforms;
 
     if (lightCount > 0)
@@ -409,19 +426,6 @@ void App::createRenderingResources(std::optional<REF<NPRendererAovs>> aovsRef)
     }
 
     createRTPipeline();
-
-    /*if (mIsStandalone)
-    {
-        createGraphicsPipeline(mContext.swapchainParams.extent.width,
-                               mContext.swapchainParams.extent.height,
-                               mContext.swapchainParams.surfaceFormat.format);
-    }
-    else
-    {
-        DEV_ASSERT(aovsRef.has_value(), "no `aovs` given in non-standalone mode.");
-        NPRendererAovs& aovs = aovsRef.value().get();
-        createGraphicsPipeline(aovs.color->width, aovs.color->height, aovs.color->format);
-    }*/
 }
 
 void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format)
@@ -852,109 +856,36 @@ void App::createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
     instanceBufferHandle.destroy(mContext.allocator);
 }
 
-// CALLABLE DRAW CALL
-// WIP IGNORE FOR NOW WILL NEVER BE CALLED
 void App::executeDrawCall(NPRendererAovs& aovs)
 {
+    DEV_ASSERT(aovs.rgb, "aovs not created properly");
+    NPImage* rgb = aovs.rgb;
+
     // grab a frame
-    NPFrame& frame = mContext.getCurrentFrame(mCurrentRingFrame);
+    NPFrame& frame = mContext.frames[mCurrentRingFrame];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    NPImage* renderTarget = aovs.color;
+    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a macro
+    VkExtent2D extent = { rgb->width, rgb->height };
+    populateDrawCallRT(frame.commandBuffer, rgb->image, extent);
+    vkResetFences(
+        mContext.device, 1,
+        &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
 
-    populateDrawCallCallable(frame, renderTarget);
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-    vkResetFences(mContext.device, 1,
-                  &frame.doneExecutingFence);  // signal that fence is ready to be associated with a
-    // new queue submission
-
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-    mContext.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
-                              frame.doneExecutingFence);
+    VK_CHECK(vkQueueSubmit(mContext.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
+                           frame.doneExecutingFence),
+             "vk queue submit failed");
 
     // increment frame (within ring)
     mCurrentRingFrame = (mCurrentRingFrame + 1) % FRAME_COUNT;
-}
-
-// WIP IGNORE FOR NOW WILL NEVER BE CALLED
-void App::populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget)
-{
-    VkCommandBuffer& commandBuffer = frame.commandBuffer;
-    vkResetCommandBuffer(commandBuffer, 0);
-    mContext.beginCommandBuffer(commandBuffer);
-
-    /*context.transitionImageLayout(commandBuffer, renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED,
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, {},
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);*/
-
-    VkClearValue clearColor{};
-    clearColor.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
-
-    VkClearValue clearDepth{};
-    clearDepth.depthStencil = { 1.0f, 0 };
-
-    // TODO: pass in image params
-    VkExtent2D extent{};
-    extent.width = renderTarget->width;
-    extent.height = renderTarget->height;
-
-    VkRenderingAttachmentInfo colorAttachmentInfo{};
-    colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachmentInfo.imageView = renderTarget->view;
-    colorAttachmentInfo.imageLayout = renderTarget->layout;
-    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentInfo.clearValue = clearColor;
-
-    // VkRenderingAttachmentInfo depthAttachmentInfo{};
-    // depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    // depthAttachmentInfo.imageView = context.depthImage.view;
-    // depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    // depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    // depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    // depthAttachmentInfo.clearValue = clearDepth;
-
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea.offset = { 0, 0 };
-    renderingInfo.renderArea.extent = extent;
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachmentInfo;
-
-    vkCmdBeginRendering(commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRasterPipeline.pipeline);
-
-    VkViewport viewport{
-        0.0f, 0.0f, static_cast<float>(extent.width), static_cast<float>(extent.height), 0.0f, 1.0f
-    };
-
-    VkRect2D scissor{ { 0, 0 }, extent };
-
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-    VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mRasterPipeline.layout,
-                            0, mDescriptorSets.size(), mDescriptorSets.data(), 0, nullptr);
-
-    for (size_t i = 0; i < mIndexCounts.size(); i++)
-    {
-        vkCmdDraw(commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
-    }
-
-    vkCmdEndRendering(commandBuffer);
-
-    /*context.transitionImageLayout(commandBuffer, renderTarget->image,
-                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, {},
-                                  VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);*/
+    mContext.frameIndex++;
 }
 
 // SWAPCHAIN DRAW CALL
@@ -977,7 +908,8 @@ void App::executeDrawCallSwapchain()
     }
 
     // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a macro
-    populateDrawCallRT(frame.commandBuffer, imageIndex);
+    populateDrawCallRT(frame.commandBuffer, mContext.swapchainImages[imageIndex],
+                       mContext.swapchainParams.extent);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -1118,7 +1050,7 @@ void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
                               mContext.doneRenderingSemaphores[imageIndex]);
 }
 
-void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex)
+void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent)
 {
     vkResetCommandBuffer(commandBuffer, 0);
     mContext.beginCommandBuffer(commandBuffer);
@@ -1136,29 +1068,27 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex
                        pushConstants.data());
 
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
-                               mContext.swapchainParams.extent.width,
-                               mContext.swapchainParams.extent.height, 1);
+                               extent.width, extent.height, 1);
 
-    mContext.transitionImageLayout(commandBuffer, mContext.swapchainImages[imageIndex],
-                                   VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+    mContext.transitionImageLayout(commandBuffer, rgb, VK_IMAGE_LAYOUT_UNDEFINED,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkImageCopy region{};
     region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
     region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.extent = { mContext.swapchainParams.extent.width, mContext.swapchainParams.extent.height,
-                      1 };
+    region.extent = { extent.width, extent.height, 1 };
 
-    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL,
-                   mContext.swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                   &region);
+    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, rgb,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.transitionImageLayout(commandBuffer, mContext.swapchainImages[imageIndex],
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+    VkImageLayout newLayout = mIsStandalone ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                            : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+    mContext.transitionImageLayout(commandBuffer, rgb, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   newLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
@@ -1167,6 +1097,8 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, uint32_t imageIndex
 
 void App::destroy()
 {
+    mContext.waitIdle();
+
     for (auto& descriptorSetLayout : mDescriptorSetLayouts)
     {
         descriptorSetLayout.destroy(mContext.device);
@@ -1239,13 +1171,12 @@ void App::destroy()
         blas.destroyBuffers(mContext.device, mContext.allocator);
     }
 
-    if (mRtPipeline.pipeline != VK_NULL_HANDLE)
-        if (mTlas.accelerationStructure != VK_NULL_HANDLE)
-        {
-            mContext.vkDestroyAccelerationStructureKHR(mContext.device, mTlas.accelerationStructure,
-                                                       nullptr);
-            mTlas.destroyBuffers(mContext.device, mContext.allocator);
-        }
+    if (mTlas.accelerationStructure != VK_NULL_HANDLE)
+    {
+        mContext.vkDestroyAccelerationStructureKHR(mContext.device, mTlas.accelerationStructure,
+                                                   nullptr);
+        mTlas.destroyBuffers(mContext.device, mContext.allocator);
+    }
 
     // PIPELINES
     if (mRasterPipeline.pipeline != VK_NULL_HANDLE)
@@ -1280,6 +1211,4 @@ void App::render()
         glfwPollEvents();
         executeDrawCallSwapchain();
     }
-
-    mContext.waitIdle();
 }

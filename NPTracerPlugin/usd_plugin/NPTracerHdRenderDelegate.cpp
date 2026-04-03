@@ -100,6 +100,7 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 {
+    if (!rprim) return;  // necessary since we purposefully do not initialize some prims
     NP_DBG("Destroy Rprim: id=%s\n", rprim->GetId().GetText());
     delete rprim;
 }
@@ -130,6 +131,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroySprim(HdSprim* sprim)
 {
+    if (!sprim) return;  // necessary since we purposefully do not initialize some prims
     NP_DBG("Destroy Sprim: id=%s\n", sprim->GetId().GetText());
     delete sprim;
 }
@@ -172,8 +174,8 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyBprim(HdBprim* bprim)
 {
+    if (!bprim) return;  // necessary since we purposefully do not initialize some prims
     NP_DBG("Destroy Bprim: id=%s\n", bprim->GetId().GetText());
-
     delete bprim;
 }
 
@@ -201,10 +203,10 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
     {
         return { HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)) };
     }
-    else if (aovName == HdAovTokens->depth)
+    /*else if (aovName == HdAovTokens->depth)
     {
         return { HdFormatFloat32, false, VtValue(1.0f) };
-    }
+    }*/
     return {};
 }
 

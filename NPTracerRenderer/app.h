@@ -7,9 +7,6 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-template<typename T>
-using Ref = std::reference_wrapper<T>;
-
 class App
 {
 public:
@@ -30,14 +27,12 @@ public:
 
     void loadSceneFromPath(const char* path);
 
-    void createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef = std::nullopt);
+    void createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef = std::nullopt);
     void executeDrawCall(RendererAovs& aovs);
 
     void render();
 
 private:
-    static constexpr bool kDebugEnabled = NPTRACER_DEBUG;
-
     // this is a runtime constant, just update whenever needed
     static constexpr size_t kPushConstantCount = 4;
 
@@ -87,8 +82,8 @@ private:
     void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
     void createRTPipeline();
     void createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                      std::vector<FLOAT4X4>& transforms,
-                                      VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
+                                      std::vector<FMat4>& transforms, VkDeviceAddress vertexAddress,
+                                      VkDeviceAddress indexAddress);
 
     // render commands recording
     void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);

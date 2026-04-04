@@ -1,10 +1,11 @@
 #include "usd_plugin/primitives/NPTracerHdMaterial.h"
 
-#include "stb_image.h"
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 #include "usd_plugin/debugCodes.h"
 
 #include <pxr/imaging/hd/sceneDelegate.h>
+
+#include "stb_image.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -80,7 +81,7 @@ void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirty
         if (params.count(TfToken("diffuseColor")))
         {
             auto c = params.at(TfToken("diffuseColor")).Get<GfVec3f>();
-            _pMaterial->diffuse = FLOAT4(c[0], c[1], c[2], 1.0f);
+            _pMaterial->diffuse = np::FVec4(c[0], c[1], c[2], 1.0f);
 
             NP_DBG("Found uniform diffuse color '(%f, %f, %f)'.\n", c[0], c[1], c[2]);
             const VtValue& val = params.at(TfToken("diffuseColor"));
@@ -90,12 +91,13 @@ void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirty
         {
             auto e = params.at(TfToken("emissiveColor")).Get<GfVec3f>();
 
-            _pMaterial->emission = FLOAT4(e[0], e[1], e[2], 1.0f);
+            _pMaterial->emission = np::FVec4(e[0], e[1], e[2], 1.0f);
 
             NP_DBG("Found uniform emission color '(%f, %f, %f)'.\n", e[0], e[1], e[2]);
         }
     }
 
+#if 0
     if (textureNode)
     {
         const auto& params = textureNode->parameters;
@@ -123,6 +125,7 @@ void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirty
             _pMaterial->diffuseTextureIdx = texIdx;
         }
     }
+#endif
 
     *dirtyBits = Clean;
 }

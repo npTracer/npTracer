@@ -103,7 +103,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 
 target_compile_definitions(${PROJECT_NAME} 
     PUBLIC 
-        TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures"
+        TEXTURES_ROOT="${NPTracerRenderer_ROOT_DIR}/textures"
         NPTRACER_DEBUG=$<BOOL:${CMAKE_NPTRACER_DEBUG}>
 )
 

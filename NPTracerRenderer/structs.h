@@ -12,12 +12,15 @@
 #include <optional>
 #include <vector>
 
-using FLOAT2 = glm::f32vec2;
-using FLOAT3 = glm::f32vec3;
-using FLOAT4 = glm::f32vec4;
-using FLOAT4X4 = glm::f32mat4;
-
 NP_TRACER_NAMESPACE_BEGIN
+
+using FVec2 = glm::f32vec2;
+using FVec3 = glm::f32vec3;
+using FVec4 = glm::f32vec4;
+using FMat4 = glm::f32mat4;
+
+template<typename T>
+using WrapRef = std::reference_wrapper<T>;
 
 using ScenePath = std::string;
 using ScenePathCollection = std::vector<ScenePath>;
@@ -46,11 +49,11 @@ struct RendererConstants
 
 struct Vertex
 {
-    FLOAT4 pos;
-    FLOAT4 normal;
-    FLOAT4 color;
-    FLOAT2 uv;
-    FLOAT2 pad0;
+    FVec4 pos;
+    FVec4 normal;
+    FVec4 color;
+    FVec2 uv;
+    FVec2 pad0;
 
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
@@ -323,17 +326,17 @@ struct Mesh
 
     // NOTE: this vertex data should be stored flattened.
     // i.e. `_positions.size() == indices.size()`, etc.
-    std::vector<FLOAT3> _positions;
-    std::vector<FLOAT3> _normals;
-    std::vector<FLOAT2> _uvs;
-    std::vector<FLOAT3> _colors;
+    std::vector<FVec3> _positions;
+    std::vector<FVec3> _normals;
+    std::vector<FVec2> _uvs;
+    std::vector<FVec3> _colors;
     std::vector<uint32_t> _materialIds;
 
-    FLOAT4X4 objectToWorld;
-    FLOAT4X4 worldToObject;  // model matrix
+    FMat4 objectToWorld;
+    FMat4 worldToObject;  // model matrix
 
-    FLOAT3 bboxMin;
-    FLOAT3 bboxMax;
+    FVec3 bboxMin;
+    FVec3 bboxMax;
 
     uint32_t materialIndex;
 
@@ -346,12 +349,12 @@ struct Mesh
 
         for (size_t i = 0; i < count; i++)
         {
-            Vertex v{ .pos = FLOAT4(_positions[i], 0),
+            Vertex v{ .pos = FVec4(_positions[i], 0),
                       .normal = {},
-                      .color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
-                                                    : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f },
-                      .uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f },
-                      .pad0 = FLOAT2{ 0.0f, 0.0f } };
+                      .color = (i < _colors.size()) ? FVec4(_colors[i], 0)
+                                                    : FVec4{ 1.0f, 1.0f, 1.0f, 1.0f },
+                      .uv = (i < _uvs.size()) ? _uvs[i] : FVec2{ 0.0f, 0.0f },
+                      .pad0 = FVec2{ 0.0f, 0.0f } };
             vertices.push_back(v);
         }
     }
@@ -360,10 +363,10 @@ struct Mesh
 // camera
 struct CameraRecord
 {
-    FLOAT4X4 view;
-    FLOAT4X4 proj;
-    FLOAT4X4 invView;
-    FLOAT4X4 invProj;
+    FMat4 view;
+    FMat4 proj;
+    FMat4 invView;
+    FMat4 invProj;
 };
 
 using Camera = CameraRecord;
@@ -372,7 +375,7 @@ using Camera = CameraRecord;
 struct LightRecord
 {
     uint32_t lightTransformIndex;
-    FLOAT4 color;
+    FVec4 color;
     float intensity = UINT_MAX;
 };
 
@@ -386,14 +389,14 @@ struct Light
 {
     LightType type;
 
-    FLOAT4X4 transform;
+    FMat4 transform;
 
-    FLOAT3 color;
+    FVec3 color;
     float intensity;
 
     // for area lights
-    FLOAT3 u;
-    FLOAT3 v;
+    FVec3 u;
+    FVec3 v;
 
     // for point / area
     float radius;
@@ -403,10 +406,10 @@ struct Light
 
 struct MaterialRecord
 {
-    FLOAT4 diffuse = FLOAT4(0.f, 0.f, 0.f, 1.f);
-    FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
-    FLOAT4 specular = FLOAT4(0.f, 0.f, 0.f, 1.f);
-    FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FVec4 diffuse = FVec4(0.f, 0.f, 0.f, 1.f);
+    FVec4 ambient = FVec4(0.f, 0.f, 0.f, 1.f);
+    FVec4 specular = FVec4(0.f, 0.f, 0.f, 1.f);
+    FVec4 emission = FVec4(0.f, 0.f, 0.f, 1.f);
 
     uint32_t diffuseTextureIdx = UINT32_MAX;
 };
@@ -422,6 +425,7 @@ struct Material : MaterialRecord
     }
 };
 
+// pixels should represent 4 channels
 struct TextureRecord
 {
     void* pixels;

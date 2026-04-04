@@ -11,6 +11,7 @@ NP_TRACER_NAMESPACE_BEGIN
 class Scene
 {
 public:
+    Scene();
     virtual ~Scene() = default;
 
     virtual void loadSceneFromPath(const char* path);  // for compat purposes currently

@@ -64,7 +64,7 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
     const SdfPath& id = GetId();
 
     GfMatrix4f lightTransform(delegate->GetTransform(id));
-    _pLight->transform = GfMatrix4fToGLM(lightTransform);
+    _pLight->transform = GfToGLMMat4f(lightTransform);
 
     bool i = delegate->GetLightParamValue(id, HdLightTokens->intensity).IsEmpty();
     bool c = delegate->GetLightParamValue(id, HdLightTokens->color).IsEmpty();
@@ -72,7 +72,7 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
     _pLight->intensity = (delegate->GetLightParamValue(id, HdLightTokens->intensity)).Get<float>();
 
     GfVec3f lightColor = (delegate->GetLightParamValue(id, HdLightTokens->color)).Get<pxr::GfVec3f>();
-    _pLight->color = GfVec3ToGLM(lightColor);
+    _pLight->color = GfToGLMVec3f(lightColor);
 
     *dirtyBits = Clean;
 }

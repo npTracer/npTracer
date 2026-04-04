@@ -27,18 +27,18 @@ private:
     struct AssimpMeshInstance
     {
         const aiMesh* mesh;
-        FLOAT4X4 transform;
+        FMat4 transform;
         std::string nodeName;
     };
 
-    std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
+    std::unordered_map<std::string, FMat4> nodeTransforms;
     std::vector<AssimpMeshInstance> pendingMeshes;
     std::unordered_map<std::string, uint32_t> textureIndexByKey;
 
     std::hash<std::string> idHasher;
 
-    void processAiNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);
-    void processAiMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4X4& localTransform);
+    void processAiNode(const aiScene* scene, const aiNode* node, const FMat4& transform);
+    void processAiMesh(const aiScene* scene, const aiMesh* currMesh, const FMat4& localTransform);
     void processAiCamera(const aiScene* scene);
     void processAiLight(const aiLight* light);
 };

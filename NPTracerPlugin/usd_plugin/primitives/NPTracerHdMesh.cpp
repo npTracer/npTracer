@@ -117,7 +117,7 @@ bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const std::string& primvarName)
 void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, np::Mesh* outMesh)
 {
     // retrieve the transform first (it only gets more convoluted from here)
-    FLOAT4X4 xform = GfMatrix4dToGLM(delegate->GetTransform(id));
+    np::FMat4 xform = GfToGLMMat4d(delegate->GetTransform(id));
 
     outMesh->objectToWorld = xform;
     outMesh->worldToObject = glm::inverse(xform);
@@ -160,8 +160,8 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
     {
         if (uvValue.GetArraySize() == flattenedCount)
         {
-            auto gfUVArray = uvValue.Get<VtVec2fArray>();
-            outMesh->_uvs = VtVec2fArrayToGLM(gfUVArray);
+            auto vtUVArray = uvValue.Get<VtVec2fArray>();
+            VtArrayToGLMVector(vtUVArray, &outMesh->_uvs);
 
             hasFlattenedUVs = true;
         }
@@ -183,8 +183,8 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
     {
         if (normalsValue.GetArraySize() == flattenedCount)
         {
-            auto vtNormalsArray = normalsValue.Get<VtVec3fArray>();
-            outMesh->_normals = VtVec3fArrayToGLM(vtNormalsArray);
+            auto vtNormalsArray = normalsValue.Get<VtArray<GfVec3f>>();
+            VtArrayToGLMVector(vtNormalsArray, &outMesh->_normals);
 
             hasFlattenedNormals = true;
         }
@@ -222,30 +222,30 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
         outMesh->indices[flatIdx1] = t1;
         outMesh->indices[flatIdx2] = t2;
 
-        outMesh->_positions[flatIdx0] = GfVec3ToGLM(indexedPositions[t0]);
-        outMesh->_positions[flatIdx1] = GfVec3ToGLM(indexedPositions[t1]);
-        outMesh->_positions[flatIdx2] = GfVec3ToGLM(indexedPositions[t2]);
+        outMesh->_positions[flatIdx0] = GfToGLMVec3f(indexedPositions[t0]);
+        outMesh->_positions[flatIdx1] = GfToGLMVec3f(indexedPositions[t1]);
+        outMesh->_positions[flatIdx2] = GfToGLMVec3f(indexedPositions[t2]);
 
         if (hasNormals && !hasFlattenedNormals)
         {
-            outMesh->_normals[flatIdx0] = GfVec3ToGLM(indexedNormals[t0]);
-            outMesh->_normals[flatIdx1] = GfVec3ToGLM(indexedNormals[t1]);
-            outMesh->_normals[flatIdx2] = GfVec3ToGLM(indexedNormals[t2]);
+            outMesh->_normals[flatIdx0] = GfToGLMVec3f(indexedNormals[t0]);
+            outMesh->_normals[flatIdx1] = GfToGLMVec3f(indexedNormals[t1]);
+            outMesh->_normals[flatIdx2] = GfToGLMVec3f(indexedNormals[t2]);
         }
         if (hasUVs && !hasFlattenedUVs)
         {
-            outMesh->_uvs[flatIdx0] = GfVec2ToGLM(indexedUVs[t0]);
-            outMesh->_uvs[flatIdx1] = GfVec2ToGLM(indexedUVs[t1]);
-            outMesh->_uvs[flatIdx2] = GfVec2ToGLM(indexedUVs[t2]);
+            outMesh->_uvs[flatIdx0] = GfToGLMVec2f(indexedUVs[t0]);
+            outMesh->_uvs[flatIdx1] = GfToGLMVec2f(indexedUVs[t1]);
+            outMesh->_uvs[flatIdx2] = GfToGLMVec2f(indexedUVs[t2]);
         }
     }
     if (!hasNormals && !hasFlattenedNormals)
     {  // fill with default value if has none
-        std::fill(outMesh->_normals.begin(), outMesh->_normals.end(), FLOAT3(0.f, 0.f, 0.f));
+        std::fill(outMesh->_normals.begin(), outMesh->_normals.end(), np::FVec3(0.f, 0.f, 0.f));
     }
     if (!hasUVs && !hasFlattenedUVs)
     {  // fill with default value if has none
-        std::fill(outMesh->_uvs.begin(), outMesh->_uvs.end(), FLOAT2(0.f, 0.f));
+        std::fill(outMesh->_uvs.begin(), outMesh->_uvs.end(), np::FVec2(0.f, 0.f));
     }
 
     outMesh->populateVertices();  // populate when everything is finalized for simplicity

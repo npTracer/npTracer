@@ -111,7 +111,7 @@ public:
     void createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
                                              AccelerationStructure& handle,
                                              Buffer& instanceBufferHandle,
-                                             std::vector<FLOAT4X4>& transforms,
+                                             std::vector<FMat4>& transforms,
                                              std::vector<AccelerationStructure>& blasses);
 
     // descriptors

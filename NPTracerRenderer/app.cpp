@@ -25,7 +25,7 @@ void App::create(const RendererConstants& rendererConstants)
     // create vulkan basics
     mContext.setFramesInFlight(DEFAULT_FRAMES_IN_FLIGHT);
     if (USE_SWAPCHAIN) mContext.createWindow(mpWindow, DEFAULT_WIDTH, DEFAULT_HEIGHT);
-    mContext.createInstance(kDebugEnabled);
+    mContext.createInstance(gDEBUG);
     if (USE_SWAPCHAIN) mContext.createSurface(mpWindow);
     mContext.createPhysicalDevice();
     mContext.createLogicalDeviceAndQueues();
@@ -42,7 +42,7 @@ void App::create(const RendererConstants& rendererConstants)
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
+void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
 {
     {  // this block is so very very TEMP oh god
 
@@ -65,7 +65,7 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
     std::vector<Vertex> globalVertices;
     std::vector<uint32_t> globalIndices;
-    std::vector<FLOAT4X4> globalTransforms;
+    std::vector<FMat4> globalTransforms;
     for (size_t i = 0; i < meshCount; i++)
     {
         Mesh const* mesh = mpScene->getPrimAtIndex<Mesh>(i);
@@ -120,7 +120,7 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
     mNumLights = static_cast<uint32_t>(lightCount);  // push constant
     std::vector<LightRecord> lightRecords;
     lightRecords.reserve(lightCount);
-    std::vector<FLOAT4X4> lightTransforms;
+    std::vector<FMat4> lightTransforms;
 
     if (lightCount > 0)
     {
@@ -130,24 +130,24 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
             LightRecord lightRecord{ .lightTransformIndex = static_cast<uint32_t>(
                                          lightTransforms.size()),
-                                     .color = FLOAT4(light->color, 1.0),
+                                     .color = FVec4(light->color, 1.0),
                                      .intensity = light->intensity };
 
             lightTransforms.push_back(light->transform);
             lightRecords.push_back(lightRecord);
         }
     }
-    else if (kDebugEnabled)
+    else if (gDEBUG)
     {
         mNumLights = 1;
 
         LightRecord defaultLightRecord{ .lightTransformIndex = static_cast<uint32_t>(
                                             lightTransforms.size()),
-                                        .color = FLOAT4(1.0, 1.0, 1.0, 1.0),
+                                        .color = FVec4(1.0, 1.0, 1.0, 1.0),
                                         .intensity = static_cast<uint32_t>(1.0) };
 
-        auto transform = FLOAT4X4(1.0);
-        transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
+        auto transform = FMat4(1.0);
+        transform[3] = FVec4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
         lightTransforms.push_back(transform);
         lightRecords.push_back(defaultLightRecord);
     }
@@ -188,6 +188,7 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
     // TEXTURES
     size_t textureCount = mpScene->getPrimCount<NPTexture>();
+
     mTextures.reserve(textureCount);
     for (size_t i = 0; i < textureCount; i++)
     {
@@ -830,7 +831,7 @@ void App::createRTPipeline()
 }
 
 void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                       std::vector<FLOAT4X4>& transforms,
+                                       std::vector<FMat4>& transforms,
                                        VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
 {
     VkCommandBuffer commandBuffer{};

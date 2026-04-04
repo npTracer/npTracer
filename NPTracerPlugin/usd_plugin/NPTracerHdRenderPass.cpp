@@ -94,8 +94,8 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
 void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
                                               np::CameraRecord* outCam)
 {
-    outCam->view = GfMatrix4dToGLM(renderPassState->GetWorldToViewMatrix());
-    outCam->proj = GfMatrix4dToGLM(renderPassState->GetProjectionMatrix());
+    outCam->view = GfToGLMMat4d(renderPassState->GetWorldToViewMatrix());
+    outCam->proj = GfToGLMMat4d(renderPassState->GetProjectionMatrix());
     outCam->invView = glm::inverse(outCam->view);
     outCam->invProj = glm::inverse(outCam->proj);
 }

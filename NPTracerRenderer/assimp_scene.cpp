@@ -6,10 +6,10 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-static FLOAT4X4 sAiToGLM(const aiMatrix4x4& m)
+static FMat4 sAiToGLM(const aiMatrix4x4& m)
 {
-    auto mat = FLOAT4X4(m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3,
-                        m.a4, m.b4, m.c4, m.d4);
+    auto mat = FMat4(m.a1, m.b1, m.c1, m.d1, m.a2, m.b2, m.c2, m.d2, m.a3, m.b3, m.c3, m.d3, m.a4,
+                     m.b4, m.c4, m.d4);
     return mat;
 }
 
@@ -46,7 +46,7 @@ void AssimpScene::loadSceneFromPath(const char* path)
     _textures.push_back(std::move(defaultTexture));
 
     // visit all nodes
-    processAiNode(scene, root, FLOAT4X4(1.0));
+    processAiNode(scene, root, FMat4(1.0));
 
     for (const auto& inst : pendingMeshes)
     {
@@ -61,9 +61,9 @@ void AssimpScene::loadSceneFromPath(const char* path)
     processAiCamera(scene);
 }
 
-void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform)
+void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const FMat4& transform)
 {
-    FLOAT4X4 localTransform = transform * sAiToGLM(node->mTransformation);
+    FMat4 localTransform = transform * sAiToGLM(node->mTransformation);
     nodeTransforms[node->mName.C_Str()] = localTransform;  // store for light traversal
 
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
@@ -79,7 +79,7 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
 }
 
 void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
-                                const FLOAT4X4& localTransform)
+                                const FMat4& localTransform)
 {
     auto mesh = std::make_unique<Mesh>();
     mesh->objectToWorld = localTransform;
@@ -88,20 +88,20 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     mesh->vertices.reserve(currMesh->mNumVertices);
     for (uint32_t j = 0; j < currMesh->mNumVertices; j++)
     {
-        Vertex vert{ .pos = FLOAT4(currMesh->mVertices[j].x, currMesh->mVertices[j].y,
-                                   currMesh->mVertices[j].z, 1.0f),
+        Vertex vert{ .pos = FVec4(currMesh->mVertices[j].x, currMesh->mVertices[j].y,
+                                  currMesh->mVertices[j].z, 1.0f),
                      .normal = currMesh->HasNormals()
-                                   ? FLOAT4(currMesh->mNormals[j].x, currMesh->mNormals[j].y,
-                                            currMesh->mNormals[j].z, 1.0f)
-                                   : FLOAT4(0, 0, 0, 0),
+                                   ? FVec4(currMesh->mNormals[j].x, currMesh->mNormals[j].y,
+                                           currMesh->mNormals[j].z, 1.0f)
+                                   : FVec4(0, 0, 0, 0),
                      .color = currMesh->HasVertexColors(0)
-                                  ? FLOAT4(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g,
-                                           currMesh->mColors[0][j].b, 1.0f)
-                                  : FLOAT4(1, 1, 1, 1),
-                     .uv = currMesh->HasTextureCoords(0) ? FLOAT2(currMesh->mTextureCoords[0][j].x,
-                                                                  currMesh->mTextureCoords[0][j].y)
-                                                         : FLOAT2(0, 0),
-                     .pad0 = FLOAT2(0, 0) };
+                                  ? FVec4(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g,
+                                          currMesh->mColors[0][j].b, 1.0f)
+                                  : FVec4(1, 1, 1, 1),
+                     .uv = currMesh->HasTextureCoords(0) ? FVec2(currMesh->mTextureCoords[0][j].x,
+                                                                 currMesh->mTextureCoords[0][j].y)
+                                                         : FVec2(0, 0),
+                     .pad0 = FVec2(0, 0) };
         mesh->vertices.push_back(vert);
     }
 
@@ -124,22 +124,22 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     aiColor3D color(0.0f, 0.0f, 0.0f);
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
     {
-        mat->diffuse = FLOAT4(color.r, color.g, color.b, 1.0f);
+        mat->diffuse = FVec4(color.r, color.g, color.b, 1.0f);
     }
 
     if (aiMat->Get(AI_MATKEY_COLOR_AMBIENT, color) == AI_SUCCESS)
     {
-        mat->ambient = FLOAT4(color.r, color.g, color.b, 1.0f);
+        mat->ambient = FVec4(color.r, color.g, color.b, 1.0f);
     }
 
     if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, color) == AI_SUCCESS)
     {
-        mat->specular = FLOAT4(color.r, color.g, color.b, 1.0f);
+        mat->specular = FVec4(color.r, color.g, color.b, 1.0f);
     }
 
     if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, color) == AI_SUCCESS)
     {
-        mat->emission = FLOAT4(color.r, color.g, color.b, 1.0f);
+        mat->emission = FVec4(color.r, color.g, color.b, 1.0f);
     }
 
     aiString aiStr;
@@ -230,11 +230,10 @@ void AssimpScene::processAiLight(const aiLight* light)
     }
     else
     {
-        currLight->transform = FLOAT4X4(1.0);
+        currLight->transform = FMat4(1.0);
     }
 
-    currLight->color = FLOAT3(light->mColorDiffuse.r, light->mColorDiffuse.g,
-                              light->mColorDiffuse.b);
+    currLight->color = FVec3(light->mColorDiffuse.r, light->mColorDiffuse.g, light->mColorDiffuse.b);
     currLight->intensity = 1.0f;  // TODO update this
 
     _lights.push_back(std::move(currLight));
@@ -247,7 +246,7 @@ void AssimpScene::processAiCamera(const aiScene* scene)
     {
         aiCamera* aiCam = scene->mCameras[0];
 
-        auto nodeTransform = FLOAT4X4(1.0f);
+        auto nodeTransform = FMat4(1.0f);
         auto it = nodeTransforms.find(aiCam->mName.C_Str());
         if (it != nodeTransforms.end())
         {

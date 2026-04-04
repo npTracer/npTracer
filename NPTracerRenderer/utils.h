@@ -63,7 +63,7 @@ static VkDeviceSize alignUpVk(VkDeviceSize value, VkDeviceSize alignment)
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
-static VkTransformMatrixKHR toVkTransform(const FLOAT4X4& m)
+static VkTransformMatrixKHR toVkTransform(const FMat4& m)
 {
     VkTransformMatrixKHR out{};
 

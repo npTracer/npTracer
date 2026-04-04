@@ -39,7 +39,7 @@ public:
 #if ASSIMP_OVERRIDE
         .sceneType = np::eSceneType::ASSIMP,
 #else
-        .sceneType = NPSceneType::DEFAULT,
+        .sceneType = np::eSceneType::DEFAULT,
 #endif
         .flipNDCY = true  // hydra assumes bottom-left corner for NDC origin
     };

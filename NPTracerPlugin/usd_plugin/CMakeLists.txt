@@ -56,20 +56,13 @@ set(COMMON_USD_CONFIGURATION_ARGS
 ConfigureUSDPluginTarget(${USD_PLUGIN_TARGET_NAME} "${CUSTOM_USD_DSO_PATH}"
     ${COMMON_USD_CONFIGURATION_ARGS}
 
-    LIBS ${NPTracerRenderer_PROJECT_NAME} Houdini HoudiniThirdParty
-    INCLUDES ${_houdini_include_dir} "${NPTracerPlugin_ROOT_DIR}"
+    LIBS ${NPTracerRenderer_PROJECT_NAME} $<LINK_ONLY:Houdini> $<LINK_ONLY:HoudiniThirdParty> # set as `LINK_ONLY` to avoid pulling in Houdini's interface compile options
+    INCLUDES ${Houdini_INCLUDES} "${NPTracerPlugin_ROOT_DIR}"
 
     DEBUGGER_CMD "${HOUDINI_DEBUGGER_CMD}"
     DEBUGGER_CMD_ARGS "${HOUDINI_DEBUGGER_CMD_ARGS}"
     INSTALL_COMPONENT "Runtime"
 )
-
-# explictly force c++20 as otherwise `target_link_libraries` with Houdini will force c++17
-if (MSVC)
-    target_compile_options(${USD_PLUGIN_TARGET_NAME} PRIVATE /std:c++20) # MSVC-specific flag to force
-else()
-    target_compile_features(${USD_PLUGIN_TARGET_NAME} PUBLIC cxx_std_20)
-endif()
 
 if(SHOULD_CREATE_STANDALONE_USD_PLUGIN)
     UsdUtilsValidate()

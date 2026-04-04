@@ -16,6 +16,7 @@ HouUtilsValidateConfig()
 
 set(Houdini_DIR "${HOUDINI_INSTALL_PATH}/toolkit/cmake") # help CMake find `HoudiniConfig.cmake`
 find_package(Houdini CONFIG REQUIRED GLOBAL)
+HouUtilsValidatePackage() # additional validation of CMake state after `find_package`
 HouUtilsAnnounceState() # announce which variables are now available after `find_package`
 
 # Create Houdini plugin target

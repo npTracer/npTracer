@@ -1,16 +1,12 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "structs.h"
 
-#include <vk_mem_alloc.h>
-#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
 
 #include <vector>
 #include <unordered_map>
 #include <atomic>
-
-#include "structs.h"
 
 NP_TRACER_NAMESPACE_BEGIN
 

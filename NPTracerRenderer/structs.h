@@ -1,14 +1,11 @@
 ﻿#pragma once
 
-#define GLM_ENABLE_EXPERIMENTAL
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-
 #include "framework.h"
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+#include <vk_mem_alloc.h>
 
 #include <string>
 #include <array>
@@ -122,28 +119,27 @@ struct NPImage
                           VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
                           std::optional<VkImageAspectFlags> overrideAspectFlags = std::nullopt)
     {
-        VkImageMemoryBarrier2 barrier{};
-
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-        barrier.srcStageMask = srcStageMask;
-        barrier.srcAccessMask = srcAccessMask;
-        barrier.dstStageMask = dstStageMask;
-        barrier.dstAccessMask = dstAccessMask;
-        barrier.oldLayout = layout;
-        barrier.newLayout = newLayout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image;
-
-        barrier.subresourceRange.aspectMask = overrideAspectFlags.value_or(
-            format == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        VkImageMemoryBarrier2 barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = srcStageMask,
+            .srcAccessMask = srcAccessMask,
+            .dstStageMask = dstStageMask,
+            .dstAccessMask = dstAccessMask,
+            .oldLayout = layout,
+            .newLayout = newLayout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = { .aspectMask = overrideAspectFlags.value_or(
+                                      format == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT
+                                                                     : VK_IMAGE_ASPECT_COLOR_BIT),
+                                  .baseMipLevel = 0,
+                                  .levelCount = 1,
+                                  .baseArrayLayer = 0,
+                                  .layerCount = 1 }
+        };
 
         VkDependencyInfo dependencyInfo{};
-
         dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
         dependencyInfo.dependencyFlags = {};
         dependencyInfo.imageMemoryBarrierCount = 1;

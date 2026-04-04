@@ -38,8 +38,18 @@ function(HouUtilsValidateConfig)
             CACHE STRING "Command-line Arguments to use for debugging of targets built for Houdini integration."
         )
     endif()
+endfunction()
 
-    message(STATUS "Here")
+function(HouUtilsValidatePackage)
+    if(NOT DEFINED _houdini_include_dir)
+        message(FATAL_ERROR "`HoudiniConfig.cmake` was found, but internal variable name '_houdini_include_dir' seems to have changed.")
+    endif()
+    if(NOT DEFINED _python_include_dir)
+        message(FATAL_ERROR "`HoudiniConfig.cmake` was found, but internal variable name '_python_include_dir' seems to have changed.")
+    endif()
+
+    # make includes directories list available
+    set(Houdini_INCLUDES "${_houdini_include_dir}" "${_python_include_dir}" PARENT_SCOPE)
 endfunction()
 
 # print all useful variables to command-line
@@ -64,4 +74,5 @@ function(HouUtilsAnnounceState)
     AnnounceVariable(Houdini_VERSION_MAJOR)
     AnnounceVariable(Houdini_VERSION_MINOR)
     AnnounceVariable(Houdini_VERSION_PATCH)
+    AnnounceVariable(Houdini_INCLUDES)
 endfunction()

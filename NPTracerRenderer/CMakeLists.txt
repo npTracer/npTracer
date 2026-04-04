@@ -6,6 +6,7 @@ if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
     set(NPTracerRenderer_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Renderer Root Directory")
 endif()
 set(NPTracerRenderer_PROJECT_NAME ${PROJECT_NAME} CACHE INTERNAL "NPTracer Renderer Cmake Project Name")
+set(NPTRACER_STANDALONE_RENDERER_DEBUGGER_CMD_ARGS "${NPTRACER_STANDALONE_RENDERER_DEBUGGER_CMD_ARGS}" CACHE PATH "Debugger Command Arguments for NPTracer Standalone Vulkan Renderer. Should be the path to a 3D model file on disk that will be loaded via Assimp.") # if not set will just be an empty string, which is fine
 
 include(slang_utils)
 
@@ -20,6 +21,7 @@ add_subdirectory(templates)
 
 set(CURR_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
 set(LIB_SOURCES
+    "${NPTracerRenderer_ROOT_DIR}/external_impl.cpp"
     "${NPTracerRenderer_ROOT_DIR}/context.cpp"
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
     "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
@@ -100,7 +102,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 )
 
 target_compile_definitions(${PROJECT_NAME} 
-    PRIVATE 
+    PUBLIC 
         TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures"
         NPTRACER_DEBUG=$<BOOL:${CMAKE_NPTRACER_DEBUG}>
 )
@@ -113,6 +115,7 @@ set(EXE_SOURCES
 add_executable(${STANDALONE_EXECUTABLE_TARGET} ${EXE_SOURCES})
 target_link_libraries(${STANDALONE_EXECUTABLE_TARGET} PRIVATE ${PROJECT_NAME})
 add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${PROJECT_NAME})
+ConfigureDebugger(${STANDALONE_EXECUTABLE_TARGET} "$<TARGET_FILE:${STANDALONE_EXECUTABLE_TARGET}>" "${NPTRACER_STANDALONE_RENDERER_DEBUGGER_CMD_ARGS}")
 
 # installation of renderer as library
 

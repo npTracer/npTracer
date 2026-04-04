@@ -1,6 +1,3 @@
-#define VMA_IMPLEMENTATION
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
 #include "context.h"
 #include "utils.h"
 

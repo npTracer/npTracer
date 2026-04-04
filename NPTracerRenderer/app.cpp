@@ -2,9 +2,6 @@
 #include "utils.h"
 #include "assimp_scene.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 NP_TRACER_NAMESPACE_BEGIN
 
 constexpr uint32_t DEFAULT_WIDTH = 2560;  // default width for swapchain

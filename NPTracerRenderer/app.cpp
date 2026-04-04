@@ -9,16 +9,16 @@ constexpr uint32_t DEFAULT_HEIGHT = 1440;  // default width for swapchain
 constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;
 
 // for ease-of-use
-#define USE_SWAPCHAIN mRendererConstants.executionMode == NPExecutionMode::SWAPCHAIN
+#define USE_SWAPCHAIN mRendererConstants.executionMode == eExecutionMode::SWAPCHAIN
 
-void App::create(const NPRendererConstants& rendererConstants)
+void App::create(const RendererConstants& rendererConstants)
 {
     mRendererConstants = rendererConstants;
 
     // switch on scene type
     switch (mRendererConstants.sceneType)
     {
-        case NPSceneType::ASSIMP: mpScene = std::make_unique<AssimpScene>(); break;
+        case eSceneType::ASSIMP: mpScene = std::make_unique<AssimpScene>(); break;
         default: mpScene = std::make_unique<Scene>();
     }
 
@@ -42,7 +42,7 @@ void App::create(const NPRendererConstants& rendererConstants)
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
+void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 {
     {  // this block is so very very TEMP oh god
 
@@ -53,24 +53,24 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
         }
         else
         {
-            NPRendererAovs& aovs = aovsRef.value();
+            RendererAovs& aovs = aovsRef.value();
             mContext.createResultImages(aovs.rgb->width, aovs.rgb->height);
         }
     }
 
     // GEOMETRY
-    const size_t meshCount = mpScene->getPrimCount<NPMesh>();
-    std::vector<NPMeshRecord> meshRecords;
+    const size_t meshCount = mpScene->getPrimCount<Mesh>();
+    std::vector<MeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
 
-    std::vector<NPVertex> globalVertices;
+    std::vector<Vertex> globalVertices;
     std::vector<uint32_t> globalIndices;
     std::vector<FLOAT4X4> globalTransforms;
     for (size_t i = 0; i < meshCount; i++)
     {
-        NPMesh const* mesh = mpScene->getPrimAtIndex<NPMesh>(i);
+        Mesh const* mesh = mpScene->getPrimAtIndex<Mesh>(i);
 
-        NPMeshRecord meshRecord{};
+        MeshRecord meshRecord{};
         meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
         meshRecord.indexOffset = static_cast<uint32_t>(globalIndices.size());
         meshRecord.indexCount = static_cast<uint32_t>(mesh->indices.size());
@@ -117,9 +117,9 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
                                      transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // LIGHTS
-    const size_t lightCount = mpScene->getPrimCount<NPLight>();
+    const size_t lightCount = mpScene->getPrimCount<Light>();
     mNumLights = static_cast<uint32_t>(lightCount);  // push constant
-    std::vector<NPLightRecord> lightRecords;
+    std::vector<LightRecord> lightRecords;
     lightRecords.reserve(lightCount);
     std::vector<FLOAT4X4> lightTransforms;
 
@@ -127,9 +127,9 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
     {
         for (uint32_t i = 0; i < lightCount; i++)
         {
-            NPLight const* light = mpScene->getPrimAtIndex<NPLight>(i);
+            Light const* light = mpScene->getPrimAtIndex<Light>(i);
 
-            NPLightRecord lightRecord;
+            LightRecord lightRecord;
             lightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
             lightRecord.color = FLOAT4(light->color, 1.0);
             lightRecord.intensity = light->intensity;
@@ -142,7 +142,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
     {
         mNumLights = 1;
 
-        NPLightRecord defaultLightRecord;
+        LightRecord defaultLightRecord;
         defaultLightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
         defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
         defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
@@ -163,7 +163,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
                                      lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // CAMERA
-    VkDeviceSize cameraSize = sizeof(NPCameraRecord);
+    VkDeviceSize cameraSize = sizeof(CameraRecord);
     bool cameraRecordBufferCreated
         = mContext.createDeviceLocalBuffer(mCameraRecordBuffer, mpScene->getCamera(), cameraSize,
                                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -172,15 +172,15 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 
     // MATERIALS
 
-    const size_t materialCount = mpScene->getPrimCount<NPMaterial>();
-    std::vector<NPMaterialRecord> materialRecords;
+    const size_t materialCount = mpScene->getPrimCount<Material>();
+    std::vector<MaterialRecord> materialRecords;
     materialRecords.reserve(materialCount);
 
     for (uint32_t i = 0; i < materialCount; i++)
     {
         // right now NPMaterial and record are identical so just use the same struct here (still
         // looping for easy modification in the future)
-        NPMaterial const* material = mpScene->getPrimAtIndex<NPMaterial>(i);
+        Material const* material = mpScene->getPrimAtIndex<Material>(i);
 
         materialRecords.push_back(material->toRecord());
     }
@@ -194,7 +194,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
     mTextures.reserve(textureCount);
     for (size_t i = 0; i < textureCount; i++)
     {
-        NPImage textureImage;
+        Image textureImage;
         NPTexture const* texture = mpScene->getPrimAtIndex<NPTexture>(i);
 
         mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
@@ -210,7 +210,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 
     // SET 0: Mesh Records
     {
-        NPDescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
 
@@ -255,7 +255,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
         VkDescriptorSet descriptorSet{};
         mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
-        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
         bindingBufferMap[0] = &mMeshRecordBuffer;
         bindingBufferMap[1] = &mVertexBuffer;
         bindingBufferMap[2] = &mIndexBuffer;
@@ -268,7 +268,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 
     // SET 1 : LIGHTS
     {
-        NPDescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
 
@@ -296,7 +296,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
         VkDescriptorSet descriptorSet{};
         mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
-        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
         bindingBufferMap[0] = &mLightRecordBuffer;
         bindingBufferMap[1] = &mLightTransformsBuffer;
 
@@ -307,7 +307,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 
     // SET 2: CAMERA
     {
-        NPDescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout{};
 
         // camera buffer
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
@@ -329,7 +329,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
         mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
         bindingBufferMap[0] = &mCameraRecordBuffer;
 
         mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
@@ -339,7 +339,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 
     // SET 3: MATERIALS AND TEXTURES
     {
-        NPDescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout{};
 
         // materials buffer
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
@@ -369,7 +369,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
         mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, NPBuffer*> bindingBufferMap;
+        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
         bindingBufferMap[0] = &mMaterialRecordsBuffer;
 
         mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
@@ -381,7 +381,7 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
 
     // SET 4: RT
     {
-        NPDescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout{};
 
         // acceleration structure
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
@@ -421,13 +421,13 @@ void App::createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef)
         mContext.allocateDesciptorSet(mContext.rtDescriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, NPAccelerationStructure*> bindingASMap;
+        std::unordered_map<uint32_t, AccelerationStructure*> bindingASMap;
         bindingASMap[0] = &mTlas;
 
         mContext.writeDescriptorSetAccelerationStructures(mContext.rtDescriptorSet, bindingASMap,
                                                           bindings);
 
-        std::vector<NPImage> resultImages{ mContext.resultImage, mContext.accumulationImage };
+        std::vector<Image> resultImages{ mContext.resultImage, mContext.accumulationImage };
         mContext.writeDescriptorSetImages(mContext.rtDescriptorSet, 1, resultImages, &mSampler,
                                           VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                                           VK_IMAGE_LAYOUT_GENERAL);
@@ -807,17 +807,17 @@ void App::createRTPipeline()
     vkDestroyShaderModule(mContext.device, shadowMissModule, nullptr);
 }
 
-void App::createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
+void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
                                        std::vector<FLOAT4X4>& transforms,
                                        VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
 {
     VkCommandBuffer commandBuffer{};
-    mContext.createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    mContext.createCommandBuffer(commandBuffer, QueueType::GRAPHICS);
     mContext.beginCommandBuffer(commandBuffer);
 
     for (auto& mesh : meshes)
     {
-        NPAccelerationStructure blas{};
+        AccelerationStructure blas{};
 
         mContext.createBottomLevelAccelerationStructure(commandBuffer, blas, vertexAddress,
                                                         indexAddress, mesh.vertexOffset,
@@ -854,25 +854,25 @@ void App::createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
     }
 
     // top level
-    NPBuffer instanceBufferHandle{};
+    Buffer instanceBufferHandle{};
     mContext.createTopLevelAccelerationStructure(commandBuffer, mTlas, instanceBufferHandle,
                                                  transforms, mBlasses);
 
     // barrier
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
-    mContext.endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    mContext.endCommandBuffer(commandBuffer, QueueType::GRAPHICS);
 
     instanceBufferHandle.destroy(mContext.allocator);
 }
 
-void App::executeDrawCall(NPRendererAovs& aovs)
+void App::executeDrawCall(RendererAovs& aovs)
 {
     DEV_ASSERT(aovs.rgb, "aovs not created properly");
-    NPImage* rgb = aovs.rgb;
+    Image* rgb = aovs.rgb;
 
     // grab a frame
-    NPFrame& frame = mContext.frames[mCurrentFrameInFlight];
+    Frame& frame = mContext.frames[mCurrentFrameInFlight];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -890,7 +890,7 @@ void App::executeDrawCall(NPRendererAovs& aovs)
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-    VK_CHECK(vkQueueSubmit(mContext.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
+    VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
              "vk queue submit failed");
 
@@ -903,7 +903,7 @@ void App::executeDrawCall(NPRendererAovs& aovs)
 void App::executeDrawCallSwapchain()
 {
     // grab a frame
-    NPFrame& frame = mContext.frames[mCurrentFrameInFlight];
+    Frame& frame = mContext.frames[mCurrentFrameInFlight];
 
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
@@ -939,7 +939,7 @@ void App::executeDrawCallSwapchain()
     submitInfo.pSignalSemaphores
         = &mContext.doneRenderingSemaphores[imageIndex];  // signal when rendering finishes
 
-    VK_CHECK(vkQueueSubmit(mContext.queues[NPQueueType::GRAPHICS].queue, 1, &submitInfo,
+    VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
              "vk queue submit failed");
 
@@ -952,7 +952,7 @@ void App::executeDrawCallSwapchain()
     presentInfo.pSwapchains = &mContext.swapchain;
     presentInfo.pImageIndices = &imageIndex;
 
-    VkResult result = vkQueuePresentKHR(mContext.queues[NPQueueType::GRAPHICS].queue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(mContext.queues[QueueType::GRAPHICS].queue, &presentInfo);
     if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR)
         || mContext.framebufferResized)
     {
@@ -965,7 +965,7 @@ void App::executeDrawCallSwapchain()
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
-void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
+void App::populateDrawCallRaster(Frame& frame, uint32_t imageIndex)
 {
     vkResetCommandBuffer(frame.commandBuffer, 0);
     mContext.beginCommandBuffer(frame.commandBuffer);
@@ -1058,7 +1058,7 @@ void App::populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex)
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    mContext.endCommandBuffer(frame.commandBuffer, NPQueueType::GRAPHICS, waitDestinationStageMask,
+    mContext.endCommandBuffer(frame.commandBuffer, QueueType::GRAPHICS, waitDestinationStageMask,
                               frame.doneExecutingFence, frame.donePresentingSemaphore,
                               mContext.doneRenderingSemaphores[imageIndex]);
 }

@@ -25,13 +25,13 @@ public:
 
     // public interface
 
-    void create(const NPRendererConstants& rendererConstants);
+    void create(const RendererConstants& rendererConstants);
     void destroy();
 
     void loadSceneFromPath(const char* path);
 
-    void createRenderingResources(std::optional<Ref<NPRendererAovs>> aovsRef = std::nullopt);
-    void executeDrawCall(NPRendererAovs& aovs);
+    void createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef = std::nullopt);
+    void executeDrawCall(RendererAovs& aovs);
 
     void render();
 
@@ -45,16 +45,16 @@ private:
     GLFWwindow* mpWindow = nullptr;
 
     // renderer-level constants
-    NPRendererConstants mRendererConstants{};
+    RendererConstants mRendererConstants{};
 
     // rendering resources
     std::unique_ptr<Scene> mpScene;
 
-    NPPipeline mRasterPipeline;
-    NPPipeline mRtPipeline;
-    NPShaderBindingTable mSbt{};
+    Pipeline mRasterPipeline;
+    Pipeline mRtPipeline;
+    ShaderBindingTable mSbt{};
 
-    std::vector<NPDescriptorSetLayout> mDescriptorSetLayouts;
+    std::vector<DescriptorSetLayout> mDescriptorSetLayouts;
     std::vector<VkDescriptorSet> mDescriptorSets;
     VkSampler mSampler = VK_NULL_HANDLE;
 
@@ -63,35 +63,35 @@ private:
     std::vector<uint32_t> mIndexCounts;
 
     // SET 0: GEOMETRY
-    NPBuffer mMeshRecordBuffer;
-    NPBuffer mVertexBuffer;
-    NPBuffer mIndexBuffer;
+    Buffer mMeshRecordBuffer;
+    Buffer mVertexBuffer;
+    Buffer mIndexBuffer;
 
     // SET 1: TRANSFORMS
-    NPBuffer mGeometryTransformsBuffer;
-    NPBuffer mLightTransformsBuffer;
+    Buffer mGeometryTransformsBuffer;
+    Buffer mLightTransformsBuffer;
 
     // SET 2: CAMERA & LIGHTS
-    NPBuffer mCameraRecordBuffer;
-    NPBuffer mLightRecordBuffer;
+    Buffer mCameraRecordBuffer;
+    Buffer mLightRecordBuffer;
 
     // SET 3: MATERIALS
-    NPBuffer mMaterialRecordsBuffer;
-    std::vector<NPImage> mTextures;
+    Buffer mMaterialRecordsBuffer;
+    std::vector<Image> mTextures;
 
     // SET 4: RT
-    std::vector<NPAccelerationStructure> mBlasses;
-    NPAccelerationStructure mTlas{};
+    std::vector<AccelerationStructure> mBlasses;
+    AccelerationStructure mTlas{};
 
     // resource creation
     void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
     void createRTPipeline();
-    void createAccelerationStructures(std::vector<NPMeshRecord>& meshes,
+    void createAccelerationStructures(std::vector<MeshRecord>& meshes,
                                       std::vector<FLOAT4X4>& transforms,
                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallRaster(NPFrame& frame, uint32_t imageIndex);
+    void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);
     void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent,
                             VkImageLayout dstImageLayout);
 

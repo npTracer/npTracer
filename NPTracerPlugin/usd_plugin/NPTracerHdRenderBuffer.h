@@ -42,21 +42,21 @@ public:
     bool HasWriter() const;
     void EndWrite();
     // returns nullptr if `waitForSuccess` is false and another entity is already writing
-    np::NPImage* RequestImageForWrite(bool waitUntilSuccess = true);
+    np::Image* RequestImageForWrite(bool waitUntilSuccess = true);
 
     // TODO: technically, we cannot assume aov type based on format along. but for now we will make this assumption
-    static np::NPAovType sHdFormatToNPAovType(const HdFormat format);
+    static np::eAovType sHdFormatToNPAovType(const HdFormat format);
 
 private:
     // release any allocated resources
     void _Deallocate() override;
 
     // the actual underlying buffer
-    std::unique_ptr<np::NPImage> _pImage;
+    std::unique_ptr<np::Image> _pImage;
     np::AovTokens _aovTokens;
 
     // reused GPU buffer for image to GPU buffer transfer
-    std::unique_ptr<np::NPBuffer> _pStagingBuffer;
+    std::unique_ptr<np::Buffer> _pStagingBuffer;
 
     GfVec3i _dimensions = GfVec3i(-1);
     HdFormat _format = HdFormatInvalid;

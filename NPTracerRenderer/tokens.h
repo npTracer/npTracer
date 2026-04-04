@@ -5,7 +5,7 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-enum class NPAovType : uint8_t
+enum class eAovType : uint8_t
 {
     INVALID,
     RGB,
@@ -44,12 +44,12 @@ inline constexpr AovTokens kDepthTokens = { VK_FORMAT_D32_SFLOAT,
                                             VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                                             4 };
 
-inline const AovTokens& getAovTokens(const NPAovType aovType)
+inline const AovTokens& getAovTokens(const eAovType aovType)
 {
     switch (aovType)
     {
-        case NPAovType::RGB: return kRGBTokens;
-        case NPAovType::DEPTH: return kDepthTokens;
+        case eAovType::RGB: return kRGBTokens;
+        case eAovType::DEPTH: return kDepthTokens;
         default: return kInvalidFormatTokens;
     }
 }

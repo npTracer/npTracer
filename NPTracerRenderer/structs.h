@@ -19,32 +19,32 @@ using FLOAT4X4 = glm::f32mat4;
 
 NP_TRACER_NAMESPACE_BEGIN
 
-using NPScenePath = std::string;
-using NPScenePathCollection = std::vector<NPScenePath>;
+using ScenePath = std::string;
+using ScenePathCollection = std::vector<ScenePath>;
 
-enum class NPSceneType : uint8_t
+enum class eSceneType : uint8_t
 {
     ASSIMP,
     DEFAULT
 };
 
-enum class NPExecutionMode : uint8_t
+enum class eExecutionMode : uint8_t
 {
     OFFSCREEN,
     SWAPCHAIN
 };
 
 // these values are renderer-level and thus differ from render settings
-struct NPRendererConstants
+struct RendererConstants
 {
-    NPExecutionMode executionMode = NPExecutionMode::OFFSCREEN;
-    NPSceneType sceneType = NPSceneType::DEFAULT;
+    eExecutionMode executionMode = eExecutionMode::OFFSCREEN;
+    eSceneType sceneType = eSceneType::DEFAULT;
 
     // `false` assumes top-left of image coordinate system is {0,0} (vulkan-default), `true` assumes bottom-left
     bool flipNDCY = true;
 };
 
-struct NPVertex
+struct Vertex
 {
     FLOAT4 pos;
     FLOAT4 normal;
@@ -55,7 +55,7 @@ struct NPVertex
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
     {
-        return { 0, sizeof(NPVertex), VK_VERTEX_INPUT_RATE_VERTEX };
+        return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
     }
 
     // tell vulkan what attributes exist within each vertex and how big they are
@@ -63,18 +63,17 @@ struct NPVertex
     {
         return {
             VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(NPVertex, pos) },
+                                               offsetof(Vertex, pos) },
             VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(NPVertex, normal) },
+                                               offsetof(Vertex, normal) },
             VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(NPVertex, color) },
-            VkVertexInputAttributeDescription{ 3, 0, VK_FORMAT_R32G32_SFLOAT,
-                                               offsetof(NPVertex, uv) },
+                                               offsetof(Vertex, color) },
+            VkVertexInputAttributeDescription{ 3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv) },
         };
     }
 };
 
-struct NPBuffer
+struct Buffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -88,7 +87,7 @@ struct NPBuffer
         }
     }
 
-    static std::vector<VkBuffer> extractVkBuffers(const std::vector<NPBuffer>& buffers)
+    static std::vector<VkBuffer> extractVkBuffers(const std::vector<Buffer>& buffers)
     {
         std::vector<VkBuffer> vkBuffers;
         vkBuffers.reserve(buffers.size());
@@ -101,7 +100,7 @@ struct NPBuffer
     }
 };
 
-struct NPImage
+struct Image
 {
     VkImage image = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
@@ -167,7 +166,7 @@ struct NPImage
     }
 };
 
-struct NPPipeline
+struct Pipeline
 {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
@@ -188,7 +187,7 @@ struct NPPipeline
     }
 };
 
-struct NPFrame
+struct Frame
 {
     VkSemaphore donePresentingSemaphore;
     VkFence doneExecutingFence;
@@ -201,7 +200,7 @@ struct NPFrame
     }
 };
 
-struct NPSwapchainParams
+struct SwapchainParams
 {
     VkSurfaceFormatKHR surfaceFormat;
     VkPresentModeKHR presentMode;
@@ -209,7 +208,7 @@ struct NPSwapchainParams
     VkFormat depthFormat;
 };
 
-struct NPDescriptorSetLayout
+struct DescriptorSetLayout
 {
     VkDescriptorSetLayout layout;
     VkDescriptorPool pool;
@@ -228,7 +227,7 @@ struct NPDescriptorSetLayout
     }
 };
 
-enum class NPQueueType : uint8_t
+enum class QueueType : uint8_t
 {
     GRAPHICS,
     TRANSFER,
@@ -236,7 +235,7 @@ enum class NPQueueType : uint8_t
     _COUNT  // sentinel
 };
 
-struct NPQueue
+struct Queue
 {
     VkQueue queue = VK_NULL_HANDLE;
     std::optional<uint32_t> index;
@@ -256,13 +255,13 @@ struct NPQueue
     }
 };
 
-struct NPShaderBindingTable
+struct ShaderBindingTable
 {
     uint32_t handleSize;
     uint32_t handleAlign;
     uint32_t baseAlign;
 
-    NPBuffer buffer;
+    Buffer buffer;
     VkDeviceAddress deviceAddress;
 
     VkStridedDeviceAddressRegionKHR rgen{};
@@ -276,11 +275,11 @@ struct NPShaderBindingTable
     }
 };
 
-struct NPAccelerationStructure
+struct AccelerationStructure
 {
     VkAccelerationStructureKHR accelerationStructure = VK_NULL_HANDLE;
-    NPBuffer handleBuffer;
-    NPBuffer scratchBuffer;
+    Buffer handleBuffer;
+    Buffer scratchBuffer;
     VkDeviceAddress deviceAddress;
 
     void destroyBuffers(VkDevice device, VmaAllocator allocator)
@@ -295,7 +294,7 @@ struct NPAccelerationStructure
 // primitive types
 
 // meshes
-struct NPMeshRecord
+struct MeshRecord
 {
     uint32_t vertexOffset;
     uint32_t indexOffset;
@@ -306,13 +305,13 @@ struct NPMeshRecord
     uint32_t materialIndex;
 };
 
-struct NPMesh
+struct Mesh
 {
     uint64_t objectId;  // the hash of the mesh's `SdfPath`
-    NPScenePath scenePath;
+    ScenePath scenePath;
 
     std::vector<uint32_t> indices;
-    std::vector<NPVertex> vertices;
+    std::vector<Vertex> vertices;
 
     // NOTE: this vertex data should be stored flattened.
     // i.e. `_positions.size() == indices.size()`, etc.
@@ -339,7 +338,7 @@ struct NPMesh
 
         for (size_t i = 0; i < count; i++)
         {
-            NPVertex v{};
+            Vertex v{};
             v.pos = FLOAT4(_positions[i], 0);
             v.color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
                                            : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -351,7 +350,7 @@ struct NPMesh
 };
 
 // camera
-struct NPCameraRecord
+struct CameraRecord
 {
     alignas(16) FLOAT4X4 view;
     alignas(16) FLOAT4X4 proj;
@@ -359,25 +358,25 @@ struct NPCameraRecord
     alignas(16) FLOAT4X4 invProj;
 };
 
-using NPCamera = NPCameraRecord;
+using Camera = CameraRecord;
 
 // lights
-struct NPLightRecord
+struct LightRecord
 {
     uint32_t lightTransformIndex;
     FLOAT4 color;
     float intensity = UINT_MAX;
 };
 
-enum class NPLightType : uint8_t
+enum class LightType : uint8_t
 {
     POINT,
     AREA
 };
 
-struct NPLight
+struct Light
 {
-    NPLightType type;
+    LightType type;
 
     FLOAT4X4 transform;
 
@@ -394,7 +393,7 @@ struct NPLight
     uint64_t lightId;
 };
 
-struct NPMaterialRecord
+struct MaterialRecord
 {
     FLOAT4 diffuse = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
@@ -404,45 +403,45 @@ struct NPMaterialRecord
     uint32_t diffuseTextureIdx = UINT32_MAX;
 };
 
-struct NPMaterial : NPMaterialRecord
+struct Material : MaterialRecord
 {
     uint64_t objectId = UINT64_MAX;  // the hash of the object's `SdfPath`
-    NPScenePath scenePath;
+    ScenePath scenePath;
 
-    NPMaterialRecord toRecord() const
+    MaterialRecord toRecord() const
     {
-        return NPMaterialRecord(*this);
+        return MaterialRecord(*this);
     }
 };
 
-struct NPTextureRecord
+struct TextureRecord
 {
     void* pixels;
     uint32_t width;
     uint32_t height;
 };
 
-using NPTexture = NPTextureRecord;
+using NPTexture = TextureRecord;
 
-enum class NPStylizationFunction : uint8_t
+enum class StylizationFunction : uint8_t
 {
     PASSTHROUGH
 };
 
-struct NPRenderSettings
+struct RenderSettings
 {
     // general settings
     uint32_t maxDepth = 1;
     uint32_t samplesPerPixel = 1;
 
     // stylization-specific
-    NPStylizationFunction stylizationFunction = NPStylizationFunction::PASSTHROUGH;
+    StylizationFunction stylizationFunction = StylizationFunction::PASSTHROUGH;
 };
 
-struct NPRendererAovs
+struct RendererAovs
 {
-    NPImage* rgb = nullptr;
-    NPImage* depth = nullptr;
+    Image* rgb = nullptr;
+    Image* depth = nullptr;
     // normals?
 };
 

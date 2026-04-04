@@ -30,7 +30,7 @@ void NPTracerHdMaterial::_AddToScene()
     if (np::Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pMaterial = scene->makePrim<np::NPMaterial>();
+        _pMaterial = scene->makePrim<np::Material>();
         _pMaterial->objectId = id.GetHash();
         _pMaterial->scenePath = id.GetString();
     }
@@ -41,7 +41,7 @@ void NPTracerHdMaterial::_RemoveFromScene()
     np::Scene* scene = _pCreator->GetScene();
     if (scene && _pMaterial)
     {
-        scene->deletePrim<np::NPMaterial>(_pMaterial);
+        scene->deletePrim<np::Material>(_pMaterial);
         _pMaterial = nullptr;
     }
 }

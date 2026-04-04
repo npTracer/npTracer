@@ -38,7 +38,7 @@ void AssimpScene::loadSceneFromPath(const char* path)
     const aiNode* root = scene->mRootNode;
 
     // mark default texture in texture path vector
-    auto defaultTexture = std::make_unique<NPTextureRecord>();
+    auto defaultTexture = std::make_unique<TextureRecord>();
     auto* pixel = static_cast<uint32_t*>(malloc(sizeof(uint32_t)));
     defaultTexture->pixels = pixel;
     defaultTexture->width = 1;
@@ -81,14 +81,14 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
 void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
                                 const FLOAT4X4& localTransform)
 {
-    auto mesh = std::make_unique<NPMesh>();
+    auto mesh = std::make_unique<Mesh>();
     mesh->objectToWorld = localTransform;
 
     // get vertices
     mesh->vertices.reserve(currMesh->mNumVertices);
     for (uint32_t j = 0; j < currMesh->mNumVertices; j++)
     {
-        NPVertex vertex;
+        Vertex vertex;
         vertex.pos = FLOAT4(currMesh->mVertices[j].x, currMesh->mVertices[j].y,
                             currMesh->mVertices[j].z, 1.0f);
         vertex.normal = currMesh->HasNormals()
@@ -118,7 +118,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     }
 
     // get material
-    auto mat = std::make_unique<NPMaterial>();
+    auto mat = std::make_unique<Material>();
 
     const aiMaterial* aiMat = scene->mMaterials[currMesh->mMaterialIndex];
 
@@ -163,7 +163,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
         }
         else  // create a new texture
         {
-            auto texture = std::make_unique<NPTextureRecord>();
+            auto texture = std::make_unique<TextureRecord>();
             uint32_t newIndex = static_cast<uint32_t>(_textures.size());
             mat->diffuseTextureIdx = newIndex;
 
@@ -219,7 +219,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
 
 void AssimpScene::processAiLight(const aiLight* light)
 {
-    auto currLight = std::make_unique<NPLight>();
+    auto currLight = std::make_unique<Light>();
 
     std::string lightName = light->mName.C_Str();
 
@@ -243,7 +243,7 @@ void AssimpScene::processAiLight(const aiLight* light)
 
 void AssimpScene::processAiCamera(const aiScene* scene)
 {
-    NPCameraRecord cameraRecord{};
+    CameraRecord cameraRecord{};
     if (scene->HasCameras())
     {
         aiCamera* aiCam = scene->mCameras[0];

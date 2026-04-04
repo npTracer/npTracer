@@ -82,9 +82,9 @@ void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
         np::Scene* scene = _pCreator->GetScene();
 
         // TODO: move this to `Scene` as a helper function?
-        for (size_t i = 0; i < scene->getPrimCount<np::NPMaterial>(); i++)
+        for (size_t i = 0; i < scene->getPrimCount<np::Material>(); i++)
         {
-            auto* mat = scene->getPrimAtIndex<np::NPMaterial>(i);
+            auto* mat = scene->getPrimAtIndex<np::Material>(i);
 
             if (mat->scenePath == materialId.GetString())
             {
@@ -114,8 +114,7 @@ bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const std::string& primvarName)
     return primvarName == HdTokens->normals;
 }
 
-void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate,
-                                    np::NPMesh* outMesh)
+void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, np::Mesh* outMesh)
 {
     // retrieve the transform first (it only gets more convoluted from here)
     FLOAT4X4 xform = GfMatrix4dToGLM(delegate->GetTransform(id));
@@ -295,7 +294,7 @@ void NPTracerHdMesh::_AddToScene()
     if (np::Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pMesh = scene->makePrim<np::NPMesh>();
+        _pMesh = scene->makePrim<np::Mesh>();
         _pMesh->objectId = id.GetHash();
         _pMesh->scenePath = id.GetString();
 
@@ -308,7 +307,7 @@ void NPTracerHdMesh::_RemoveFromScene()
     np::Scene* scene = _pCreator->GetScene();
     if (scene && _pMesh)
     {
-        bool removed = scene->deletePrim<np::NPMesh>(_pMesh);
+        bool removed = scene->deletePrim<np::Mesh>(_pMesh);
         _pMesh = nullptr;
 
         NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);

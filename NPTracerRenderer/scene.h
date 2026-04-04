@@ -15,9 +15,9 @@ public:
 
     virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
 
-    inline virtual NPSceneType getSceneType()
+    inline virtual eSceneType getSceneType()
     {
-        return NPSceneType::DEFAULT;
+        return eSceneType::DEFAULT;
     }
 
     template<typename T>
@@ -32,7 +32,7 @@ public:
     template<typename T>
     T* getPrimAtIndex(size_t idx);
 
-    inline NPCamera* getCamera()
+    inline Camera* getCamera()
     {
         return &_camera;
     }
@@ -40,16 +40,16 @@ public:
 protected:
     std::mutex _readWriteMutex;  // for now temp? keeps i/o single-threaded
 
-    std::vector<std::unique_ptr<NPMesh>> _meshes;
+    std::vector<std::unique_ptr<Mesh>> _meshes;
 
-    std::vector<std::unique_ptr<NPLight>> _lights;
-    std::vector<std::unique_ptr<NPMaterial>> _materials;
+    std::vector<std::unique_ptr<Light>> _lights;
+    std::vector<std::unique_ptr<Material>> _materials;
 
     std::vector<std::unique_ptr<NPTexture>> _textures;
 
-    NPCamera _camera;
+    Camera _camera;
 
-    NPRenderSettings _settings;
+    RenderSettings _settings;
 
     template<typename T>
     const std::vector<std::unique_ptr<T>>& getPrimVector() const;

@@ -26,7 +26,7 @@ protected:
 
 private:
     NPTracerHdRenderDelegate* _pCreator;
-    np::NPMaterial* _pMaterial = nullptr;
+    np::Material* _pMaterial = nullptr;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

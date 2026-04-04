@@ -25,7 +25,7 @@ NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, np::Conte
     , _pCtx(context)
     , _pImage(nullptr)
     , _pStagingBuffer(nullptr)
-    , _aovTokens(np::getAovTokens(np::NPAovType::INVALID))
+    , _aovTokens(np::getAovTokens(np::eAovType::INVALID))
 {
 }
 
@@ -56,13 +56,13 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
         return false;
     }
 
-    PREPARE_UNIQUE_PTR(_pImage, np::NPImage,
+    PREPARE_UNIQUE_PTR(_pImage, np::Image,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
     _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
                        _aovTokens.imageUsage, 0, _aovTokens.imageAspect, true);
 
     VkCommandBuffer commandBuffer;
-    _pCtx->createCommandBuffer(commandBuffer, np::NPQueueType::GRAPHICS);
+    _pCtx->createCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
     _pCtx->beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     // transition into transfer src optimal for renderer
@@ -73,12 +73,12 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
 
-    _pCtx->endCommandBuffer(commandBuffer, np::NPQueueType::GRAPHICS);
+    _pCtx->endCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
 
-    vkQueueWaitIdle(_pCtx->queues[np::NPQueueType::GRAPHICS].queue);
-    _pCtx->freeCommandBuffer(commandBuffer, np::NPQueueType::GRAPHICS);
+    vkQueueWaitIdle(_pCtx->queues[np::QueueType::GRAPHICS].queue);
+    _pCtx->freeCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
 
-    PREPARE_UNIQUE_PTR(_pStagingBuffer, np::NPBuffer,
+    PREPARE_UNIQUE_PTR(_pStagingBuffer, np::Buffer,
                        [this]() { _pStagingBuffer->destroy(_pCtx->allocator); });
     _pCtx->createBuffer(*_pStagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                         VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -146,15 +146,15 @@ void* NPTracerHdRenderBuffer::Map()
 
     if (_transferCmdBuffer != VK_NULL_HANDLE) vkResetCommandBuffer(_transferCmdBuffer, 0);
 
-    _pCtx->createCommandBuffer(_transferCmdBuffer, np::NPQueueType::TRANSFER);
+    _pCtx->createCommandBuffer(_transferCmdBuffer, np::QueueType::TRANSFER);
     _pCtx->beginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
                              static_cast<uint32_t>(_dimensions[0]),
                              static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
 
-    _pCtx->endCommandBuffer(_transferCmdBuffer, np::NPQueueType::TRANSFER);
-    vkQueueWaitIdle(_pCtx->queues[np::NPQueueType::TRANSFER].queue);
+    _pCtx->endCommandBuffer(_transferCmdBuffer, np::QueueType::TRANSFER);
+    vkQueueWaitIdle(_pCtx->queues[np::QueueType::TRANSFER].queue);
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
@@ -191,7 +191,7 @@ bool NPTracerHdRenderBuffer::HasWriter() const
     return _bHasWriter.load();
 }
 
-np::NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
+np::Image* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 {
     if (waitUntilSuccess)
     {
@@ -238,7 +238,7 @@ void NPTracerHdRenderBuffer::_Deallocate()
 
     if (_transferCmdBuffer != VK_NULL_HANDLE)
     {
-        _pCtx->freeCommandBuffer(_transferCmdBuffer, np::NPQueueType::TRANSFER);
+        _pCtx->freeCommandBuffer(_transferCmdBuffer, np::QueueType::TRANSFER);
         _transferCmdBuffer = VK_NULL_HANDLE;
     }
 
@@ -251,13 +251,13 @@ void NPTracerHdRenderBuffer::_Deallocate()
     NP_DBG("Deallocate complete of render buffer: id=%s\n", GetId().GetText());
 }
 
-np::NPAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
+np::eAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
 {
     switch (format)
     {
-        case HdFormatUNorm8Vec4: return np::NPAovType::RGB;
-        case HdFormatFloat32: return np::NPAovType::DEPTH;
-        default: return np::NPAovType::INVALID;
+        case HdFormatUNorm8Vec4: return np::eAovType::RGB;
+        case HdFormatFloat32: return np::eAovType::DEPTH;
+        default: return np::eAovType::INVALID;
     }
 }
 

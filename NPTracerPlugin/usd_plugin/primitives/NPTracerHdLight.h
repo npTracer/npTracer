@@ -20,7 +20,7 @@ public:
 
 protected:
     NPTracerHdRenderDelegate* _pCreator;
-    np::NPLight* _pLight = nullptr;
+    np::Light* _pLight = nullptr;
 
     void _AddToScene();
     void _RemoveFromScene();

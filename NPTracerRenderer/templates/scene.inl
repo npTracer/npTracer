@@ -57,15 +57,15 @@ inline T* Scene::getPrimAtIndex(size_t idx)
 template<typename T>
 inline std::vector<std::unique_ptr<T>>& Scene::getPrimVector()
 {
-    if constexpr (std::is_same_v<T, NPMesh>)
+    if constexpr (std::is_same_v<T, Mesh>)
     {
         return _meshes;
     }
-    else if constexpr (std::is_same_v<T, NPLight>)
+    else if constexpr (std::is_same_v<T, Light>)
     {
         return _lights;
     }
-    else if constexpr (std::is_same_v<T, NPMaterial>)
+    else if constexpr (std::is_same_v<T, Material>)
     {
         return _materials;
     }

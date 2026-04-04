@@ -28,7 +28,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
     TF_DEV_AXIOM(!aovBindings.empty());
 
-    np::NPRendererAovs payload;
+    np::RendererAovs payload;
 
     std::vector<NPTracerHdRenderBuffer*> aovsRequestedForWrite;
     aovsRequestedForWrite.reserve(aovBindings.size());
@@ -59,7 +59,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     // fill in camera data after all buffers have been requested
     if (_bSyncCameraPerPass)
     {
-        np::NPCameraRecord* cam = app->getScene()->getCamera();
+        np::CameraRecord* cam = app->getScene()->getCamera();
         sSyncCameraToState(renderPassState, cam);
     }
 
@@ -92,7 +92,7 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
 }
 
 void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
-                                              np::NPCameraRecord* outCam)
+                                              np::CameraRecord* outCam)
 {
     outCam->view = GfMatrix4dToGLM(renderPassState->GetWorldToViewMatrix());
     outCam->proj = GfMatrix4dToGLM(renderPassState->GetProjectionMatrix());

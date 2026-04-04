@@ -32,7 +32,7 @@ private:
     // camera should not be synced if we are overriding
     static constexpr bool _bSyncCameraPerPass = !ASSIMP_OVERRIDE;
     static void sSyncCameraToState(HdRenderPassStateSharedPtr const& renderPassState,
-                                   np::NPCameraRecord* outCam);
+                                   np::CameraRecord* outCam);
 
     // TEMP: only create rendering resources once
     std::atomic<bool> _resourcesCreatedFlag{ false };

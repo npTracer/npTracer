@@ -29,7 +29,7 @@ void NPTracerHdLight::_AddToScene()
     if (np::Scene* scene = _pCreator->GetScene())
     {
         const SdfPath& id = GetId();
-        _pLight = scene->makePrim<np::NPLight>();
+        _pLight = scene->makePrim<np::Light>();
 
         _PrepareLight();
 
@@ -42,7 +42,7 @@ void NPTracerHdLight::_RemoveFromScene()
     np::Scene* scene = _pCreator->GetScene();
     if (scene && _pLight)
     {
-        bool removed = scene->deletePrim<np::NPLight>(_pLight);
+        bool removed = scene->deletePrim<np::Light>(_pLight);
         _pLight = nullptr;
 
         NP_DBG("Removed light '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
@@ -80,7 +80,7 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
 void NPTracerHdSphereLight::_PrepareLight()
 {
     DEV_ASSERT(_pLight, "Light should exist before preparation");
-    _pLight->type = np::NPLightType::POINT;
+    _pLight->type = np::LightType::POINT;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

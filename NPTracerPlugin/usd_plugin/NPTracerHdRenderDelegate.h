@@ -34,10 +34,10 @@ public:
     const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
     const TfTokenVector NO_SUPPORTED_PRIM_TYPES{};
 
-    static constexpr np::NPRendererConstants RENDERER_CONSTANTS = {
-        np::NPExecutionMode::OFFSCREEN,
+    static constexpr np::RendererConstants RENDERER_CONSTANTS = {
+        np::eExecutionMode::OFFSCREEN,
 #if ASSIMP_OVERRIDE
-        np::NPSceneType::ASSIMP,
+        np::eSceneType::ASSIMP,
 #else
         NPSceneType::DEFAULT,
 #endif

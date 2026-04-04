@@ -44,12 +44,12 @@ HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* 
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedRprimTypes() const
 {
-    return _bOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_RPRIM_TYPES;
+    return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_RPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedSprimTypes() const
 {
-    return _bOverrideSceneWithAssimp ? TfTokenVector() : SUPPORTED_SPRIM_TYPES;
+    return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_SPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const

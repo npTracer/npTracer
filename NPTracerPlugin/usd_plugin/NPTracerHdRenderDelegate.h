@@ -32,6 +32,7 @@ public:
                                                   HdPrimTypeTokens->material,
                                                   HdPrimTypeTokens->sphereLight };  // state prims
     const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
+    const TfTokenVector NO_SUPPORTED_PRIM_TYPES{};
 
     static constexpr np::NPRendererConstants RENDERER_CONSTANTS = {
         np::NPExecutionMode::OFFSCREEN,

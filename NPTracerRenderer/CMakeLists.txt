@@ -2,13 +2,10 @@ cmake_minimum_required(VERSION 3.24)
 
 project(NPTracerRenderer)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
     set(NPTracerRenderer_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Renderer Root Directory")
 endif()
-set(RENDERER_TARGET_NAME ${PROJECT_NAME} CACHE INTERNAL "Name of renderer CMake target")
+set(NPTracerRenderer_PROJECT_NAME ${PROJECT_NAME} CACHE INTERNAL "NPTracer Renderer Cmake Project Name")
 
 include(slang_utils)
 
@@ -72,7 +69,8 @@ find_program(SLANGC_EXECUTABLE slangc REQUIRED)
 set(ALL_SPV_OUTPUTS "")
 foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
-    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}") # add as source beforehand
+    # add shader as source to be able to edit in IDEs
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
     AddSlangShaderTarget(
         "${CURR_SHADER_FILE}"
         "${CURR_SHADER_STAGES}"
@@ -82,6 +80,7 @@ foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     list(APPEND ALL_SPV_OUTPUTS ${CURR_SPV_OUTPUTS})
 endforeach()
 
+# also add spv outputs as sources to force re-compile when they change
 target_sources(${PROJECT_NAME} PRIVATE ${ALL_SPV_OUTPUTS})
 add_custom_target(${COMPILE_SHADERS_TARGET} 
     DEPENDS ${ALL_SPV_OUTPUTS}
@@ -100,7 +99,11 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     assimp
 )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")
+target_compile_definitions(${PROJECT_NAME} 
+    PRIVATE 
+        TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures"
+        NPTRACER_DEBUG=$<BOOL:${CMAKE_NPTRACER_DEBUG}>
+)
 
 # create a separate executable target for testing
 set(EXE_SOURCES
@@ -145,9 +148,4 @@ configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
 
 install(FILES "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
-)
-
-target_compile_definitions(${PROJECT_NAME}
-    PUBLIC
-        NPTRACER_DEBUG=$<BOOL:$<CONFIG:RelWithDebInfo>>
 )

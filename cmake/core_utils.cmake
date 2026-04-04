@@ -123,10 +123,39 @@ function(SetupInstallationAfterBuild target_name install_dir install_component)
     )
 endfunction()
 
-function (InvertBooleanVariable var_value out_var_name)
+function(InvertBooleanVariable var_value out_var_name)
     if(${var_value})
         set(${out_var_name} FALSE PARENT_SCOPE)
     else()
         set(${out_var_name} TRUE PARENT_SCOPE)
     endif()
+endfunction()
+
+function(SetupDebugCompileDefinition var_name default_value)
+    set(OPTION_NAME FORCE_${var_name}_DEBUG_COMPILATION)
+    set(OUTPUT_VARIABLE_NAME CMAKE_${var_name}_DEBUG)
+
+    option(${OPTION_NAME} "Force compilation of all debug-related code pathways. Otherwise, compilation defaults to generator configuration." ${default_value})
+
+    if(${OPTION_NAME})
+        set(COMPILE_DEFINITION_VALUE ${${OPTION_NAME}}) # if the option is enabled, it is always respected
+        message(STATUS "Forcing compilation of all debug-related code pathways.")
+    else()
+        set(COMPILE_DEFINITION_VALUE $<CONFIG:Debug,RelWithDebInfo>) # otherwise, set based on configuration
+    endif()
+
+    set(${OUTPUT_VARIABLE_NAME} ${COMPILE_DEFINITION_VALUE} PARENT_SCOPE)
+endfunction()
+
+function(ConfigureDebugger target_name cmd cmd_args)
+    # set some useful VS settings for QOL
+    if(CMAKE_GENERATOR MATCHES "Visual Studio")
+        set_target_properties(${target_name} PROPERTIES VS_DEBUGGER_COMMAND "${cmd}")
+        
+        set_target_properties(${target_name} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "${cmd_args}")
+    endif()
+endfunction()
+
+function(AnnounceVariable var_name)
+    message(STATUS "${var_name}: '${${var_name}}'")
 endfunction()

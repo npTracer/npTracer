@@ -55,20 +55,31 @@ struct Vertex
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
     {
-        return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+        return VkVertexInputBindingDescription{ .binding = 0,
+                                                .stride = sizeof(Vertex),
+                                                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
     }
 
     // tell vulkan what attributes exist within each vertex and how big they are
     static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
     {
         return {
-            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(Vertex, pos) },
-            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(Vertex, normal) },
-            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(Vertex, color) },
-            VkVertexInputAttributeDescription{ 3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv) },
+            VkVertexInputAttributeDescription{ .location = 0,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32B32_SFLOAT,
+                                               .offset = offsetof(Vertex, pos) },
+            VkVertexInputAttributeDescription{ .location = 1,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32B32_SFLOAT,
+                                               .offset = offsetof(Vertex, normal) },
+            VkVertexInputAttributeDescription{ .location = 2,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32B32_SFLOAT,
+                                               .offset = offsetof(Vertex, color) },
+            VkVertexInputAttributeDescription{ .location = 3,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32_SFLOAT,
+                                               .offset = offsetof(Vertex, uv) },
         };
     }
 };
@@ -116,33 +127,31 @@ struct Image
     void transitionLayout(VkCommandBuffer commandBuffer, VkImageLayout newLayout,
                           VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                           VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
-                          std::optional<VkImageAspectFlags> overrideAspectFlags = std::nullopt)
+                          std::optional<VkImageAspectFlags> overrideAspect = std::nullopt)
     {
-        VkImageMemoryBarrier2 barrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = srcStageMask,
-            .srcAccessMask = srcAccessMask,
-            .dstStageMask = dstStageMask,
-            .dstAccessMask = dstAccessMask,
-            .oldLayout = layout,
-            .newLayout = newLayout,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image,
-            .subresourceRange = { .aspectMask = overrideAspectFlags.value_or(
-                                      format == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                                     : VK_IMAGE_ASPECT_COLOR_BIT),
-                                  .baseMipLevel = 0,
-                                  .levelCount = 1,
-                                  .baseArrayLayer = 0,
-                                  .layerCount = 1 }
-        };
+        const VkImageAspectFlags aspectMask = overrideAspect.value_or(
+            format == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
 
-        VkDependencyInfo dependencyInfo{};
-        dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        dependencyInfo.dependencyFlags = {};
-        dependencyInfo.imageMemoryBarrierCount = 1;
-        dependencyInfo.pImageMemoryBarriers = &barrier;
+        VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                                       .srcStageMask = srcStageMask,
+                                       .srcAccessMask = srcAccessMask,
+                                       .dstStageMask = dstStageMask,
+                                       .dstAccessMask = dstAccessMask,
+                                       .oldLayout = layout,
+                                       .newLayout = newLayout,
+                                       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .image = image,
+                                       .subresourceRange = { .aspectMask = aspectMask,
+                                                             .baseMipLevel = 0,
+                                                             .levelCount = 1,
+                                                             .baseArrayLayer = 0,
+                                                             .layerCount = 1 } };
+
+        VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                         .dependencyFlags = {},
+                                         .imageMemoryBarrierCount = 1,
+                                         .pImageMemoryBarriers = &barrier };
 
         vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 
@@ -205,7 +214,6 @@ struct SwapchainParams
     VkSurfaceFormatKHR surfaceFormat;
     VkPresentModeKHR presentMode;
     VkExtent2D extent;
-    VkFormat depthFormat;
 };
 
 struct DescriptorSetLayout
@@ -338,12 +346,12 @@ struct Mesh
 
         for (size_t i = 0; i < count; i++)
         {
-            Vertex v{};
-            v.pos = FLOAT4(_positions[i], 0);
-            v.color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
-                                           : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
-            v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
-            v.pad0 = FLOAT2{ 0.0f, 0.0f };
+            Vertex v{ .pos = FLOAT4(_positions[i], 0),
+                      .normal = {},
+                      .color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
+                                                    : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f },
+                      .uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f },
+                      .pad0 = FLOAT2{ 0.0f, 0.0f } };
             vertices.push_back(v);
         }
     }
@@ -352,10 +360,10 @@ struct Mesh
 // camera
 struct CameraRecord
 {
-    alignas(16) FLOAT4X4 view;
-    alignas(16) FLOAT4X4 proj;
-    alignas(16) FLOAT4X4 invView;
-    alignas(16) FLOAT4X4 invProj;
+    FLOAT4X4 view;
+    FLOAT4X4 proj;
+    FLOAT4X4 invView;
+    FLOAT4X4 invProj;
 };
 
 using Camera = CameraRecord;

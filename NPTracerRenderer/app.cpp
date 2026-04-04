@@ -70,13 +70,12 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
     {
         Mesh const* mesh = mpScene->getPrimAtIndex<Mesh>(i);
 
-        MeshRecord meshRecord{};
-        meshRecord.vertexOffset = static_cast<uint32_t>(globalVertices.size());
-        meshRecord.indexOffset = static_cast<uint32_t>(globalIndices.size());
-        meshRecord.indexCount = static_cast<uint32_t>(mesh->indices.size());
-        meshRecord.vertexCount = static_cast<uint32_t>(mesh->vertices.size());
-        meshRecord.transformIndex = static_cast<uint32_t>(globalTransforms.size());
-        meshRecord.materialIndex = mesh->materialIndex;
+        MeshRecord meshRecord{ .vertexOffset = static_cast<uint32_t>(globalVertices.size()),
+                               .indexOffset = static_cast<uint32_t>(globalIndices.size()),
+                               .indexCount = static_cast<uint32_t>(mesh->indices.size()),
+                               .vertexCount = static_cast<uint32_t>(mesh->vertices.size()),
+                               .transformIndex = static_cast<uint32_t>(globalTransforms.size()),
+                               .materialIndex = mesh->materialIndex };
 
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());
@@ -129,10 +128,10 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
         {
             Light const* light = mpScene->getPrimAtIndex<Light>(i);
 
-            LightRecord lightRecord;
-            lightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
-            lightRecord.color = FLOAT4(light->color, 1.0);
-            lightRecord.intensity = light->intensity;
+            LightRecord lightRecord{ .lightTransformIndex = static_cast<uint32_t>(
+                                         lightTransforms.size()),
+                                     .color = FLOAT4(light->color, 1.0),
+                                     .intensity = light->intensity };
 
             lightTransforms.push_back(light->transform);
             lightRecords.push_back(lightRecord);
@@ -142,10 +141,10 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
     {
         mNumLights = 1;
 
-        LightRecord defaultLightRecord;
-        defaultLightRecord.lightTransformIndex = static_cast<uint32_t>(lightTransforms.size());
-        defaultLightRecord.color = FLOAT4(1.0, 1.0, 1.0, 1.0);
-        defaultLightRecord.intensity = static_cast<uint32_t>(1.0);
+        LightRecord defaultLightRecord{ .lightTransformIndex = static_cast<uint32_t>(
+                                            lightTransforms.size()),
+                                        .color = FLOAT4(1.0, 1.0, 1.0, 1.0),
+                                        .intensity = static_cast<uint32_t>(1.0) };
 
         auto transform = FLOAT4X4(1.0);
         transform[3] = FLOAT4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
@@ -153,7 +152,6 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
         lightRecords.push_back(defaultLightRecord);
     }
     else DEV_ASSERT(false, "No lights were found in scene.");
-
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
     VkDeviceSize lightTransformsSize = sizeof(lightTransforms[0]) * lightTransforms.size();
 
@@ -181,7 +179,6 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
         // right now NPMaterial and record are identical so just use the same struct here (still
         // looping for easy modification in the future)
         Material const* material = mpScene->getPrimAtIndex<Material>(i);
-
         materialRecords.push_back(material->toRecord());
     }
 
@@ -215,33 +212,33 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
 
         // mesh record buffer
-        VkDescriptorSetLayoutBinding b0{};
-        b0.binding = 0;
-        b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                        | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        VkDescriptorSetLayoutBinding b0{ .binding = 0,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS
+                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
 
         // vertex ssbo
-        VkDescriptorSetLayoutBinding b1{};
-        b1.binding = 1;
-        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        VkDescriptorSetLayoutBinding b1{ .binding = 1,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
 
         // index ssbo
-        VkDescriptorSetLayoutBinding b2{};
-        b2.binding = 2;
-        b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b2.descriptorCount = 1;
-        b2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        VkDescriptorSetLayoutBinding b2{ .binding = 2,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
 
-        // transforms
-        VkDescriptorSetLayoutBinding b3{};
-        b3.binding = 3;
-        b3.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b3.descriptorCount = 1;
-        b3.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        // transform
+        VkDescriptorSetLayoutBinding b3{ .binding = 3,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -272,19 +269,19 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
 
-        VkDescriptorSetLayoutBinding b0{};
-        b0.binding = 0;
-        b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-        b0.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b0{ .binding = 0,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                                         .pImmutableSamplers = nullptr };
 
         // light transforms
-        VkDescriptorSetLayoutBinding b1{};
-        b1.binding = 1;
-        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+        VkDescriptorSetLayoutBinding b1{ .binding = 1,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR };
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -309,15 +306,14 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
     {
         DescriptorSetLayout descriptorSetLayout{};
 
-        // camera buffer
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{};
-        b0.binding = 0;
-        b0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                        | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        b0.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b0{ .binding = 0,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                                         .pImmutableSamplers = nullptr };
 
         bindings[0] = b0;
 
@@ -343,20 +339,21 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
         // materials buffer
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{};
-        b0.binding = 0;
-        b0.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        b0.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b0{ .binding = 0,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                                         .pImmutableSamplers = nullptr };
 
-        VkDescriptorSetLayoutBinding b1{};
-        b1.binding = 1;
-        b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        b1.descriptorCount = static_cast<uint32_t>(
-            mTextures.size());  // TODO: this one SHOULD be a variable size descriptor
-        b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        b1.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b1{
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = static_cast<uint32_t>(
+                mTextures.size()),  // TODO: this one SHOULD be a variable size descriptor
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+            .pImmutableSamplers = nullptr
+        };
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -374,7 +371,7 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
         mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
         mContext.writeDescriptorSetImages(descriptorSet, 1, mTextures,
-                                          &mSampler);  // write all textures
+                                          mSampler);  // write all textures
 
         mDescriptorSets.push_back(descriptorSet);
     }
@@ -385,30 +382,29 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
 
         // acceleration structure
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{};
-        b0.binding = 0;
-        b0.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-        b0.descriptorCount = 1;
-        b0.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        b0.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b0{
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+            .pImmutableSamplers = nullptr
+        };
 
         // result image
-        VkDescriptorSetLayoutBinding b1{};
-        b1.binding = 1;
-        b1.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        b1.descriptorCount = 1;
-        b1.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        ;
-        b1.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b1{ .binding = 1,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                                         .pImmutableSamplers = nullptr };
 
         // accumulation image
-        VkDescriptorSetLayoutBinding b2{};
-        b2.binding = 2;
-        b2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        b2.descriptorCount = 1;
-        b2.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        ;
-        b2.pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutBinding b2{ .binding = 2,
+                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                         .descriptorCount = 1,
+                                         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                                         .pImmutableSamplers = nullptr };
 
         bindings[0] = b0;
         bindings[1] = b1;
@@ -428,7 +424,7 @@ void App::createRenderingResources(std::optional<Ref<RendererAovs>> aovsRef)
                                                           bindings);
 
         std::vector<Image> resultImages{ mContext.resultImage, mContext.accumulationImage };
-        mContext.writeDescriptorSetImages(mContext.rtDescriptorSet, 1, resultImages, &mSampler,
+        mContext.writeDescriptorSetImages(mContext.rtDescriptorSet, 1, resultImages, mSampler,
                                           VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                                           VK_IMAGE_LAYOUT_GENERAL);
 
@@ -444,17 +440,19 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     VkShaderModule coreVertModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
     VkShaderModule coreFragModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
 
-    VkPipelineShaderStageCreateInfo vInfo{};
-    vInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vInfo.module = coreVertModule;
-    vInfo.pName = "vertMain";
+    VkPipelineShaderStageCreateInfo vInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = coreVertModule,
+        .pName = "vertMain"
+    };
 
-    VkPipelineShaderStageCreateInfo fInfo{};
-    fInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fInfo.module = coreFragModule;
-    fInfo.pName = "fragMain";
+    VkPipelineShaderStageCreateInfo fInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = coreFragModule,
+        .pName = "fragMain"
+    };
 
     VkPipelineShaderStageCreateInfo shaderStages[] = { vInfo, fInfo };
 
@@ -462,75 +460,82 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
     std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT,
                                                   VK_DYNAMIC_STATE_SCISSOR };
 
-    VkPipelineDynamicStateCreateInfo dynamicInfo{};
-    dynamicInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-    dynamicInfo.pDynamicStates = dynamicStates.data();
+    VkPipelineDynamicStateCreateInfo dynamicInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
+        .pDynamicStates = dynamicStates.data()
+    };
 
-    VkPipelineVertexInputStateCreateInfo vertexInfo{};
-    vertexInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInfo.vertexBindingDescriptionCount = 0;
-    vertexInfo.pVertexBindingDescriptions = nullptr;
-    vertexInfo.vertexAttributeDescriptionCount = 0;
-    vertexInfo.pVertexAttributeDescriptions = nullptr;
+    VkPipelineVertexInputStateCreateInfo vertexInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = 0,
+        .pVertexBindingDescriptions = nullptr,
+        .vertexAttributeDescriptionCount = 0,
+        .pVertexAttributeDescriptions = nullptr
+    };
 
-    VkPipelineInputAssemblyStateCreateInfo inputInfo{};
-    inputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineInputAssemblyStateCreateInfo inputInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+    };
 
     VkViewport viewport{ 0.0f, 0.0f, 0, 0, 0.0f, 1.0f };
     viewport.width = width;
     viewport.height = height;
 
-    VkExtent2D extent{};
-    extent.width = width;
-    extent.height = height;
+    VkExtent2D extent{ .width = width, .height = height };
     VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
 
-    VkPipelineViewportStateCreateInfo viewportState{};
-    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewportState.viewportCount = 1;
-    viewportState.pViewports = nullptr;
-    viewportState.scissorCount = 1;
-    viewportState.pScissors = nullptr;
+    VkPipelineViewportStateCreateInfo viewportState{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .pViewports = nullptr,
+        .scissorCount = 1,
+        .pScissors = nullptr
+    };
 
     // rasterizer
-    VkPipelineRasterizationStateCreateInfo rasterInfo{};
-    rasterInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterInfo.depthClampEnable = VK_FALSE;
-    rasterInfo.rasterizerDiscardEnable = VK_FALSE;
-    rasterInfo.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterInfo.depthBiasEnable = VK_FALSE;
-    rasterInfo.depthBiasSlopeFactor = 1.0f;
-    rasterInfo.lineWidth = 1.0f;
+    VkPipelineRasterizationStateCreateInfo rasterInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasSlopeFactor = 1.0f,
+        .lineWidth = 1.0f
+    };
 
-    VkPipelineMultisampleStateCreateInfo multisampling{};
-    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisampling.sampleShadingEnable = VK_FALSE;
+    VkPipelineMultisampleStateCreateInfo multisampling{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE
+    };
 
     // color blending
-    VkPipelineColorBlendAttachmentState blendInfo{};
-    blendInfo.blendEnable = VK_FALSE;
-    blendInfo.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-                               | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendAttachmentState blendInfo{ .blendEnable = VK_FALSE,
+                                                   .colorWriteMask = VK_COLOR_COMPONENT_R_BIT
+                                                                     | VK_COLOR_COMPONENT_G_BIT
+                                                                     | VK_COLOR_COMPONENT_B_BIT
+                                                                     | VK_COLOR_COMPONENT_A_BIT };
 
-    VkPipelineColorBlendStateCreateInfo blendStateInfo{};
-    blendStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blendStateInfo.logicOpEnable = VK_FALSE;
-    blendStateInfo.logicOp = VK_LOGIC_OP_COPY;
-    blendStateInfo.attachmentCount = 1;
-    blendStateInfo.pAttachments = &blendInfo;
+    VkPipelineColorBlendStateCreateInfo blendStateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments = &blendInfo
+    };
 
     // depth testing
-    VkPipelineDepthStencilStateCreateInfo depthInfo{};
-    depthInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depthInfo.depthTestEnable = VK_TRUE;
-    depthInfo.depthCompareOp = VK_COMPARE_OP_LESS;
-    depthInfo.depthBoundsTestEnable = VK_FALSE;
-    depthInfo.stencilTestEnable = VK_FALSE;
+    VkPipelineDepthStencilStateCreateInfo depthInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE
+    };
 
     // pipeline layout
     std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
@@ -540,41 +545,44 @@ void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat forma
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
     }
 
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = static_cast<uint32_t>(kPushConstantCount) * sizeof(uint32_t);
+    VkPushConstantRange pushConstantRange{ .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
+                                           .offset = 0,
+                                           .size = static_cast<uint32_t>(kPushConstantCount)
+                                                   * sizeof(uint32_t) };
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size());
-    pipelineLayoutInfo.pSetLayouts = vkDescriptorSetLayouts.data();
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size()),
+        .pSetLayouts = vkDescriptorSetLayouts.data(),
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange
+    };
 
     vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRasterPipeline.layout);
 
-    VkPipelineRenderingCreateInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachmentFormats = &format;
-    renderingInfo.depthAttachmentFormat = mContext.depthFormat;
+    VkPipelineRenderingCreateInfo renderingInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &format,
+        .depthAttachmentFormat = mContext.depthFormat
+    };
 
-    VkGraphicsPipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.pNext = &renderingInfo;
-    pipelineInfo.stageCount = 2;
-    pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pVertexInputState = &vertexInfo;
-    pipelineInfo.pInputAssemblyState = &inputInfo;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterInfo;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = &depthInfo;
-    pipelineInfo.pColorBlendState = &blendStateInfo;
-    pipelineInfo.pDynamicState = &dynamicInfo;
-    pipelineInfo.layout = mRasterPipeline.layout;
-    pipelineInfo.renderPass = nullptr;
+    VkGraphicsPipelineCreateInfo pipelineInfo{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &renderingInfo,
+        .stageCount = 2,
+        .pStages = shaderStages,
+        .pVertexInputState = &vertexInfo,
+        .pInputAssemblyState = &inputInfo,
+        .pViewportState = &viewportState,
+        .pRasterizationState = &rasterInfo,
+        .pMultisampleState = &multisampling,
+        .pDepthStencilState = &depthInfo,
+        .pColorBlendState = &blendStateInfo,
+        .pDynamicState = &dynamicInfo,
+        .layout = mRasterPipeline.layout,
+        .renderPass = nullptr
+    };
 
     VK_CHECK(vkCreateGraphicsPipelines(mContext.device, nullptr, 1, &pipelineInfo, nullptr,
                                        &mRasterPipeline.pipeline),
@@ -594,18 +602,20 @@ void App::createRTPipeline()
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
     }
 
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
-                                   | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = static_cast<uint32_t>(kPushConstantCount) * sizeof(uint32_t);
+    VkPushConstantRange pushConstantRange{
+        .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
+                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+        .offset = 0,
+        .size = static_cast<uint32_t>(kPushConstantCount) * sizeof(uint32_t)
+    };
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size());
-    pipelineLayoutInfo.pSetLayouts = vkDescriptorSetLayouts.data();
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size()),
+        .pSetLayouts = vkDescriptorSetLayouts.data(),
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange
+    };
 
     vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRtPipeline.layout);
 
@@ -621,106 +631,117 @@ void App::createRTPipeline()
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
     // STAGE 0: Raygen
-    VkPipelineShaderStageCreateInfo rgenInfo{};
-    rgenInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    rgenInfo.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-    rgenInfo.module = rgenModule;
-    rgenInfo.pName = "rgenMain";
+    VkPipelineShaderStageCreateInfo rgenInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+        .module = rgenModule,
+        .pName = "rgenMain"
+    };
     shaderStages.push_back(rgenInfo);
 
     // STAGE 1: Miss
-    VkPipelineShaderStageCreateInfo missInfo{};
-    missInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    missInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
-    missInfo.module = missModule;
-    missInfo.pName = "missMain";
+    VkPipelineShaderStageCreateInfo missInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+        .module = missModule,
+        .pName = "missMain"
+    };
     shaderStages.push_back(missInfo);
 
     // STAGE 2: Shadow Miss
-    VkPipelineShaderStageCreateInfo shadowMissInfo{};
-    shadowMissInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shadowMissInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
-    shadowMissInfo.module = shadowMissModule;
-    shadowMissInfo.pName = "shadowmissMain";
+    VkPipelineShaderStageCreateInfo shadowMissInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+        .module = shadowMissModule,
+        .pName = "shadowmissMain"
+    };
     shaderStages.push_back(shadowMissInfo);
 
     // STAGE 3: Hit
-    VkPipelineShaderStageCreateInfo hitInfo{};
-    hitInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    hitInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-    hitInfo.module = hitModule;
-    hitInfo.pName = "hitMain";
+    VkPipelineShaderStageCreateInfo hitInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+        .module = hitModule,
+        .pName = "hitMain"
+    };
     shaderStages.push_back(hitInfo);
 
     // STAGE 4: Shadow Hit
-    VkPipelineShaderStageCreateInfo shadowHitInfo{};
-    shadowHitInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shadowHitInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-    shadowHitInfo.module = shadowHitModule;
-    shadowHitInfo.pName = "shadowhitMain";
+    VkPipelineShaderStageCreateInfo shadowHitInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+        .module = shadowHitModule,
+        .pName = "shadowhitMain"
+    };
     shaderStages.push_back(shadowHitInfo);
 
     // groups
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups;
 
     // GROUP 0: Raygen
-    VkRayTracingShaderGroupCreateInfoKHR rgenGroup{};
-    rgenGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-    rgenGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-    rgenGroup.generalShader = 0;
-    rgenGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-    rgenGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-    rgenGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    VkRayTracingShaderGroupCreateInfoKHR rgenGroup{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+        .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+        .generalShader = 0,
+        .closestHitShader = VK_SHADER_UNUSED_KHR,
+        .anyHitShader = VK_SHADER_UNUSED_KHR,
+        .intersectionShader = VK_SHADER_UNUSED_KHR
+    };
     groups.push_back(rgenGroup);
 
     // GROUP 1: Miss
-    VkRayTracingShaderGroupCreateInfoKHR missGroup{};
-    missGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-    missGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-    missGroup.generalShader = 1;
-    missGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-    missGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-    missGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    VkRayTracingShaderGroupCreateInfoKHR missGroup{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+        .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+        .generalShader = 1,
+        .closestHitShader = VK_SHADER_UNUSED_KHR,
+        .anyHitShader = VK_SHADER_UNUSED_KHR,
+        .intersectionShader = VK_SHADER_UNUSED_KHR
+    };
     groups.push_back(missGroup);
 
     // GROUP 2: Shadow Miss
-    VkRayTracingShaderGroupCreateInfoKHR shadowMissGroup{};
-    shadowMissGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-    shadowMissGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-    shadowMissGroup.generalShader = 2;
-    shadowMissGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-    shadowMissGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-    shadowMissGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    VkRayTracingShaderGroupCreateInfoKHR shadowMissGroup{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+        .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+        .generalShader = 2,
+        .closestHitShader = VK_SHADER_UNUSED_KHR,
+        .anyHitShader = VK_SHADER_UNUSED_KHR,
+        .intersectionShader = VK_SHADER_UNUSED_KHR
+    };
     groups.push_back(shadowMissGroup);
 
     // GROUP 3: Hit
-    VkRayTracingShaderGroupCreateInfoKHR hitGroup{};
-    hitGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-    hitGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-    hitGroup.generalShader = VK_SHADER_UNUSED_KHR;
-    hitGroup.closestHitShader = 3;
-    hitGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-    hitGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    VkRayTracingShaderGroupCreateInfoKHR hitGroup{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+        .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+        .generalShader = VK_SHADER_UNUSED_KHR,
+        .closestHitShader = 3,
+        .anyHitShader = VK_SHADER_UNUSED_KHR,
+        .intersectionShader = VK_SHADER_UNUSED_KHR
+    };
     groups.push_back(hitGroup);
 
     // GROUP 4: Shadow Hit
-    VkRayTracingShaderGroupCreateInfoKHR shadowHitGroup{};
-    shadowHitGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-    shadowHitGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-    shadowHitGroup.generalShader = VK_SHADER_UNUSED_KHR;
-    shadowHitGroup.closestHitShader = 4;
-    shadowHitGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-    shadowHitGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+    VkRayTracingShaderGroupCreateInfoKHR shadowHitGroup{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+        .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+        .generalShader = VK_SHADER_UNUSED_KHR,
+        .closestHitShader = 4,
+        .anyHitShader = VK_SHADER_UNUSED_KHR,
+        .intersectionShader = VK_SHADER_UNUSED_KHR
+    };
     groups.push_back(shadowHitGroup);
 
-    VkRayTracingPipelineCreateInfoKHR pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
-    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
-    pipelineInfo.pStages = shaderStages.data();
-    pipelineInfo.groupCount = static_cast<uint32_t>(groups.size());
-    pipelineInfo.pGroups = groups.data();
-    pipelineInfo.maxPipelineRayRecursionDepth = 3;  // TODO: change accordingly
-    pipelineInfo.layout = mRtPipeline.layout;
+    VkRayTracingPipelineCreateInfoKHR pipelineInfo{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
+        .stageCount = static_cast<uint32_t>(shaderStages.size()),
+        .pStages = shaderStages.data(),
+        .groupCount = static_cast<uint32_t>(groups.size()),
+        .pGroups = groups.data(),
+        .maxPipelineRayRecursionDepth = 3,  // TODO: change accordingly
+        .layout = mRtPipeline.layout
+    };
 
     VK_CHECK(mContext.vkCreateRayTracingPipelinesKHR(mContext.device, VK_NULL_HANDLE,
                                                      VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
@@ -728,12 +749,13 @@ void App::createRTPipeline()
              "Failed to create ray tracing pipeline!");
 
     // BINDING TABLE
-    VkPhysicalDeviceRayTracingPipelinePropertiesKHR properties{};
-    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
+    };
 
-    VkPhysicalDeviceProperties2KHR properties2{};
-    properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
-    properties2.pNext = &properties;
+    VkPhysicalDeviceProperties2KHR properties2{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR, .pNext = &properties
+    };
 
     vkGetPhysicalDeviceProperties2(mContext.physicalDevice, &properties2);
 

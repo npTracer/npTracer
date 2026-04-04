@@ -87,7 +87,7 @@ public:
     void createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height);
     void createDepthImage(uint32_t width, uint32_t height);
     void createResultImages(uint32_t width, uint32_t height);
-    void createTextureSampler(VkSampler& sampler);
+    void createTextureSampler(VkSampler& sampler);  // pass as reference as it is still `nullptr` here
     void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst, uint32_t width,
                            uint32_t height);
     void copyImageToBuffer(VkCommandBuffer commandBuffer, Image& src, Buffer& dst, uint32_t width,
@@ -124,7 +124,7 @@ public:
         VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, Buffer*>& bindingBufferMap,
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
     void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
-                                  const std::vector<Image>& images, VkSampler* sampler,
+                                  const std::vector<Image>& images, VkSampler inSampler,
                                   VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                   VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     void writeDescriptorSetAccelerationStructures(

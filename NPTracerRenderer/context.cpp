@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <ranges>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -45,18 +46,17 @@ void Context::createInstance(bool enableDebug)
 
     // TODO poll if layers/extensions are supported
 
-    VkApplicationInfo appInfo{};
-    appInfo.pApplicationName = "Engine";
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "Bum";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_4;
+    VkApplicationInfo appInfo{ .pApplicationName = "Engine",
+                               .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+                               .pEngineName = "Bum",
+                               .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+                               .apiVersion = VK_API_VERSION_1_4 };
 
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    createInfo.ppEnabledExtensionNames = extensions.data();
+    VkInstanceCreateInfo createInfo{ .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+                                     .pApplicationInfo = &appInfo,
+                                     .enabledExtensionCount = static_cast<uint32_t>(
+                                         extensions.size()),
+                                     .ppEnabledExtensionNames = extensions.data() };
 
     // declare `debugCreateInfo` outside of if statement so it stays alive until `vkCreateInstance`
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
@@ -152,11 +152,10 @@ void Context::createLogicalDeviceAndQueues()
     queueCreateInfos.reserve(queueFamilyIndices.size());
     for (uint32_t idx : queueFamilyIndices)
     {
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = idx;
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &kQueuePriority;
+        VkDeviceQueueCreateInfo queueCreateInfo{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                                 .queueFamilyIndex = idx,
+                                                 .queueCount = 1,
+                                                 .pQueuePriorities = &kQueuePriority };
 
         queueCreateInfos.push_back(queueCreateInfo);
     }
@@ -172,36 +171,38 @@ void Context::createLogicalDeviceAndQueues()
     };
 
     // probe for support
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR asProbe{};
-    asProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR asProbe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR
+    };
 
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtProbe{};
-    rtProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    rtProbe.pNext = &asProbe;
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtProbe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+        .pNext = &asProbe
+    };
 
-    VkPhysicalDeviceBufferDeviceAddressFeatures bdaProbe{};
-    bdaProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-    bdaProbe.pNext = &rtProbe;
+    VkPhysicalDeviceBufferDeviceAddressFeatures bdaProbe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES, .pNext = &rtProbe
+    };
 
-    VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferProbe{};
-    descriptorBufferProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
-    descriptorBufferProbe.pNext = &bdaProbe;
+    VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferProbe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT, .pNext = &bdaProbe
+    };
 
-    VkPhysicalDeviceDescriptorIndexingFeatures indexingProbe{};
-    indexingProbe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    indexingProbe.pNext = &descriptorBufferProbe;
+    VkPhysicalDeviceDescriptorIndexingFeatures indexingProbe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .pNext = &descriptorBufferProbe
+    };
 
-    VkPhysicalDeviceVulkan13Features vulkan13Probe{};
-    vulkan13Probe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    vulkan13Probe.pNext = &indexingProbe;
+    VkPhysicalDeviceVulkan13Features vulkan13Probe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES, .pNext = &indexingProbe
+    };
 
-    VkPhysicalDeviceVulkan11Features vulkan11Probe{};
-    vulkan11Probe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-    vulkan11Probe.pNext = &vulkan13Probe;
+    VkPhysicalDeviceVulkan11Features vulkan11Probe{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, .pNext = &vulkan13Probe
+    };
 
-    VkPhysicalDeviceFeatures2 features2Probe{};
-    features2Probe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features2Probe.pNext = &vulkan11Probe;
+    VkPhysicalDeviceFeatures2 features2Probe{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+                                              .pNext = &vulkan11Probe };
 
     vkGetPhysicalDeviceFeatures2(physicalDevice, &features2Probe);
 
@@ -217,93 +218,89 @@ void Context::createLogicalDeviceAndQueues()
     DEV_ASSERT(valid, "required features not supported\n");
 
     // enable features
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{};
-    asFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    asFeatures.accelerationStructure = VK_TRUE;
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR asFeatures{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+        .accelerationStructure = VK_TRUE
+    };
 
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeatures{};
-    rtFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    rtFeatures.rayTracingPipeline = VK_TRUE;
-    rtFeatures.pNext = &asFeatures;
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtFeatures{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+        .pNext = &asFeatures,
+        .rayTracingPipeline = VK_TRUE
+    };
 
-    VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeatures{};
-    bdaFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-    bdaFeatures.bufferDeviceAddress = VK_TRUE;
-    bdaFeatures.pNext = &rtFeatures;
+    VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeatures{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+        .pNext = &rtFeatures,
+        .bufferDeviceAddress = VK_TRUE
+    };
 
-    VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferFeatures{};
-    descriptorBufferFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
-    descriptorBufferFeatures.descriptorBuffer = VK_TRUE;
-    descriptorBufferFeatures.pNext = &bdaFeatures;
+    VkPhysicalDeviceDescriptorBufferFeaturesEXT descriptorBufferFeatures{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
+        .pNext = &bdaFeatures,
+        .descriptorBuffer = VK_TRUE
+    };
 
-    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
-    indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    indexingFeatures.pNext = &descriptorBufferFeatures;
-    indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-    indexingFeatures.runtimeDescriptorArray = VK_TRUE;
-    indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .pNext = &descriptorBufferFeatures,
+        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE
+    };
 
-    VkPhysicalDeviceVulkan13Features vulkan13Features{};
-    vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    vulkan13Features.pNext = &indexingFeatures;
-    vulkan13Features.synchronization2 = VK_TRUE;
-    vulkan13Features.dynamicRendering = VK_TRUE;
+    VkPhysicalDeviceVulkan13Features vulkan13Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .pNext = &indexingFeatures,
+        .synchronization2 = VK_TRUE,
+        .dynamicRendering = VK_TRUE
+    };
 
-    VkPhysicalDeviceVulkan11Features vulkan11Features{};
-    vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-    vulkan11Features.pNext = &vulkan13Features;
-    vulkan11Features.shaderDrawParameters = VK_TRUE;
+    VkPhysicalDeviceVulkan11Features vulkan11Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .pNext = &vulkan13Features,
+        .shaderDrawParameters = VK_TRUE
+    };
 
-    VkPhysicalDeviceFeatures2 features2{};
-    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features2.pNext = &vulkan11Features;
+    VkPhysicalDeviceFeatures2 features2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+                                         .pNext = &vulkan11Features };
     features2.features.shaderInt64 = VK_TRUE;
     features2.features.samplerAnisotropy = true;
 
-    VkDeviceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.pNext = &features2;
-    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-    createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size());
-    createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
-    createInfo.pEnabledFeatures = nullptr;
+    VkDeviceCreateInfo createInfo{
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = &features2,
+        .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+        .pQueueCreateInfos = queueCreateInfos.data(),
+        .enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size()),
+        .ppEnabledExtensionNames = requiredDeviceExtensions.data(),
+        .pEnabledFeatures = nullptr
+    };
 
     VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device),
              "failed to create logical device\n");
     loadRayTracingFunctionPointers();
 
-    for (auto& [type, queue] : queues)
+    for (auto& queue : queues | std::views::values)  // values() of map
     {
         if (!queue) continue;
         vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
 
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = queue.index.value();
+        VkCommandPoolCreateInfo poolInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                                          .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                                          .queueFamilyIndex = queue.index.value() };
 
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool) != VK_SUCCESS)
-        {
-            vkGetDeviceQueue(device, queue.index.value(), 0, &queue.queue);
-
-            VkCommandPoolCreateInfo poolInfo{};
-            poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            poolInfo.queueFamilyIndex = queue.index.value();
-
-            VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool),
-                     "failed to create command pool\n");
-        }
+        VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queue.commandPool),
+                 "failed to create command pool\n");
     }
 
     // query acceleration structure properties
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR accelProps{};
-    accelProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR accelProps{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR
+    };
 
-    VkPhysicalDeviceProperties2 props2{};
-    props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    props2.pNext = &accelProps;
+    VkPhysicalDeviceProperties2 props2{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+                                        .pNext = &accelProps };
 
     vkGetPhysicalDeviceProperties2(physicalDevice, &props2);
 
@@ -312,12 +309,11 @@ void Context::createLogicalDeviceAndQueues()
 
 void Context::createAllocator()
 {
-    VmaAllocatorCreateInfo allocatorInfo{};
-    allocatorInfo.physicalDevice = physicalDevice;
-    allocatorInfo.device = device;
-    allocatorInfo.instance = instance;
-    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
-    allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    VmaAllocatorCreateInfo allocatorInfo{ .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+                                          .physicalDevice = physicalDevice,
+                                          .device = device,
+                                          .instance = instance,
+                                          .vulkanApiVersion = VK_API_VERSION_1_3 };
 
     VK_CHECK(vmaCreateAllocator(&allocatorInfo, &allocator), "failed to create vma allocator!\n");
 }
@@ -385,22 +381,22 @@ void Context::createSwapchain(GLFWwindow* window)
         minImageCount = surfaceCapabilities.maxImageCount;
     }
 
-    VkSwapchainCreateInfoKHR swapchainCreateInfo{};
-    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.surface = surface;
-    swapchainCreateInfo.minImageCount = minImageCount;
-    swapchainCreateInfo.imageFormat = format.format;
-    swapchainCreateInfo.imageColorSpace = format.colorSpace;
-    swapchainCreateInfo.imageExtent = extent;
-    swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                                     | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchainCreateInfo.presentMode = presentMode;
-    swapchainCreateInfo.clipped = VK_TRUE;
-    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+    VkSwapchainCreateInfoKHR swapchainCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = surface,
+        .minImageCount = minImageCount,
+        .imageFormat = format.format,
+        .imageColorSpace = format.colorSpace,
+        .imageExtent = extent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .preTransform = surfaceCapabilities.currentTransform,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = presentMode,
+        .clipped = VK_TRUE,
+        .oldSwapchain = VK_NULL_HANDLE
+    };
 
     VK_CHECK(vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain),
              "failed to create swapchain\n");
@@ -411,18 +407,17 @@ void Context::createSwapchain(GLFWwindow* window)
     vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
 
     // save for later
-    swapchainParams = { format, presentMode, extent };
+    swapchainParams = { .surfaceFormat = format, .presentMode = presentMode, .extent = extent };
 
-    VkImageViewCreateInfo imageViewCreateInfo{};
-    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCreateInfo.format = swapchainParams.surfaceFormat.format;
-
-    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    imageViewCreateInfo.subresourceRange.levelCount = 1;
-    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    imageViewCreateInfo.subresourceRange.layerCount = 1;
+    VkImageViewCreateInfo imageViewCreateInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                                               .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                                               .format = swapchainParams.surfaceFormat.format,
+                                               .subresourceRange = {
+                                                   .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                   .baseMipLevel = 0,
+                                                   .levelCount = 1,
+                                                   .baseArrayLayer = 0,
+                                                   .layerCount = 1 } };
 
     for (auto& image : swapchainImages)
     {
@@ -486,12 +481,10 @@ void Context::cleanupSwapchain()
 
 void Context::createSyncAndFrameObjects(size_t numRenderingSemaphores)
 {
-    VkSemaphoreCreateInfo semInfo{};
-    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    VkSemaphoreCreateInfo semInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                                 .flags = VK_FENCE_CREATE_SIGNALED_BIT };
 
     doneRenderingSemaphores.reserve(numRenderingSemaphores);
     for (int i = 0; i < numRenderingSemaphores; i++)
@@ -525,11 +518,10 @@ void Context::createSurface(GLFWwindow* window)
 // COMMAND BUFFERS
 void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueType queueFamily)
 {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = queues[queueFamily].commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
+    VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                                           .commandPool = queues[queueFamily].commandPool,
+                                           .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                                           .commandBufferCount = 1 };
 
     VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer),
              "failed to allocate command buffer\n");
@@ -537,10 +529,9 @@ void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueType queu
 
 void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
 {
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = flags;
-    beginInfo.pInheritanceInfo = nullptr;
+    VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                        .flags = flags,
+                                        .pInheritanceInfo = nullptr };
 
     VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo),
              "failed to begin recording command buffer\n");
@@ -552,15 +543,14 @@ void Context::endCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFam
 {
     vkEndCommandBuffer(commandBuffer);
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.pWaitDstStageMask = &waitDstFlags;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-    submitInfo.waitSemaphoreCount = waitSemaphores ? 1 : 0;
-    submitInfo.pWaitSemaphores = &waitSemaphores;
-    submitInfo.signalSemaphoreCount = signalSemaphores ? 1 : 0;
-    submitInfo.pSignalSemaphores = &signalSemaphores;
+    VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .waitSemaphoreCount = waitSemaphores ? 1u : 0u,
+                             .pWaitSemaphores = &waitSemaphores,
+                             .pWaitDstStageMask = &waitDstFlags,
+                             .commandBufferCount = 1u,
+                             .pCommandBuffers = &commandBuffer,
+                             .signalSemaphoreCount = signalSemaphores ? 1u : 0u,
+                             .pSignalSemaphores = &signalSemaphores };
 
     VK_CHECK(vkQueueSubmit(queues[queueFamily].queue, 1, &submitInfo, fence),
              "failed to submit command buffer\n");
@@ -577,18 +567,16 @@ void Context::freeCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFa
 bool Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                            VmaAllocationCreateFlags allocationFlags) const
 {
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
-    bufferInfo.queueFamilyIndexCount = 2;
-    bufferInfo.pQueueFamilyIndices = queueFamilyIndices.data();
+    VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                   .size = size,
+                                   .usage = usage,
+                                   .sharingMode = VK_SHARING_MODE_CONCURRENT,
+                                   .queueFamilyIndexCount = 2,
+                                   .pQueueFamilyIndices = queueFamilyIndices.data() };
 
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    // `VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT` required with `VMA_MEMORY_USAGE_AUTO`
-    allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | allocationFlags;
+    VmaAllocationCreateInfo allocCreateInfo{ .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+                                                      | allocationFlags,
+                                             .usage = VMA_MEMORY_USAGE_AUTO };
 
     if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
                         &handle.allocation, &handle.allocInfo)
@@ -635,7 +623,7 @@ void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size)
     vkResetCommandBuffer(transferCommandBuffer, 0);
     beginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    VkBufferCopy bufferCopy{ 0, 0, size };
+    VkBufferCopy bufferCopy{ .srcOffset = 0, .dstOffset = 0, .size = size };
     vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
 
     endCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
@@ -643,9 +631,8 @@ void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size)
 
 VkDeviceAddress Context::getBufferDeviceAddress(Buffer& buffer)
 {
-    VkBufferDeviceAddressInfo addressInfo{};
-    addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    addressInfo.buffer = buffer.buffer;
+    VkBufferDeviceAddressInfo addressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+                                           .buffer = buffer.buffer };
 
     return vkGetBufferDeviceAddress(device, &addressInfo);
 }
@@ -656,21 +643,19 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
                           VmaAllocationCreateFlags allocationFlags, VkImageAspectFlags aspect,
                           bool shouldCreateView) const
 {
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = type;
-    imageInfo.format = format;
-    imageInfo.extent = { width, height, 1 };
-    imageInfo.mipLevels = 1;
-    imageInfo.arrayLayers = 1;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.usage = usage;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkImageCreateInfo imageInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                 .imageType = type,
+                                 .format = format,
+                                 .extent = { width, height, 1 },
+                                 .mipLevels = 1,
+                                 .arrayLayers = 1,
+                                 .samples = VK_SAMPLE_COUNT_1_BIT,
+                                 .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                 .usage = usage,
+                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE };
 
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.flags = allocationFlags;
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
+                                             .usage = VMA_MEMORY_USAGE_AUTO };
 
     VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image,
                             &handle.allocation, &handle.allocInfo),
@@ -686,16 +671,15 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
     }
 
     // create view
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = handle.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = handle.format;
-    viewInfo.subresourceRange.aspectMask = aspect;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
+    VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                                    .image = handle.image,
+                                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                                    .format = handle.format,
+                                    .subresourceRange = { .aspectMask = aspect,
+                                                          .baseMipLevel = 0,
+                                                          .levelCount = 1,
+                                                          .baseArrayLayer = 0,
+                                                          .layerCount = 1 } };
 
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
@@ -809,20 +793,19 @@ void Context::createTextureSampler(VkSampler& sampler)
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.anisotropyEnable = VK_TRUE;
-    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    VkSamplerCreateInfo samplerInfo{ .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                                     .magFilter = VK_FILTER_LINEAR,
+                                     .minFilter = VK_FILTER_LINEAR,
+                                     .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                                     .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                     .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                     .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                     .anisotropyEnable = VK_TRUE,
+                                     .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
+                                     .compareEnable = VK_FALSE,
+                                     .compareOp = VK_COMPARE_OP_ALWAYS,
+                                     .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                                     .unnormalizedCoordinates = VK_FALSE };
 
     vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
 }
@@ -830,19 +813,15 @@ void Context::createTextureSampler(VkSampler& sampler)
 void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst,
                                 uint32_t width, uint32_t height)
 {
-    VkBufferImageCopy region{};
-
-    region.bufferOffset = 0;
-    region.bufferRowLength = 0;
-    region.bufferImageHeight = 0;
-
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = 1;
-
-    region.imageOffset = { 0, 0, 0 };
-    region.imageExtent = { width, height, 1 };
+    VkBufferImageCopy region{ .bufferOffset = 0,
+                              .bufferRowLength = 0,
+                              .bufferImageHeight = 0,
+                              .imageSubresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                                    .mipLevel = 0,
+                                                    .baseArrayLayer = 0,
+                                                    .layerCount = 1 },
+                              .imageOffset = { 0, 0, 0 },
+                              .imageExtent = { width, height, 1 } };
 
     vkCmdCopyBufferToImage(commandBuffer, src.buffer, dst.image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
@@ -854,17 +833,14 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Imag
 void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, Image& src, Buffer& dst,
                                 uint32_t width, uint32_t height, VkImageAspectFlags aspectFlags)
 {
-    VkBufferImageCopy region{};  // copy specifier
-    region.bufferOffset = 0;
-    region.bufferRowLength = 0;
-    region.bufferImageHeight = 0;
-
-    region.imageSubresource.aspectMask = aspectFlags;
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = 1;
-
-    region.imageExtent = { width, height, 1 };
+    VkBufferImageCopy region{ .bufferOffset = 0,
+                              .bufferRowLength = 0,
+                              .bufferImageHeight = 0,
+                              .imageSubresource = { .aspectMask = aspectFlags,
+                                                    .mipLevel = 0,
+                                                    .baseArrayLayer = 0,
+                                                    .layerCount = 1 },
+                              .imageExtent = { width, height, 1 } };
 
     vkCmdCopyImageToBuffer(commandBuffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                            dst.buffer, 1, &region);
@@ -877,31 +853,26 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
                                     VkPipelineStageFlags2 dstStageMask,
                                     VkImageAspectFlags aspectFlags)
 {
-    VkImageMemoryBarrier2 barrier{};
+    VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                                   .srcStageMask = srcStageMask,
+                                   .srcAccessMask = srcAccessMask,
+                                   .dstStageMask = dstStageMask,
+                                   .dstAccessMask = dstAccessMask,
+                                   .oldLayout = oldLayout,
+                                   .newLayout = newLayout,
+                                   .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                   .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                   .image = image,
+                                   .subresourceRange = { .aspectMask = aspectFlags,
+                                                         .baseMipLevel = 0,
+                                                         .levelCount = 1,
+                                                         .baseArrayLayer = 0,
+                                                         .layerCount = 1 } };
 
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-    barrier.srcStageMask = srcStageMask;
-    barrier.srcAccessMask = srcAccessMask;
-    barrier.dstStageMask = dstStageMask;
-    barrier.dstAccessMask = dstAccessMask;
-    barrier.oldLayout = oldLayout;
-    barrier.newLayout = newLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image;
-
-    barrier.subresourceRange.aspectMask = aspectFlags;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-
-    VkDependencyInfo dependencyInfo{};
-
-    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dependencyInfo.dependencyFlags = {};
-    dependencyInfo.imageMemoryBarrierCount = 1;
-    dependencyInfo.pImageMemoryBarriers = &barrier;
+    VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                     .dependencyFlags = {},
+                                     .imageMemoryBarrierCount = 1,
+                                     .pImageMemoryBarriers = &barrier };
 
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
@@ -916,40 +887,45 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
     DEV_ASSERT(indexCount != 0 && (indexCount % 3) == 0,
                "BLAS build requires a non-zero triangle index count.\n");
 
-    VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
-    triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-    triangles.vertexData.deviceAddress = vertexAddress;
-    triangles.vertexStride = sizeof(Vertex);
-    triangles.maxVertex = firstVertex + vertexCount - 1;
-    triangles.indexType = VK_INDEX_TYPE_UINT32;
-    triangles.indexData.deviceAddress = indexAddress;
-    triangles.transformData.deviceAddress = 0;
+    VkAccelerationStructureGeometryTrianglesDataKHR triangles{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+        .vertexData = { .deviceAddress = vertexAddress },
+        .vertexStride = sizeof(Vertex),
+        .maxVertex = firstVertex + vertexCount - 1,
+        .indexType = VK_INDEX_TYPE_UINT32,
+        .indexData = { .deviceAddress = indexAddress },
+        .transformData = { .deviceAddress = 0 }
+    };
 
-    VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
-    accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-    accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-    accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-    accelerationStructureGeometry.geometry.triangles = triangles;
+    VkAccelerationStructureGeometryKHR accelerationStructureGeometry{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+        .geometry = { .triangles = triangles },
+        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR
+    };
 
     const uint32_t primitiveCount = indexCount / 3;
-    VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
-    buildRangeInfo.primitiveCount = primitiveCount;
-    buildRangeInfo.primitiveOffset = firstIndex * sizeof(uint32_t);
-    buildRangeInfo.firstVertex = 0;
-    buildRangeInfo.transformOffset = 0;
+    VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{
+        .primitiveCount = primitiveCount,
+        .primitiveOffset = static_cast<uint32_t>(firstIndex * sizeof(uint32_t)),
+        .firstVertex = 0,
+        .transformOffset = 0
+    };
 
     // BUILD
-    VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
-    geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    geometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    geometryInfo.geometryCount = 1;
-    geometryInfo.pGeometries = &accelerationStructureGeometry;
+    VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .geometryCount = 1,
+        .pGeometries = &accelerationStructureGeometry
+    };
 
-    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
-    sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR
+    };
 
     vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
                                             &geometryInfo, &primitiveCount, &sizeInfo);
@@ -968,26 +944,28 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
                      | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                  0);
 
-    VkAccelerationStructureCreateInfoKHR createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-    createInfo.buffer = handle.handleBuffer.buffer;
-    createInfo.offset = 0;
-    createInfo.size = sizeInfo.accelerationStructureSize;
-    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    VkAccelerationStructureCreateInfoKHR createInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        .buffer = handle.handleBuffer.buffer,
+        .offset = 0,
+        .size = sizeInfo.accelerationStructureSize,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR
+    };
 
     VK_CHECK(vkCreateAccelerationStructureKHR(device, &createInfo, nullptr,
                                               &handle.accelerationStructure),
              "failed to create acceleration structure!\n");
 
-    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
-    buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    buildInfo.dstAccelerationStructure = handle.accelerationStructure;
-    buildInfo.geometryCount = 1;
-    buildInfo.pGeometries = &accelerationStructureGeometry;
-    buildInfo.scratchData.deviceAddress = scratchAddress;
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .dstAccelerationStructure = handle.accelerationStructure,
+        .geometryCount = 1,
+        .pGeometries = &accelerationStructureGeometry,
+        .scratchData = { .deviceAddress = scratchAddress }
+    };
 
     // build it
 
@@ -1005,13 +983,14 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     instances.reserve(transforms.size());
     for (uint32_t i = 0; i < static_cast<uint32_t>(transforms.size()); i++)
     {
-        VkAccelerationStructureInstanceKHR instance{};
-        instance.transform = toVkTransform(transforms[i]);
-        instance.instanceCustomIndex = static_cast<uint32_t>(i);
-        instance.mask = 0xFF;
-        instance.instanceShaderBindingTableRecordOffset = 0;
-        instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        instance.accelerationStructureReference = blasses[i].deviceAddress;
+        VkAccelerationStructureInstanceKHR instance{
+            .transform = toVkTransform(transforms[i]),
+            .instanceCustomIndex = static_cast<uint32_t>(i),
+            .mask = 0xFF,
+            .instanceShaderBindingTableRecordOffset = 0,
+            .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
+            .accelerationStructureReference = blasses[i].deviceAddress
+        };
 
         instances.push_back(instance);
     }
@@ -1026,27 +1005,31 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
 
     VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(instanceBufferHandle);
 
-    VkAccelerationStructureGeometryDataKHR geometry{};
-    geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-    geometry.instances.arrayOfPointers = VK_FALSE;
-    geometry.instances.data.deviceAddress = instanceBufferAddress;
+    VkAccelerationStructureGeometryDataKHR geometry{
+        .instances = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+                       .arrayOfPointers = VK_FALSE,
+                       .data = { .deviceAddress = instanceBufferAddress } }
+    };
 
-    VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
-    accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-    accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-    accelerationStructureGeometry.geometry = geometry;
-    accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+    VkAccelerationStructureGeometryKHR accelerationStructureGeometry{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+        .geometry = geometry,
+        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR
+    };
 
-    VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
-    geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-    geometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    geometryInfo.geometryCount = 1;
-    geometryInfo.pGeometries = &accelerationStructureGeometry;
+    VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .geometryCount = 1,
+        .pGeometries = &accelerationStructureGeometry
+    };
 
-    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
-    sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR
+    };
 
     vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
                                             &geometryInfo, &instanceCount, &sizeInfo);
@@ -1056,11 +1039,12 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
                      | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                  0);
 
-    VkAccelerationStructureCreateInfoKHR createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-    createInfo.buffer = handle.handleBuffer.buffer;
-    createInfo.size = sizeInfo.accelerationStructureSize;
-    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    VkAccelerationStructureCreateInfoKHR createInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        .buffer = handle.handleBuffer.buffer,
+        .size = sizeInfo.accelerationStructureSize,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR
+    };
 
     vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &handle.accelerationStructure);
 
@@ -1072,21 +1056,21 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(handle.scratchBuffer);
     VkDeviceAddress scratchAddress = alignUpVk(rawScratchAddress, scratchAlignment);
 
-    VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
-    buildRangeInfo.primitiveCount = instanceCount;
-    buildRangeInfo.primitiveOffset = 0;
-    buildRangeInfo.firstVertex = 0;
-    buildRangeInfo.transformOffset = 0;
+    VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{ .primitiveCount = instanceCount,
+                                                             .primitiveOffset = 0,
+                                                             .firstVertex = 0,
+                                                             .transformOffset = 0 };
 
-    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
-    buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-    buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    buildInfo.dstAccelerationStructure = handle.accelerationStructure;
-    buildInfo.geometryCount = 1;
-    buildInfo.pGeometries = &accelerationStructureGeometry;
-    buildInfo.scratchData.deviceAddress = scratchAddress;
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        .dstAccelerationStructure = handle.accelerationStructure,
+        .geometryCount = 1,
+        .pGeometries = &accelerationStructureGeometry,
+        .scratchData = { .deviceAddress = scratchAddress }
+    };
 
     // build it
     const VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo = &buildRangeInfo;
@@ -1105,10 +1089,11 @@ void Context::createDescriptorSetLayout(
         bindingVec.push_back(binding.second);
     }
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindingVec.size());
-    layoutInfo.pBindings = bindingVec.data();
+    VkDescriptorSetLayoutCreateInfo layoutInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(bindingVec.size()),
+        .pBindings = bindingVec.data()
+    };
 
     VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout),
              "failed to create mesh descriptor set layout\n");
@@ -1123,18 +1108,18 @@ void Context::createDescriptorSetLayout(
     std::vector<VkDescriptorPoolSize> poolSizes;
     for (auto& pair : countMap)
     {
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = pair.first;
-        poolSize.descriptorCount = pair.second;
+        VkDescriptorPoolSize poolSize{ .type = pair.first, .descriptorCount = pair.second };
         poolSizes.push_back(poolSize);
     }
 
-    VkDescriptorPoolCreateInfo descriptorPoolInfo{};
-    descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptorPoolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-    descriptorPoolInfo.pPoolSizes = poolSizes.data();
-    descriptorPoolInfo.maxSets = 1;  // maybe change later
+    VkDescriptorPoolCreateInfo descriptorPoolInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 1,
+        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+        .pPoolSizes = poolSizes.data(),
+
+    };
 
     VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool),
              "failed to create mesh descriptor pool\n");
@@ -1143,11 +1128,10 @@ void Context::createDescriptorSetLayout(
 void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
                                    DescriptorSetLayout& descriptorSetLayout)
 {
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorSetLayout.pool;
-    allocInfo.descriptorSetCount = 1;  // maybe change later
-    allocInfo.pSetLayouts = &descriptorSetLayout.layout;
+    VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                           .descriptorPool = descriptorSetLayout.pool,
+                                           .descriptorSetCount = 1,
+                                           .pSetLayouts = &descriptorSetLayout.layout };
 
     VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet),
              "failed to allocate mesh descriptor set\n");
@@ -1160,10 +1144,9 @@ void Context::writeDescriptorSetBuffers(
     std::unordered_map<uint32_t, VkDescriptorBufferInfo> bindingInfoMap;
     for (auto& pair : bindingBufferMap)
     {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = pair.second->buffer;
-        bufferInfo.offset = 0;
-        bufferInfo.range = VK_WHOLE_SIZE;
+        VkDescriptorBufferInfo bufferInfo{ .buffer = pair.second->buffer,
+                                           .offset = 0,
+                                           .range = VK_WHOLE_SIZE };
 
         bindingInfoMap[pair.first] = bufferInfo;
     }
@@ -1173,13 +1156,14 @@ void Context::writeDescriptorSetBuffers(
     {
         uint32_t binding = pair.first;
 
-        VkWriteDescriptorSet writeDescriptorSet{};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSet.dstSet = descriptorSet;
-        writeDescriptorSet.dstBinding = binding;
-        writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
-        writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
-        writeDescriptorSet.pBufferInfo = &bindingInfoMap[binding];
+        VkWriteDescriptorSet writeDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptorSet,
+            .dstBinding = binding,
+            .descriptorCount = bindingMap[binding].descriptorCount,
+            .descriptorType = bindingMap[binding].descriptorType,
+            .pBufferInfo = &bindingInfoMap[binding]
+        };
 
         writeDescriptorSets.push_back(writeDescriptorSet);
     }
@@ -1189,31 +1173,27 @@ void Context::writeDescriptorSetBuffers(
 }
 
 void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
-                                       const std::vector<Image>& images, VkSampler* sampler,
+                                       const std::vector<Image>& images, VkSampler inSampler,
                                        VkDescriptorType type, VkImageLayout layout)
 {
     std::vector<VkDescriptorImageInfo> imageInfos;
+    VkSampler s = (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ? inSampler : VK_NULL_HANDLE;
     for (auto& image : images)
     {
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.imageView = image.view;
-        imageInfo.imageLayout = layout;
-
-        if (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-        {
-            imageInfo.sampler = *sampler;
-        }
+        VkDescriptorImageInfo imageInfo{ .sampler = s,
+                                         .imageView = image.view,
+                                         .imageLayout = layout };
 
         imageInfos.push_back(imageInfo);
     }
 
-    VkWriteDescriptorSet writeDescriptorSet{};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSet;
-    writeDescriptorSet.dstBinding = binding;
-    writeDescriptorSet.descriptorCount = static_cast<uint32_t>(imageInfos.size());
-    writeDescriptorSet.descriptorType = type;
-    writeDescriptorSet.pImageInfo = imageInfos.data();
+    VkWriteDescriptorSet writeDescriptorSet{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                             .dstSet = descriptorSet,
+                                             .dstBinding = binding,
+                                             .descriptorCount = static_cast<uint32_t>(
+                                                 imageInfos.size()),
+                                             .descriptorType = type,
+                                             .pImageInfo = imageInfos.data() };
 
     vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 }
@@ -1226,10 +1206,11 @@ void Context::writeDescriptorSetAccelerationStructures(
     std::unordered_map<uint32_t, VkWriteDescriptorSetAccelerationStructureKHR> bindingInfoMap;
     for (auto& pair : bindingASMap)
     {
-        VkWriteDescriptorSetAccelerationStructureKHR asInfo{};
-        asInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
-        asInfo.accelerationStructureCount = 1;
-        asInfo.pAccelerationStructures = &pair.second->accelerationStructure;
+        VkWriteDescriptorSetAccelerationStructureKHR asInfo{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+            .accelerationStructureCount = 1,
+            .pAccelerationStructures = &pair.second->accelerationStructure
+        };
 
         bindingInfoMap[pair.first] = asInfo;
     }
@@ -1239,13 +1220,14 @@ void Context::writeDescriptorSetAccelerationStructures(
     {
         uint32_t binding = pair.first;
 
-        VkWriteDescriptorSet writeDescriptorSet{};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSet.dstSet = descriptorSet;
-        writeDescriptorSet.dstBinding = binding;
-        writeDescriptorSet.descriptorCount = bindingMap[binding].descriptorCount;
-        writeDescriptorSet.descriptorType = bindingMap[binding].descriptorType;
-        writeDescriptorSet.pNext = &pair.second;
+        VkWriteDescriptorSet writeDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = &pair.second,
+            .dstSet = descriptorSet,
+            .dstBinding = binding,
+            .descriptorCount = bindingMap[binding].descriptorCount,
+            .descriptorType = bindingMap[binding].descriptorType
+        };
 
         writeDescriptorSets.push_back(writeDescriptorSet);
     }
@@ -1299,10 +1281,9 @@ void Context::loadRayTracingFunctionPointers()
 
 VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 {
-    VkShaderModuleCreateInfo sci{};
-    sci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    sci.codeSize = code.size() * sizeof(char);
-    sci.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    VkShaderModuleCreateInfo sci{ .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                                  .codeSize = code.size() * sizeof(char),
+                                  .pCode = reinterpret_cast<const uint32_t*>(code.data()) };
 
     VkShaderModule sm;
     vkCreateShaderModule(device, &sci, nullptr, &sm);
@@ -1343,16 +1324,17 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Context::sDebugCallback(
 
 void Context::sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
 {
-    createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    createInfo.pfnUserCallback = sDebugCallback;
-    createInfo.pUserData = nullptr;
+    createInfo = VkDebugUtilsMessengerCreateInfoEXT{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = sDebugCallback,
+        .pUserData = nullptr
+    };
 }
 
 void Context::destroyDebugMessenger()

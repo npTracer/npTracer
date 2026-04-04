@@ -88,22 +88,21 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     mesh->vertices.reserve(currMesh->mNumVertices);
     for (uint32_t j = 0; j < currMesh->mNumVertices; j++)
     {
-        Vertex vertex;
-        vertex.pos = FLOAT4(currMesh->mVertices[j].x, currMesh->mVertices[j].y,
-                            currMesh->mVertices[j].z, 1.0f);
-        vertex.normal = currMesh->HasNormals()
-                            ? FLOAT4(currMesh->mNormals[j].x, currMesh->mNormals[j].y,
-                                     currMesh->mNormals[j].z, 1.0f)
-                            : FLOAT4(0, 0, 0, 0);
-        vertex.color = currMesh->HasVertexColors(0)
-                           ? FLOAT4(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g,
-                                    currMesh->mColors[0][j].b, 1.0f)
-                           : FLOAT4(1, 1, 1, 1);
-        vertex.uv = currMesh->HasTextureCoords(0)
-                        ? FLOAT2(currMesh->mTextureCoords[0][j].x, currMesh->mTextureCoords[0][j].y)
-                        : FLOAT2(0, 0);
-        vertex.pad0 = FLOAT2(0, 0);
-        mesh->vertices.push_back(vertex);
+        Vertex vert{ .pos = FLOAT4(currMesh->mVertices[j].x, currMesh->mVertices[j].y,
+                                   currMesh->mVertices[j].z, 1.0f),
+                     .normal = currMesh->HasNormals()
+                                   ? FLOAT4(currMesh->mNormals[j].x, currMesh->mNormals[j].y,
+                                            currMesh->mNormals[j].z, 1.0f)
+                                   : FLOAT4(0, 0, 0, 0),
+                     .color = currMesh->HasVertexColors(0)
+                                  ? FLOAT4(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g,
+                                           currMesh->mColors[0][j].b, 1.0f)
+                                  : FLOAT4(1, 1, 1, 1),
+                     .uv = currMesh->HasTextureCoords(0) ? FLOAT2(currMesh->mTextureCoords[0][j].x,
+                                                                  currMesh->mTextureCoords[0][j].y)
+                                                         : FLOAT2(0, 0),
+                     .pad0 = FLOAT2(0, 0) };
+        mesh->vertices.push_back(vert);
     }
 
     // get indices

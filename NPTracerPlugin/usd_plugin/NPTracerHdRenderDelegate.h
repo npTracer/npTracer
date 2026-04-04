@@ -35,13 +35,13 @@ public:
     const TfTokenVector NO_SUPPORTED_PRIM_TYPES{};
 
     static constexpr np::RendererConstants RENDERER_CONSTANTS = {
-        np::eExecutionMode::OFFSCREEN,
+        .executionMode = np::eExecutionMode::OFFSCREEN,
 #if ASSIMP_OVERRIDE
-        np::eSceneType::ASSIMP,
+        .sceneType = np::eSceneType::ASSIMP,
 #else
-        NPSceneType::DEFAULT,
+        .sceneType = NPSceneType::DEFAULT,
 #endif
-        true  // hydra assumes bottom-left corner for NDC origin
+        .flipNDCY = true  // hydra assumes bottom-left corner for NDC origin
     };
 
     // return this delegate's render param, which provides top-level scene state

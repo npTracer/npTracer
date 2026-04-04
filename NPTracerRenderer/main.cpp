@@ -4,8 +4,11 @@
 #include <stdexcept>
 #include <string>
 
-constexpr np::RendererConstants RENDERER_CONSTANTS = { np::eExecutionMode::SWAPCHAIN,
-                                                       np::eSceneType::ASSIMP, false };
+constexpr np::RendererConstants RENDERER_CONSTANTS = {
+    .executionMode = np::eExecutionMode::SWAPCHAIN,
+    .sceneType = np::eSceneType::ASSIMP,
+    .flipNDCY = false
+};
 
 int main(int argc, char** argv)
 {

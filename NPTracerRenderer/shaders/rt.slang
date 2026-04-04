@@ -1,5 +1,6 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
+[require(spvShaderNonUniformEXT)]
 
 // TODO: move all shared structs and bindings to a common shader module
 
@@ -9,7 +10,6 @@ struct MeshRecord
     uint indexOffset;
     uint indexCount;
     uint vertexCount;
-    
     uint transformIndex;
     uint materialIndex;
 };
@@ -31,8 +31,8 @@ struct LightRecord
 
 struct MaterialRecord
 {
-    float4 ambient;
     float4 diffuse;
+    float4 ambient;
     float4 specular;
     float4 emissive;
     uint textureIndex;

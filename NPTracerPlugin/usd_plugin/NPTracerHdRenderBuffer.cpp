@@ -1,6 +1,5 @@
 #include "usd_plugin/NPTracerHdRenderBuffer.h"
 
-#include "external/assimp/contrib/openddlparser/include/openddlparser/OpenDDLCommon.h"
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/NPTracerHdRenderParam.h"
 

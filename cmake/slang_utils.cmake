@@ -14,7 +14,7 @@ function(AddSlangShaderTarget shader_file shader_stages output_dir other_targets
             COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
             COMMAND "${SLANGC_EXECUTABLE}" "${shader_file}"
                     -target spirv
-                    -profile spirv_1_4
+                    -profile spirv_1_5
                     -emit-spirv-directly
                     -fvk-use-entrypoint-name
                     -entry ${ENTRYPOINT_NAME}

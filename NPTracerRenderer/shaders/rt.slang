@@ -2,6 +2,12 @@
 [require(SPV_EXT_physical_storage_buffer)]
 [require(spvShaderNonUniformEXT)]
 
+/*
+NPTracer coordinate system conventions:
+Right-handedness - up=+Y, forward=-Z
+Flipped UVs - origin (0,0) at top-left corner, (1,1) at bottom-right corner
+*/
+
 // TODO: move all shared structs and bindings to a common shader module
 
 struct MeshRecord
@@ -61,7 +67,6 @@ struct PushConstants
     uint meshIndex;
     uint numLights;
     uint frameIndex;
-    uint flipNDCY;
 };
 
 struct Payload
@@ -118,8 +123,10 @@ RWTexture2D<float4> accumulationImage;
 
 float3 generateCameraRayDir(float2 uv)
 {
-    float2 clipXY = uv * 2.0 - 1.0;
-    float4 target = mul(camera.invProj, float4(clipXY, 1.0, 1.0)); // in homogeneous view space
+    // map vulkan top-left UV origin convention to NDC space (-1, -1)
+    float clipX = uv.x * 2.0 - 1.0; // i.e. 0 to -1, 1 to 1
+    float clipY = uv.y * -2.0 + 1.0; // i.e. 0 to 1, 1 to -1
+    float4 target = mul(camera.invProj, float4(clipX, clipY, 1.0, 1.0)); // in homogeneous view space
     target /= target.w;
     
     float3 dirView = normalize(target.xyz);
@@ -251,7 +258,6 @@ void rgenMain()
         // generate a ray for this pixel
         float2 jitter = float2(rand(seed), rand(seed));
         float2 uv = (float2(pixel) + jitter) / dims;
-        uv.y = lerp(uv.y, 1.0 - uv.y, float(pushConstants.flipNDCY)); // use lerp to flip coord system Y w/o a boolean check
         float3 origin = cameraOrigin;
         float3 dir = generateCameraRayDir(uv);
         

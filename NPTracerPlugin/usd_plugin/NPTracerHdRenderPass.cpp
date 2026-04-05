@@ -1,5 +1,6 @@
 #include "usd_plugin/NPTracerHdRenderPass.h"
 
+#include "glm/gtx/matrix_operation.hpp"
 #include "usd_plugin/debugCodes.h"
 #include "usd_plugin/hdMathUtils.h"
 
@@ -94,8 +95,11 @@ void NPTracerHdRenderPass::SetConverged(bool converged)
 void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
                                               np::CameraRecord* outCam)
 {
-    outCam->view = GfToGLMMat4d(renderPassState->GetWorldToViewMatrix());
-    outCam->proj = GfToGLMMat4d(renderPassState->GetProjectionMatrix());
+    // USD Hydra is right-handed, but camera's forward is
+    static const np::FMat4 sFlipZDiagMatrix = glm::diagonal4x4(np::FVec4(1.f, 1.f, -1.f, 1.f));
+
+    outCam->view = GfToGLMMat4f(renderPassState->GetWorldToViewMatrix()) * sFlipZDiagMatrix;
+    outCam->proj = GfToGLMMat4f(renderPassState->GetProjectionMatrix());
     outCam->invView = glm::inverse(outCam->view);
     outCam->invProj = glm::inverse(outCam->proj);
 }

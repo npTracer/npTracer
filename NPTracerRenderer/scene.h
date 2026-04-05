@@ -38,6 +38,8 @@ public:
         return &_camera;
     }
 
+    void reportState() const;
+
 protected:
     std::mutex _readWriteMutex;  // for now temp? keeps i/o single-threaded
 

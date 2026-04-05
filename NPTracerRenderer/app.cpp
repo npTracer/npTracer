@@ -4,8 +4,6 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-constexpr uint32_t DEFAULT_WIDTH = 2560;  // default width for swapchain
-constexpr uint32_t DEFAULT_HEIGHT = 1440;  // default width for swapchain
 constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;
 
 // for ease-of-use
@@ -44,6 +42,8 @@ void App::create(const RendererConstants& rendererConstants)
 // RESOURCE CREATION
 void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
 {
+    if (gDEBUG) mpScene->reportState();
+
     {  // this block is so very very TEMP oh god
 
         if (USE_SWAPCHAIN)
@@ -1056,10 +1056,8 @@ void App::populateDrawCallRaster(Frame& frame, uint32_t imageIndex)
 
     for (size_t i = 0; i < mIndexCounts.size(); i++)
     {
-        std::array<uint32_t, kPushConstantCount> pushConstants{
-            static_cast<uint32_t>(i), mNumLights, mContext.frameIndex,
-            static_cast<uint32_t>(mRendererConstants.flipNDCY)
-        };
+        std::array<uint32_t, kPushConstantCount> pushConstants{ static_cast<uint32_t>(i),
+                                                                mNumLights, mContext.frameIndex };
         vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
                            VK_SHADER_STAGE_ALL_GRAPHICS, 0,
                            sizeof(uint32_t) * static_cast<uint32_t>(kPushConstantCount),
@@ -1097,9 +1095,7 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExte
                             mRtPipeline.layout, 0, static_cast<uint32_t>(mDescriptorSets.size()),
                             mDescriptorSets.data(), 0, nullptr);
 
-    std::array<uint32_t, kPushConstantCount> pushConstants{
-        0, mNumLights, mContext.frameIndex, static_cast<uint32_t>(mRendererConstants.flipNDCY)
-    };
+    std::array<uint32_t, kPushConstantCount> pushConstants{ 0, mNumLights, mContext.frameIndex };
     vkCmdPushConstants(commandBuffer, mRtPipeline.layout,
                        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,

@@ -26,9 +26,10 @@ void AssimpScene::loadSceneFromPath(const char* path)
     const aiScene* scene;
     try
     {
-        scene = importer.ReadFile(path, aiProcess_MakeLeftHanded | aiProcess_Triangulate
-                                            | aiProcess_GlobalScale | aiProcess_GenSmoothNormals
-                                            | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices);
+        // NOTE: assimp is right-handed (+Y=up, -Z=forward) by default, which is what we want. so just flip UVs to match Vulkan UV conventions
+        scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GlobalScale
+                                            | aiProcess_GenSmoothNormals | aiProcess_FlipUVs
+                                            | aiProcess_JoinIdenticalVertices);
     }
     catch (std::exception& e)
     {
@@ -255,7 +256,7 @@ void AssimpScene::processAiCamera(const aiScene* scene)
 
         auto localEye4 = glm::vec4(aiCam->mPosition.x, aiCam->mPosition.y, aiCam->mPosition.z, 1.0f);
         auto localLook4 = glm::vec4(aiCam->mLookAt.x, aiCam->mLookAt.y, aiCam->mLookAt.z, 0.0f);
-        auto localUp4 = glm::vec4(aiCam->mUp.x, -aiCam->mUp.y, aiCam->mUp.z, 0.0f);
+        auto localUp4 = glm::vec4(aiCam->mUp.x, aiCam->mUp.y, aiCam->mUp.z, 0.0f);
 
         auto eye = glm::vec3(nodeTransform * localEye4);
         glm::vec3 look = glm::normalize(glm::vec3(nodeTransform * localLook4));
@@ -263,22 +264,25 @@ void AssimpScene::processAiCamera(const aiScene* scene)
 
         glm::vec3 center = eye + look;
 
-        cameraRecord.view = glm::lookAt(eye, center, upVec);
+        // NOTE: GLM uses RH by default, but we can be explicit here
+        cameraRecord.view = glm::lookAtRH(eye, center, upVec);
 
         float aspect = aiCam->mAspect != 0.0f ? aiCam->mAspect : (2560.0f / 1440.0f);
-        cameraRecord.proj = glm::perspective(aiCam->mHorizontalFOV, aspect, aiCam->mClipPlaneNear,
-                                             aiCam->mClipPlaneFar);
-        cameraRecord.proj[1][1] *= 1.0f;
+
+        // calculate fovY for `glm::perspective`
+        float fovY = 2.0f * atan(tan(aiCam->mHorizontalFOV * 0.5f) / aspect);
+        cameraRecord.proj = glm::perspectiveRH(fovY, aspect, aiCam->mClipPlaneNear,
+                                               aiCam->mClipPlaneFar);
     }
     else
     {
-        cameraRecord.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f),  // eye
-                                        glm::vec3(0.0f, 0.0f, 0.0f),  // center
-                                        glm::vec3(0.0f, -1.0f, 0.0f)  // up
+        cameraRecord.view = glm::lookAtRH(glm::vec3(0.0f, 0.0f, 5.0f),  // eye
+                                          glm::vec3(0.0f, 0.0f, 0.0f),  // center
+                                          glm::vec3(0.0f, 1.0f, 0.0f)  // up
         );
 
-        cameraRecord.proj = glm::perspective(glm::radians(75.0f), 2560.0f / 1440.0f, 0.1f, 1000.0f);
-        cameraRecord.proj[1][1] *= 1.0f;
+        cameraRecord.proj = glm::perspectiveRH(glm::radians(75.0f), 2560.0f / 1440.0f, 0.1f,
+                                               1000.0f);
     }
 
     cameraRecord.invView = glm::inverse(cameraRecord.view);

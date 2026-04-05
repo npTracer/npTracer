@@ -41,7 +41,6 @@ public:
 #else
         .sceneType = np::eSceneType::DEFAULT,
 #endif
-        .flipNDCY = true  // hydra assumes bottom-left corner for NDC origin
     };
 
     // return this delegate's render param, which provides top-level scene state

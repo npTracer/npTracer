@@ -1,5 +1,9 @@
 #include "scene.h"
-#include "stb_image.h"
+
+#include <iostream>
+#include <stb_image.h>
+#include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/io.hpp>
 
 NP_TRACER_NAMESPACE_BEGIN
 
@@ -29,6 +33,26 @@ Scene::Scene()
 void Scene::loadSceneFromPath(const char* path)
 {
     DEV_ASSERT(false, "not implemented");
+}
+
+void Scene::reportState() const
+{
+    if constexpr (!gDEBUG) return;
+    // prim counts
+    {
+        DBG_PRINT("Num Meshes: %llu\n", _meshes.size());
+        DBG_PRINT("Num Lights: %llu\n", _lights.size());
+        DBG_PRINT("Num Materials: %llu\n", _materials.size());
+        DBG_PRINT("Num Textures: %llu\n", _textures.size());
+    }
+
+    // camera
+    {
+        DBG_PRINT("Camera View:\n");
+        std::cerr << _camera.view << std::endl;
+        DBG_PRINT("Camera Projection:\n");
+        std::cerr << _camera.proj << std::endl;
+    }
 }
 
 void Scene::guard()

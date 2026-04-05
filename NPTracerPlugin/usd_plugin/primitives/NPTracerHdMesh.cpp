@@ -117,7 +117,7 @@ bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const std::string& primvarName)
 void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, np::Mesh* outMesh)
 {
     // retrieve the transform first (it only gets more convoluted from here)
-    np::FMat4 xform = GfToGLMMat4d(delegate->GetTransform(id));
+    np::FMat4 xform = GfToGLMMat4f(delegate->GetTransform(id));
 
     outMesh->objectToWorld = xform;
     outMesh->worldToObject = glm::inverse(xform);

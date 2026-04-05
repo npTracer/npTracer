@@ -5,9 +5,7 @@
 #include <string>
 
 constexpr np::RendererConstants RENDERER_CONSTANTS = {
-    .executionMode = np::eExecutionMode::SWAPCHAIN,
-    .sceneType = np::eSceneType::ASSIMP,
-    .flipNDCY = false
+    .executionMode = np::eExecutionMode::SWAPCHAIN, .sceneType = np::eSceneType::ASSIMP
 };
 
 int main(int argc, char** argv)

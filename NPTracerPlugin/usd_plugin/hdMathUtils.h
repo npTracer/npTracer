@@ -26,7 +26,7 @@ inline glm::f32mat4 GfToGLMMat4f(const GfMatrix4f& gfMat)
     return glm::make_mat4(gfMat.data());
 }
 
-inline glm::f32mat4 GfToGLMMat4d(const GfMatrix4d& gfMat)
+inline glm::f32mat4 GfToGLMMat4f(const GfMatrix4d& gfMat)
 {
     return GfToGLMMat4f(GfMatrix4f(gfMat));
 }

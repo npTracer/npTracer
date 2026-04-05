@@ -42,9 +42,6 @@ struct RendererConstants
 {
     eExecutionMode executionMode = eExecutionMode::OFFSCREEN;
     eSceneType sceneType = eSceneType::DEFAULT;
-
-    // `false` assumes top-left of image coordinate system is {0,0} (vulkan-default), `true` assumes bottom-left
-    bool flipNDCY = true;
 };
 
 struct Vertex

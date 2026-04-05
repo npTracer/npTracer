@@ -86,7 +86,7 @@ void Scene::reportState() const
     // lights
     for (const auto& light : _lights)
     {
-        DBG_PRINT("Light '%s'\n", light->scenePath.c_str());
+        DBG_PRINT("LIGHT '%s'\n", light->scenePath.c_str());
         std::cerr << "Transform: " << light->transform << std::endl;
         std::cerr << "Color: " << light->color << std::endl;
         DBG_PRINT("Intensity: %f\n", light->intensity);

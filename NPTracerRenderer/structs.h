@@ -391,7 +391,7 @@ struct Light : LightRecord
 // materials
 struct MaterialRecord
 {
-    FLOAT4 diffuse = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 diffuse = FLOAT4(1.f);
     FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 specular = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f);

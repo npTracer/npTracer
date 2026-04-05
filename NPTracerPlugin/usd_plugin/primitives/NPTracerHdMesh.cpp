@@ -97,6 +97,12 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
 {
     // retrieve the transform first (it only gets more convoluted from here)
     FLOAT4x4 xform = GfToGLMMat4f(delegate->GetTransform(id));
+    if constexpr (np::gDEBUG)  // TEMP: renderer assumes z-up?
+    {
+        static FLOAT4x4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f),
+                                               glm::vec3(1.0f, 0.0f, 0.0f));
+        xform = rotation * xform;
+    }
 
     outMesh->transform = xform;
 

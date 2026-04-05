@@ -231,6 +231,7 @@ void AssimpScene::processAiLight(const aiLight* inAiLight)
     // Assimp will encode intensity into color
     light->intensity = glm::length(lightColor3);
     lightColor3 = light->intensity > 0 ? lightColor3 / light->intensity : FLOAT3(1.f);
+    light->color = FLOAT4(lightColor3, 1.f);
 }
 
 void AssimpScene::processAiCamera(const aiScene* inAiScene)

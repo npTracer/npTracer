@@ -30,8 +30,7 @@ void NPTracerHdLight::_AddToScene()
     {
         const SdfPath& id = GetId();
         _pLight = scene->makePrim<np::Light>();
-
-        _PrepareLight();
+        _pLight->scenePath = id.GetAsString();
 
         NP_DBG("Added light '%s' to scene\n", id.GetAsString().c_str());
     }
@@ -81,20 +80,7 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
         _pLight->intensity = intensityVal.Get<float>();
     }
 
-    // exposure
-    if (auto exposureVal = delegate->GetLightParamValue(id, HdLightTokens->exposure);
-        exposureVal.IsHolding<float>())
-    {
-        _pLight->exposure = exposureVal.Get<float>();
-    }
-
     *dirtyBits = Clean;
-}
-
-void NPTracerHdSphereLight::_PrepareLight()
-{
-    DEV_ASSERT(_pLight, "Light should exist before preparation");
-    _pLight->type = np::LightType::POINT;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

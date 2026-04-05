@@ -33,9 +33,8 @@ struct CameraRecord
 struct LightRecord
 {
     float4x4 transform;
-    float3 color;
+    float4 color;
     float intensity;
-    float exposure;
 };
 
 struct MaterialRecord

@@ -56,7 +56,8 @@ void Scene::finalize()
         mesh->bMaterialNeedsFinalization = false;
     }
 
-    if (gDEBUG && _lights.empty())  // add a default light to the scene (when debugging)
+    if (gDEBUG
+        && _lights.empty())  // add a default light to the scene if none exist (when debugging)
     {
         auto* light = makePrim<Light>();  // NOTE: instantiated with default values
     }
@@ -76,18 +77,19 @@ void Scene::reportState() const
     for (const auto& mesh : _meshes)
     {
         DBG_PRINT("MESH '%s'\n", mesh->scenePath.c_str());
-        std::cerr << "Transform:" << mesh->transform << std::endl;
+        std::cerr << "Transform: " << mesh->transform << std::endl;
         DBG_PRINT("Num Indices: %llu\n", mesh->indices.size());
+        DBG_PRINT("Num Vertices: %llu\n", mesh->vertices.size());
         DBG_PRINT("Material Index: %u\n", mesh->materialIndex);
     }
 
     // lights
     for (const auto& light : _lights)
     {
-        std::cerr << "Light Transform: " << light->transform << std::endl;
-        std::cerr << "Light Color: " << light->color << std::endl;
-        DBG_PRINT("Light Intensity: %f\n", light->intensity);
-        DBG_PRINT("Light Exposure: %f\n", light->exposure);
+        DBG_PRINT("Light '%s'\n", light->scenePath.c_str());
+        std::cerr << "Transform: " << light->transform << std::endl;
+        std::cerr << "Color: " << light->color << std::endl;
+        DBG_PRINT("Intensity: %f\n", light->intensity);
     }
 
     // materials

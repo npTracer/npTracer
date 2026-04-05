@@ -376,18 +376,11 @@ struct LightRecord
     FLOAT4x4 transform = FLOAT4x4{ 1.f };
     FLOAT4 color = FLOAT4{ 1.f, 1.f, 1.f, 1.f };  // 4 channels for alignment purposes
     float intensity = 1.f;
-    float exposure = 0.f;
-};
-
-enum class LightType : uint8_t
-{
-    POINT,
-    AREA
 };
 
 struct Light : LightRecord
 {
-    LightType type = LightType::POINT;
+    ScenePath scenePath;
 
     LightRecord toRecord() const
     {

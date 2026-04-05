@@ -38,9 +38,9 @@ private:
     std::hash<std::string> idHasher;
 
     void processAiNode(const aiScene* scene, const aiNode* node, const FLOAT4x4& transform);
-    void processAiMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4x4& localTransform);
-    void processAiCamera(const aiScene* scene);
-    void processAiLight(const aiLight* light);
+    void processAiMesh(const aiScene* scene, const aiMesh* inAiMesh, const FLOAT4x4& localTransform);
+    void processAiCamera(const aiScene* inAiScene);
+    void processAiLight(const aiLight* inAiLight);
 };
 
 NP_TRACER_NAMESPACE_END

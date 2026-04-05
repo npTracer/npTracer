@@ -24,8 +24,6 @@ protected:
 
     void _AddToScene();
     void _RemoveFromScene();
-
-    virtual void _PrepareLight() = 0;
 };
 
 // in USD (specifically Houdini Solaris USD), sphere light is essentially a point light
@@ -35,9 +33,6 @@ public:
     NPTracerHdSphereLight(const SdfPath& sprimId, NPTracerHdRenderDelegate* renderDelegate);
     void Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
               HdDirtyBits* dirtyBits) override;
-
-private:
-    void _PrepareLight() override;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

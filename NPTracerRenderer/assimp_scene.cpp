@@ -57,7 +57,8 @@ void AssimpScene::loadSceneFromPath(const char* path)
 void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const FLOAT4x4& transform)
 {
     FLOAT4x4 localTransform = transform * sAiToGLM(node->mTransformation);
-    nodeTransforms[node->mName.C_Str()] = localTransform;  // store for light traversal
+    std::string nodeName = std::string(node->mName.C_Str());
+    nodeTransforms[nodeName] = localTransform;  // store for light traversal
 
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
     {
@@ -71,38 +72,38 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
     }
 }
 
-void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
+void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
                                 const FLOAT4x4& localTransform)
 {
     auto mesh = makePrim<Mesh>();
     mesh->transform = localTransform;
-    mesh->scenePath = std::string(currMesh->mName.C_Str());
+    mesh->scenePath = std::string(inAiMesh->mName.C_Str());
 
     // get vertices
-    mesh->vertices.reserve(currMesh->mNumVertices);
-    for (uint32_t j = 0; j < currMesh->mNumVertices; j++)
+    mesh->vertices.reserve(inAiMesh->mNumVertices);
+    for (uint32_t j = 0; j < inAiMesh->mNumVertices; j++)
     {
-        Vertex vert{ .pos = FLOAT4(currMesh->mVertices[j].x, currMesh->mVertices[j].y,
-                                   currMesh->mVertices[j].z, 1.0f),
-                     .normal = currMesh->HasNormals()
-                                   ? FLOAT4(currMesh->mNormals[j].x, currMesh->mNormals[j].y,
-                                            currMesh->mNormals[j].z, 1.0f)
+        Vertex vert{ .pos = FLOAT4(inAiMesh->mVertices[j].x, inAiMesh->mVertices[j].y,
+                                   inAiMesh->mVertices[j].z, 1.0f),
+                     .normal = inAiMesh->HasNormals()
+                                   ? FLOAT4(inAiMesh->mNormals[j].x, inAiMesh->mNormals[j].y,
+                                            inAiMesh->mNormals[j].z, 1.0f)
                                    : FLOAT4(0, 0, 0, 0),
-                     .color = currMesh->HasVertexColors(0)
-                                  ? FLOAT4(currMesh->mColors[0][j].r, currMesh->mColors[0][j].g,
-                                           currMesh->mColors[0][j].b, 1.0f)
+                     .color = inAiMesh->HasVertexColors(0)
+                                  ? FLOAT4(inAiMesh->mColors[0][j].r, inAiMesh->mColors[0][j].g,
+                                           inAiMesh->mColors[0][j].b, 1.0f)
                                   : FLOAT4(1, 1, 1, 1),
-                     .uv = currMesh->HasTextureCoords(0) ? FLOAT2(currMesh->mTextureCoords[0][j].x,
-                                                                  currMesh->mTextureCoords[0][j].y)
+                     .uv = inAiMesh->HasTextureCoords(0) ? FLOAT2(inAiMesh->mTextureCoords[0][j].x,
+                                                                  inAiMesh->mTextureCoords[0][j].y)
                                                          : FLOAT2(0, 0),
                      .pad0 = FLOAT2(0, 0) };
         mesh->vertices.push_back(vert);
     }
 
     // get indices
-    for (uint32_t j = 0; j < currMesh->mNumFaces; j++)
+    for (uint32_t j = 0; j < inAiMesh->mNumFaces; j++)
     {
-        const aiFace* face = &currMesh->mFaces[j];
+        const aiFace* face = &inAiMesh->mFaces[j];
 
         for (uint32_t k = 0; k < face->mNumIndices; k++)
         {
@@ -113,7 +114,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     // get material
     auto mat = makePrim<Material>();
 
-    const aiMaterial* aiMat = scene->mMaterials[currMesh->mMaterialIndex];
+    const aiMaterial* aiMat = scene->mMaterials[inAiMesh->mMaterialIndex];
 
     aiColor3D color(0.0f, 0.0f, 0.0f);
     if (aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
@@ -145,9 +146,9 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
     // texturing
     if (aiMat->GetTexture(aiTextureType_BASE_COLOR, 0, &aiStr) == AI_SUCCESS)
     {
-        std::string key = aiStr.C_Str();
+        std::string texKey = std::string(aiStr.C_Str());
 
-        auto it = textureIndexByKey.find(key);
+        auto it = textureIndexByKey.find(texKey);
         if (it != textureIndexByKey.end())
         {
             mat->diffuseTextureIndex = it->second;
@@ -197,43 +198,47 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* currMesh,
                 texture->height = static_cast<uint32_t>(height);
             }
 
-            textureIndexByKey[key] = texIdx;
+            textureIndexByKey[texKey] = texIdx;
         }
     }
 
     mesh->materialIndex = static_cast<uint32_t>(_materials.size() - 1);
 }
 
-void AssimpScene::processAiLight(const aiLight* light)
+void AssimpScene::processAiLight(const aiLight* inAiLight)
 {
-    auto currLight = std::make_unique<Light>();
+    if (!inAiLight->mType == aiLightSourceType::aiLightSource_POINT)
+        return;  // TEMP: only support point lights
 
-    std::string lightName = light->mName.C_Str();
+    auto* light = makePrim<Light>();
 
-    auto it = nodeTransforms.find(lightName);
+    light->scenePath = std::string(inAiLight->mName.C_Str());
+
+    auto it = nodeTransforms.find(light->scenePath);
 
     if (it != nodeTransforms.end())
     {
-        currLight->transform = nodeTransforms[lightName];
+        light->transform = it->second;
     }
     else
     {
-        currLight->transform = FLOAT4x4(1.0);
+        light->transform = FLOAT4x4(1.0);
     }
 
-    currLight->color = FLOAT4(light->mColorDiffuse.r, light->mColorDiffuse.g,
-                              light->mColorDiffuse.b, 1.f);
-    currLight->intensity = 1.0f;  // TODO update this
+    FLOAT3 lightColor3 = FLOAT3(inAiLight->mColorDiffuse.r, inAiLight->mColorDiffuse.g,
+                                inAiLight->mColorDiffuse.b);
 
-    _lights.push_back(std::move(currLight));
+    // Assimp will encode intensity into color
+    light->intensity = glm::length(lightColor3);
+    lightColor3 = light->intensity > 0 ? lightColor3 / light->intensity : FLOAT3(1.f);
 }
 
-void AssimpScene::processAiCamera(const aiScene* scene)
+void AssimpScene::processAiCamera(const aiScene* inAiScene)
 {
     CameraRecord cameraRecord{};
-    if (scene->HasCameras())
+    if (inAiScene->HasCameras())
     {
-        aiCamera* aiCam = scene->mCameras[0];
+        aiCamera* aiCam = inAiScene->mCameras[0];
 
         auto nodeTransform = FLOAT4x4(1.0f);
         auto it = nodeTransforms.find(aiCam->mName.C_Str());

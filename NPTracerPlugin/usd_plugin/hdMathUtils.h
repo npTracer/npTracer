@@ -2,7 +2,6 @@
 
 #include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/vec2f.h>
-#include <pxr/base/vt/array.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 

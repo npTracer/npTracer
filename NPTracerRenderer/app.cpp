@@ -40,12 +40,14 @@ void App::create(const RendererConstants& rendererConstants)
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
+void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef)
 {
+    mpScene->finalize();  // finalize state of scene before resource creation
     if (gDEBUG) mpScene->reportState();
 
     {  // this block is so very very TEMP oh god
-
+        // recreate result images
+        // in the future, this should be controlled by the `App` 'controller'
         if (USE_SWAPCHAIN)
         {
             mContext.createResultImages(mContext.swapchainParams.extent.width,
@@ -58,14 +60,14 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
         }
     }
 
-    // GEOMETRY
+    // MESHES
     const size_t meshCount = mpScene->getPrimCount<Mesh>();
     std::vector<MeshRecord> meshRecords;
     meshRecords.reserve(meshCount);
 
     std::vector<Vertex> globalVertices;
     std::vector<uint32_t> globalIndices;
-    std::vector<FMat4> globalTransforms;
+    std::vector<FLOAT4x4> globalTransforms;
     for (size_t i = 0; i < meshCount; i++)
     {
         Mesh const* mesh = mpScene->getPrimAtIndex<Mesh>(i);
@@ -88,7 +90,7 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
         mIndexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
 
         // transforms
-        globalTransforms.push_back(mesh->objectToWorld);
+        globalTransforms.push_back(mesh->transform);
 
         meshRecords.push_back(meshRecord);
     }
@@ -112,7 +114,7 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
         mIndexBuffer, globalIndices.data(), indexBufferSize,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
             | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
-    mContext.createDeviceLocalBuffer(mGeometryTransformsBuffer, globalTransforms.data(),
+    mContext.createDeviceLocalBuffer(mMeshTransformsBuffer, globalTransforms.data(),
                                      transformBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // LIGHTS
@@ -120,45 +122,21 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
     mNumLights = static_cast<uint32_t>(lightCount);  // push constant
     std::vector<LightRecord> lightRecords;
     lightRecords.reserve(lightCount);
-    std::vector<FMat4> lightTransforms;
 
     if (lightCount > 0)
     {
         for (uint32_t i = 0; i < lightCount; i++)
         {
             Light const* light = mpScene->getPrimAtIndex<Light>(i);
-
-            LightRecord lightRecord{ .lightTransformIndex = static_cast<uint32_t>(
-                                         lightTransforms.size()),
-                                     .color = FVec4(light->color, 1.0),
-                                     .intensity = light->intensity };
-
-            lightTransforms.push_back(light->transform);
+            LightRecord lightRecord = light->toRecord();
             lightRecords.push_back(lightRecord);
         }
     }
-    else if (gDEBUG)
-    {
-        mNumLights = 1;
-
-        LightRecord defaultLightRecord{ .lightTransformIndex = static_cast<uint32_t>(
-                                            lightTransforms.size()),
-                                        .color = FVec4(1.0, 1.0, 1.0, 1.0),
-                                        .intensity = static_cast<uint32_t>(1.0) };
-
-        auto transform = FMat4(1.0);
-        transform[3] = FVec4(0.0f, 0.0f, 0.0f, 1.0f);  // written explicitly for debugging
-        lightTransforms.push_back(transform);
-        lightRecords.push_back(defaultLightRecord);
-    }
     else DEV_ASSERT(false, "No lights were found in scene.");
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
-    VkDeviceSize lightTransformsSize = sizeof(lightTransforms[0]) * lightTransforms.size();
 
     mContext.createDeviceLocalBuffer(mLightRecordBuffer, lightRecords.data(), lightRecordBufferSize,
                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    mContext.createDeviceLocalBuffer(mLightTransformsBuffer, lightTransforms.data(),
-                                     lightTransformsSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // CAMERA
     VkDeviceSize cameraSize = sizeof(CameraRecord);
@@ -187,13 +165,13 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
                                      materialRecordBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     // TEXTURES
-    size_t textureCount = mpScene->getPrimCount<NPTexture>();
+    size_t textureCount = mpScene->getPrimCount<Texture>();
 
     mTextures.reserve(textureCount);
     for (size_t i = 0; i < textureCount; i++)
     {
         Image textureImage;
-        NPTexture const* texture = mpScene->getPrimAtIndex<NPTexture>(i);
+        Texture const* texture = mpScene->getPrimAtIndex<Texture>(i);
 
         mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
 
@@ -257,7 +235,7 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
         bindingBufferMap[0] = &mMeshRecordBuffer;
         bindingBufferMap[1] = &mVertexBuffer;
         bindingBufferMap[2] = &mIndexBuffer;
-        bindingBufferMap[3] = &mGeometryTransformsBuffer;
+        bindingBufferMap[3] = &mMeshTransformsBuffer;
 
         mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
@@ -277,15 +255,7 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
                                                        | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                                          .pImmutableSamplers = nullptr };
 
-        // light transforms
-        VkDescriptorSetLayoutBinding b1{ .binding = 1,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR };
-
         bindings[0] = b0;
-        bindings[1] = b1;
 
         mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
@@ -296,7 +266,6 @@ void App::createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef)
 
         std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
         bindingBufferMap[0] = &mLightRecordBuffer;
-        bindingBufferMap[1] = &mLightTransformsBuffer;
 
         mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
 
@@ -831,7 +800,7 @@ void App::createRTPipeline()
 }
 
 void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                       std::vector<FMat4>& transforms,
+                                       std::vector<FLOAT4x4>& transforms,
                                        VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
 {
     VkCommandBuffer commandBuffer{};
@@ -1141,7 +1110,7 @@ void App::destroy()
         vkDestroySampler(mContext.device, mSampler, nullptr);
     }
 
-    // SET 0 : GEOMETRY
+    // SET 0 : MESHES
     if (mMeshRecordBuffer.buffer != VK_NULL_HANDLE)
     {
         mMeshRecordBuffer.destroy(mContext.allocator);
@@ -1157,26 +1126,21 @@ void App::destroy()
         mIndexBuffer.destroy(mContext.allocator);
     }
 
-    // SET 1 : TRANSFOMRS
-    if (mGeometryTransformsBuffer.buffer != VK_NULL_HANDLE)
+    if (mMeshTransformsBuffer.buffer != VK_NULL_HANDLE)
     {
-        mGeometryTransformsBuffer.destroy(mContext.allocator);
+        mMeshTransformsBuffer.destroy(mContext.allocator);
     }
 
-    if (mLightTransformsBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mLightTransformsBuffer.destroy(mContext.allocator);
-    }
-
-    // SET 2: CAMERA AND LIGHTS
-    if (mCameraRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mCameraRecordBuffer.destroy(mContext.allocator);
-    }
-
+    // SET 1: LIGHTS
     if (mLightRecordBuffer.buffer != VK_NULL_HANDLE)
     {
         mLightRecordBuffer.destroy(mContext.allocator);
+    }
+
+    // SET 2: CAMERA
+    if (mCameraRecordBuffer.buffer != VK_NULL_HANDLE)
+    {
+        mCameraRecordBuffer.destroy(mContext.allocator);
     }
 
     // SET 3: MATERIAL AND TEXTURES

@@ -976,7 +976,7 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
 void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
                                                   AccelerationStructure& handle,
                                                   Buffer& instanceBufferHandle,
-                                                  std::vector<FMat4>& transforms,
+                                                  std::vector<FLOAT4x4>& transforms,
                                                   std::vector<AccelerationStructure>& blasses)
 {
     std::vector<VkAccelerationStructureInstanceKHR> instances;

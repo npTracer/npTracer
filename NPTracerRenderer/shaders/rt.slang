@@ -10,6 +10,8 @@ Flipped UVs - origin (0,0) at top-left corner, (1,1) at bottom-right corner
 
 // TODO: move all shared structs and bindings to a common shader module
 
+static const uint UINT32_MAX = 0xFFFFFFFF;
+
 struct MeshRecord
 {
     uint vertexOffset;
@@ -30,9 +32,10 @@ struct CameraRecord
 
 struct LightRecord
 {
-    uint transformIndex;
-    float4 color;
+    float4x4 transform;
+    float3 color;
     float intensity;
+    float exposure;
 };
 
 struct MaterialRecord
@@ -41,7 +44,7 @@ struct MaterialRecord
     float4 ambient;
     float4 specular;
     float4 emissive;
-    uint textureIndex;
+    uint diffuseTextureIndex;
 };
 
 struct Vertex
@@ -99,9 +102,6 @@ StructuredBuffer<float4x4> globalTransforms;
 
 [[vk::binding(0, 1)]]
 StructuredBuffer<LightRecord> lights;
-
-[[vk::binding(1, 1)]]
-StructuredBuffer<float4x4> lightTransforms;
 
 [[vk::binding(0, 2)]]
 ConstantBuffer<CameraRecord> camera;
@@ -178,7 +178,7 @@ float3 computeDirectLighting(Payload payload, float3 wo)
     for (uint i = 0; i < pushConstants.numLights; i++)
     {
         LightRecord light = lights[i];
-        float4x4 lightTransform = lightTransforms[light.transformIndex];
+        float4x4 lightTransform = light.transform;
 
         float3 lightPos = float3(
             lightTransform[0][3],
@@ -378,9 +378,9 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     float3 N = normalize(worldNormal);
     float3 baseColor = material.diffuse.rgb;
     
-    if (material.textureIndex != 0xFFFFFFFF)
+    if (material.diffuseTextureIndex != 0xFFFFFFFF)
     {
-        Sampler2D texture = textures[material.textureIndex];
+        Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
     }

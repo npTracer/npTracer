@@ -43,7 +43,7 @@ private:
     NPTracerHdRenderDelegate* _pCreator;
     np::Mesh* _pMesh = nullptr;
 
-    void _UpdateInScene(HdSceneDelegate* delegate);
+    void _UpdateInScene(HdSceneDelegate* delegate) const;
     void _AddToScene();
     void _RemoveFromScene();
 };

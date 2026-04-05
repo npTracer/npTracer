@@ -66,13 +66,27 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
     GfMatrix4f lightTransform(delegate->GetTransform(id));
     _pLight->transform = GfToGLMMat4f(lightTransform);
 
-    bool i = delegate->GetLightParamValue(id, HdLightTokens->intensity).IsEmpty();
-    bool c = delegate->GetLightParamValue(id, HdLightTokens->color).IsEmpty();
+    // color
+    if (auto colorVal = delegate->GetLightParamValue(id, HdLightTokens->color);
+        colorVal.IsHolding<GfVec3f>())
+    {
+        FLOAT3 lightColor3 = GfToGLMVec3f(colorVal.Get<GfVec3f>());
+        _pLight->color = FLOAT4(lightColor3, 1.f);
+    }
 
-    _pLight->intensity = (delegate->GetLightParamValue(id, HdLightTokens->intensity)).Get<float>();
+    // intensity
+    if (auto intensityVal = delegate->GetLightParamValue(id, HdLightTokens->intensity);
+        intensityVal.IsHolding<float>())
+    {
+        _pLight->intensity = intensityVal.Get<float>();
+    }
 
-    GfVec3f lightColor = (delegate->GetLightParamValue(id, HdLightTokens->color)).Get<pxr::GfVec3f>();
-    _pLight->color = GfToGLMVec3f(lightColor);
+    // exposure
+    if (auto exposureVal = delegate->GetLightParamValue(id, HdLightTokens->exposure);
+        exposureVal.IsHolding<float>())
+    {
+        _pLight->exposure = exposureVal.Get<float>();
+    }
 
     *dirtyBits = Clean;
 }

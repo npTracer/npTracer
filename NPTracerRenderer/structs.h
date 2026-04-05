@@ -11,19 +11,23 @@
 #include <array>
 #include <optional>
 #include <vector>
+#include <memory>
+
+// alias-like template types can stay in global namespace
+using FLOAT2 = glm::f32vec2;
+using FLOAT3 = glm::f32vec3;
+using FLOAT4 = glm::f32vec4;
+using FLOAT4x4 = glm::f32mat4x4;
+
+template<typename T>
+using WRAP_REF = std::reference_wrapper<T>;
+
+template<typename T>
+using UPTR = std::unique_ptr<T>;
 
 NP_TRACER_NAMESPACE_BEGIN
 
-using FVec2 = glm::f32vec2;
-using FVec3 = glm::f32vec3;
-using FVec4 = glm::f32vec4;
-using FMat4 = glm::f32mat4;
-
-template<typename T>
-using WrapRef = std::reference_wrapper<T>;
-
 using ScenePath = std::string;
-using ScenePathCollection = std::vector<ScenePath>;
 
 enum class eSceneType : uint8_t
 {
@@ -46,11 +50,11 @@ struct RendererConstants
 
 struct Vertex
 {
-    FVec4 pos;
-    FVec4 normal;
-    FVec4 color;
-    FVec2 uv;
-    FVec2 pad0;
+    FLOAT4 pos;
+    FLOAT4 normal;
+    FLOAT4 color;
+    FLOAT2 uv;
+    FLOAT2 pad0;
 
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
@@ -310,32 +314,30 @@ struct MeshRecord
     uint32_t vertexCount;
 
     uint32_t transformIndex;
-    uint32_t materialIndex;
+    uint32_t materialIndex = UINT32_MAX;
 };
 
 struct Mesh
 {
-    uint64_t objectId;  // the hash of the mesh's `SdfPath`
     ScenePath scenePath;
+
+    FLOAT4x4 transform = FLOAT4x4(1.f);  // i.e. objectToWorld
 
     std::vector<uint32_t> indices;
     std::vector<Vertex> vertices;
 
     // NOTE: this vertex data should be stored flattened.
     // i.e. `_positions.size() == indices.size()`, etc.
-    std::vector<FVec3> _positions;
-    std::vector<FVec3> _normals;
-    std::vector<FVec2> _uvs;
-    std::vector<FVec3> _colors;
-    std::vector<uint32_t> _materialIds;
+    std::vector<FLOAT3> _positions;
+    std::vector<FLOAT3> _normals;
+    std::vector<FLOAT2> _uvs;
+    std::vector<FLOAT3> _colors;
 
-    FMat4 objectToWorld;
-    FMat4 worldToObject;  // model matrix
+    // NOTE: since Hydra does not guarantee creating materials before meshes, we save the material's unique `SdfPath` to fill in the `materialIndex` during 'finalization'
+    ScenePath _materialScenePath;
+    uint32_t materialIndex = UINT32_MAX;
 
-    FVec3 bboxMin;
-    FVec3 bboxMax;
-
-    uint32_t materialIndex;
+    bool bMaterialNeedsFinalization = false;
 
     void populateVertices()
     {
@@ -346,12 +348,12 @@ struct Mesh
 
         for (size_t i = 0; i < count; i++)
         {
-            Vertex v{ .pos = FVec4(_positions[i], 0),
+            Vertex v{ .pos = FLOAT4(_positions[i], 0),
                       .normal = {},
-                      .color = (i < _colors.size()) ? FVec4(_colors[i], 0)
-                                                    : FVec4{ 1.0f, 1.0f, 1.0f, 1.0f },
-                      .uv = (i < _uvs.size()) ? _uvs[i] : FVec2{ 0.0f, 0.0f },
-                      .pad0 = FVec2{ 0.0f, 0.0f } };
+                      .color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
+                                                    : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f },
+                      .uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f },
+                      .pad0 = FLOAT2{ 0.0f, 0.0f } };
             vertices.push_back(v);
         }
     }
@@ -360,10 +362,10 @@ struct Mesh
 // camera
 struct CameraRecord
 {
-    FMat4 view;
-    FMat4 proj;
-    FMat4 invView;
-    FMat4 invProj;
+    FLOAT4x4 view;
+    FLOAT4x4 proj;
+    FLOAT4x4 invView;
+    FLOAT4x4 invProj;
 };
 
 using Camera = CameraRecord;
@@ -371,9 +373,10 @@ using Camera = CameraRecord;
 // lights
 struct LightRecord
 {
-    uint32_t lightTransformIndex;
-    FVec4 color;
-    float intensity = UINT_MAX;
+    FLOAT4x4 transform = FLOAT4x4{ 1.f };
+    FLOAT4 color = FLOAT4{ 1.f, 1.f, 1.f, 1.f };  // 4 channels for alignment purposes
+    float intensity = 1.f;
+    float exposure = 0.f;
 };
 
 enum class LightType : uint8_t
@@ -382,38 +385,29 @@ enum class LightType : uint8_t
     AREA
 };
 
-struct Light
+struct Light : LightRecord
 {
-    LightType type;
+    LightType type = LightType::POINT;
 
-    FMat4 transform;
-
-    FVec3 color;
-    float intensity;
-
-    // for area lights
-    FVec3 u;
-    FVec3 v;
-
-    // for point / area
-    float radius;
-
-    uint64_t lightId;
+    LightRecord toRecord() const
+    {
+        return LightRecord(*this);
+    }
 };
 
+// materials
 struct MaterialRecord
 {
-    FVec4 diffuse = FVec4(0.f, 0.f, 0.f, 1.f);
-    FVec4 ambient = FVec4(0.f, 0.f, 0.f, 1.f);
-    FVec4 specular = FVec4(0.f, 0.f, 0.f, 1.f);
-    FVec4 emission = FVec4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 diffuse = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 specular = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f);
 
-    uint32_t diffuseTextureIdx = UINT32_MAX;
+    uint32_t diffuseTextureIndex = UINT32_MAX;
 };
 
 struct Material : MaterialRecord
 {
-    uint64_t objectId = UINT64_MAX;  // the hash of the object's `SdfPath`
     ScenePath scenePath;
 
     MaterialRecord toRecord() const
@@ -422,15 +416,15 @@ struct Material : MaterialRecord
     }
 };
 
-// pixels should represent 4 channels
+// textures
 struct TextureRecord
 {
-    void* pixels;
+    void* pixels;  // pixels should have 4 channels
     uint32_t width;
     uint32_t height;
 };
 
-using NPTexture = TextureRecord;
+using Texture = TextureRecord;
 
 enum class StylizationFunction : uint8_t
 {

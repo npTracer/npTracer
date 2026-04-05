@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include <iostream>
+#include <algorithm>
 #include <stb_image.h>
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtx/io.hpp>
@@ -22,7 +23,7 @@ Scene::Scene()
         "Loaded default missing texture asset from '%s'. Found width=%u, height=%u, channels=%u.\n",
         MISSING_TEXTURE_PATH, width, height, channels);
 
-    NPTexture* missingTex = makePrim<NPTexture>();
+    Texture* missingTex = makePrim<Texture>();
     *missingTex = {
         .pixels = reinterpret_cast<void*>(pixels),
         .width = static_cast<uint32_t>(width),
@@ -35,6 +36,32 @@ void Scene::loadSceneFromPath(const char* path)
     DEV_ASSERT(false, "not implemented");
 }
 
+void Scene::guard()
+{
+    std::lock_guard<std::mutex> lock(_readWriteMutex);
+}
+
+void Scene::finalize()
+{
+    // traverse meshes and check if they need to be 'linked' with their material
+    for (size_t i = 0; i < _meshes.size(); i++)
+    {
+        const auto& mesh = _meshes[i];
+        if (!mesh->bMaterialNeedsFinalization) continue;  // skip if doesn't need finalization
+
+        auto foundMat = std::ranges::find_if(_materials, [&mesh](const auto& mat)
+                                             { return mat->scenePath == mesh->_materialScenePath; });
+        if (foundMat == std::end(_materials)) continue;
+        mesh->materialIndex = std::distance(_materials.begin(), foundMat);
+        mesh->bMaterialNeedsFinalization = false;
+    }
+
+    if (gDEBUG && _lights.empty())  // add a default light to the scene (when debugging)
+    {
+        auto* light = makePrim<Light>();  // NOTE: instantiated with default values
+    }
+}
+
 void Scene::reportState() const
 {
     if constexpr (!gDEBUG) return;
@@ -45,19 +72,37 @@ void Scene::reportState() const
         DBG_PRINT("Num Materials: %llu\n", _materials.size());
         DBG_PRINT("Num Textures: %llu\n", _textures.size());
     }
+    // meshes
+    for (const auto& mesh : _meshes)
+    {
+        DBG_PRINT("MESH '%s'\n", mesh->scenePath.c_str());
+        std::cerr << "Transform:" << mesh->transform << std::endl;
+        DBG_PRINT("Num Indices: %llu\n", mesh->indices.size());
+        DBG_PRINT("Material Index: %u\n", mesh->materialIndex);
+    }
+
+    // lights
+    for (const auto& light : _lights)
+    {
+        std::cerr << "Light Transform: " << light->transform << std::endl;
+        std::cerr << "Light Color: " << light->color << std::endl;
+        DBG_PRINT("Light Intensity: %f\n", light->intensity);
+        DBG_PRINT("Light Exposure: %f\n", light->exposure);
+    }
+
+    // materials
+    for (const auto& mat : _materials)
+    {
+        DBG_PRINT("MATERIAL '%s'\n", mat->scenePath.c_str());
+        std::cerr << "Diffuse Color: " << mat->diffuse << std::endl;
+        DBG_PRINT("Diffuse Texture Index: %u\n", mat->diffuseTextureIndex);
+    }
 
     // camera
     {
-        DBG_PRINT("Camera View:\n");
-        std::cerr << _camera.view << std::endl;
-        DBG_PRINT("Camera Projection:\n");
-        std::cerr << _camera.proj << std::endl;
+        std::cerr << "Camera View: " << _camera.view << std::endl;
+        std::cerr << "Camera Projection: " << _camera.proj << std::endl;
     }
-}
-
-void Scene::guard()
-{
-    std::lock_guard<std::mutex> lock(_readWriteMutex);
 }
 
 NP_TRACER_NAMESPACE_END

@@ -27,7 +27,7 @@ public:
 
     void loadSceneFromPath(const char* path);
 
-    void createRenderingResources(std::optional<WrapRef<RendererAovs>> aovsRef = std::nullopt);
+    void createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef = std::nullopt);
     void executeDrawCall(RendererAovs& aovs);
 
     void render();
@@ -57,20 +57,19 @@ private:
     uint32_t mNumLights = 0;
     std::vector<uint32_t> mIndexCounts;
 
-    // SET 0: GEOMETRY
+    // SET 0: MESHES
     Buffer mMeshRecordBuffer;
     Buffer mVertexBuffer;
     Buffer mIndexBuffer;
+    Buffer mMeshTransformsBuffer;
 
-    // SET 1: TRANSFORMS
-    Buffer mGeometryTransformsBuffer;
-    Buffer mLightTransformsBuffer;
-
-    // SET 2: CAMERA & LIGHTS
-    Buffer mCameraRecordBuffer;
+    // SET 1: LIGHTS
     Buffer mLightRecordBuffer;
 
-    // SET 3: MATERIALS
+    // SET 2: CAMERA
+    Buffer mCameraRecordBuffer;
+
+    // SET 3: MATERIALS & TEXTURES
     Buffer mMaterialRecordsBuffer;
     std::vector<Image> mTextures;
 
@@ -82,8 +81,8 @@ private:
     void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
     void createRTPipeline();
     void createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                      std::vector<FMat4>& transforms, VkDeviceAddress vertexAddress,
-                                      VkDeviceAddress indexAddress);
+                                      std::vector<FLOAT4x4>& transforms,
+                                      VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
     void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);

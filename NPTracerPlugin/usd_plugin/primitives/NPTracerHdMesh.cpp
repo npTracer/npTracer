@@ -60,40 +60,19 @@ bool NPTracerHdMesh::IsDirty(const HdDirtyBits* dirtyBits) const
     return false;
 }
 
-void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate)
+void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate) const
 {
     const SdfPath& id = GetId();
 
     // TODO: figure out how to handle visibility for meshes, if desired
-    // _RemoveFromScene();  // remove existing mesh from scene
-    //
-    // if (!delegate->GetVisible(GetId()))
-    // {
-    //     return;  // do not add to scene if it is not visible
-    // }
-    //
-    // _AddToScene();
 
     sConstructMesh(id, delegate, _pMesh);
 
-    SdfPath materialId = delegate->GetMaterialId(id);
-    if (!materialId.IsEmpty())
+    np::ScenePath currMaterialScenePath = delegate->GetMaterialId(id).GetString();
+    if (!currMaterialScenePath.empty() && (currMaterialScenePath != _pMesh->_materialScenePath))
     {
-        np::Scene* scene = _pCreator->GetScene();
-
-        // TODO: move this to `Scene` as a helper function?
-        for (size_t i = 0; i < scene->getPrimCount<np::Material>(); i++)
-        {
-            auto* mat = scene->getPrimAtIndex<np::Material>(i);
-
-            if (mat->scenePath == materialId.GetString())
-            {
-                _pMesh->materialIndex = i;
-                NP_DBG("Found material '%s' in scene for mesh '%s'.\n", mat->scenePath.c_str(),
-                       id.GetText());
-                break;
-            }
-        }
+        _pMesh->_materialScenePath = currMaterialScenePath;
+        _pMesh->bMaterialNeedsFinalization = true;
     }
 }
 
@@ -117,10 +96,9 @@ bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const std::string& primvarName)
 void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, np::Mesh* outMesh)
 {
     // retrieve the transform first (it only gets more convoluted from here)
-    np::FMat4 xform = GfToGLMMat4f(delegate->GetTransform(id));
+    FLOAT4x4 xform = GfToGLMMat4f(delegate->GetTransform(id));
 
-    outMesh->objectToWorld = xform;
-    outMesh->worldToObject = glm::inverse(xform);
+    outMesh->transform = xform;
 
     // use Hydra utilities to retrieve triangulated indices
     HdMeshTopology topo = delegate->GetMeshTopology(id);
@@ -241,11 +219,11 @@ void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate
     }
     if (!hasNormals && !hasFlattenedNormals)
     {  // fill with default value if has none
-        std::fill(outMesh->_normals.begin(), outMesh->_normals.end(), np::FVec3(0.f, 0.f, 0.f));
+        std::fill(outMesh->_normals.begin(), outMesh->_normals.end(), FLOAT3(0.f, 0.f, 0.f));
     }
     if (!hasUVs && !hasFlattenedUVs)
     {  // fill with default value if has none
-        std::fill(outMesh->_uvs.begin(), outMesh->_uvs.end(), np::FVec2(0.f, 0.f));
+        std::fill(outMesh->_uvs.begin(), outMesh->_uvs.end(), FLOAT2(0.f, 0.f));
     }
 
     outMesh->populateVertices();  // populate when everything is finalized for simplicity
@@ -295,7 +273,6 @@ void NPTracerHdMesh::_AddToScene()
     {
         const SdfPath& id = GetId();
         _pMesh = scene->makePrim<np::Mesh>();
-        _pMesh->objectId = id.GetHash();
         _pMesh->scenePath = id.GetString();
 
         NP_DBG("Added mesh '%s' to scene\n", id.GetAsString().c_str());

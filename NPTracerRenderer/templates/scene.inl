@@ -69,7 +69,7 @@ inline std::vector<std::unique_ptr<T>>& Scene::getPrimVector()
     {
         return _materials;
     }
-    else if constexpr (std::is_same_v<T, NPTexture>)
+    else if constexpr (std::is_same_v<T, Texture>)
     {
         return _textures;
     }

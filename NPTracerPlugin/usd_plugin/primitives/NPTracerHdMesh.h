@@ -1,5 +1,7 @@
 #pragma once
 
+#include "usd_plugin/usdMathUtils.h"
+
 #include <NPTracerRenderer/structs.h>
 
 #include <pxr/imaging/hd/mesh.h>
@@ -47,7 +49,7 @@ public:
 
     void UpdateMeshPrimvarMap(HdSceneDelegate* delegate);
 
-    static void sConstructMesh(const VtArray<uint32_t>& triIndices,
+    static void sConstructMesh(const VtU32Array& triIndices,
                                const std::unordered_map<PrimvarType, PrimvarPayload>& primvarMap,
                                np::Mesh* outMesh);
 
@@ -63,7 +65,7 @@ private:
     np::Mesh* _pMesh = nullptr;
 
     // flattened data of trianglulated indices outputted from `HdMeshUtil::ComputeTriangleIndices`
-    VtArray<uint32_t> _triIndices;
+    VtU32Array _triIndices;
 
     std::unordered_map<PrimvarType, PrimvarPayload> _primvarMap;
 

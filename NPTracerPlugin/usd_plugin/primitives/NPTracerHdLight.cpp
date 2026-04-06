@@ -2,7 +2,7 @@
 
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 #include "usd_plugin/debugCodes.h"
-#include "usd_plugin/hdMathUtils.h"
+#include "usd_plugin/usdMathUtils.h"
 
 #include "pxr/imaging/hd/sceneDelegate.h"
 

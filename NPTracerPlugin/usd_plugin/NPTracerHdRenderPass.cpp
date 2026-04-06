@@ -1,7 +1,7 @@
 #include "usd_plugin/NPTracerHdRenderPass.h"
 
 #include "usd_plugin/debugCodes.h"
-#include "usd_plugin/hdMathUtils.h"
+#include "usd_plugin/usdMathUtils.h"
 
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/renderPassState.h>

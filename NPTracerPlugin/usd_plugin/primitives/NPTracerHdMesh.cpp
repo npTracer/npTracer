@@ -1,11 +1,8 @@
 #include "usd_plugin/primitives/NPTracerHdMesh.h"
 
 #include "usd_plugin/debugCodes.h"
-#include "usd_plugin/hdMathUtils.h"
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
-#include <iostream>
-#include <pxr/base/gf/vec2f.h>
 #include <pxr/imaging/hd/vtBufferSource.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -59,30 +56,21 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
     }
 
     bool bNeedsReconstruction = false;
-    bool bNeedsPrimvarsUpdate = false;
-
     // indices
     if (*dirtyBits & HdChangeTracker::DirtyTopology)
     {
         // use Hydra utilities to retrieve triangulated indices
         const HdMeshTopology& topo = delegate->GetMeshTopology(id);
         const HdMeshUtil meshUtil(&topo, id);
-        VtArray<GfVec3i> tris;
+        VtVec3iArray tris;
         VtIntArray primitiveParams;
         meshUtil.ComputeTriangleIndices(&tris, &primitiveParams);  // get triangulated indices
 
-        const size_t targetIndicesCount = tris.size() * 3llu;
-        const size_t indicesByteSize = sizeof(uint32_t) * targetIndicesCount;
-        const GfVec3i* trisData = tris.data();
-
-        TF_DEV_AXIOM(sizeof(trisData) == indicesByteSize);  // ensure this memcpy will succeed
-
-        _triIndices.resize(targetIndicesCount);
-        std::memcpy(_triIndices.data(), trisData, indicesByteSize);
-
+        VtFlattenVec3iArray(tris, &_triIndices);  // make a flat array of indices
         bNeedsReconstruction = true;
     }
 
+    bool bNeedsPrimvarsUpdate = false;
     // positions
     if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points))
     {

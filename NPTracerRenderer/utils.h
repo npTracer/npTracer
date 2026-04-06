@@ -38,6 +38,15 @@ NP_TRACER_NAMESPACE_BEGIN
     } while (0)
 #endif
 
+// `[[unreachable]]` isn't available until C++23
+#ifdef _MSC_VER
+#define UNREACHABLE_CODE __assume(0)
+#elif defined(__clang__) || defined(__GNUC__)
+#define UNREACHABLE_CODE __builtin_unreachable()
+#else
+#define UNREACHABLE_CODE DEV_ASSERT(false, "reached unreachable code\n");
+#endif
+
 static std::vector<char> readFile(const std::string& filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);

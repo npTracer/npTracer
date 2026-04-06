@@ -16,6 +16,8 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
+#define VECTOR_FROM_C_ARRAY(T, arr) std::vector<T>(std::begin(arr), std::end(arr))
+
 NPTracerHdRenderDelegate::NPTracerHdRenderDelegate()
 {
     _Initialize();

@@ -50,11 +50,11 @@ struct RendererConstants
 
 struct Vertex
 {
-    FLOAT4 pos;
-    FLOAT4 normal;
-    FLOAT4 color;
-    FLOAT2 uv;
-    FLOAT2 pad0;
+    FLOAT4 pos = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 normal = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 color = FLOAT4(1.f);
+    FLOAT2 uv = FLOAT2(0.f);
+    FLOAT2 pad0 = FLOAT2(0.f);
 
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
@@ -326,37 +326,11 @@ struct Mesh
     std::vector<uint32_t> indices;
     std::vector<Vertex> vertices;
 
-    // NOTE: this vertex data should be stored flattened.
-    // i.e. `_positions.size() == indices.size()`, etc.
-    std::vector<FLOAT3> _positions;
-    std::vector<FLOAT3> _normals;
-    std::vector<FLOAT2> _uvs;
-    std::vector<FLOAT3> _colors;
-
     // NOTE: since Hydra does not guarantee creating materials before meshes, we save the material's unique `SdfPath` to fill in the `materialIndex` during 'finalization'
     ScenePath _materialScenePath;
     uint32_t materialIndex = UINT32_MAX;
 
     bool bMaterialNeedsFinalization = false;
-
-    void populateVertices()
-    {
-        size_t count = _positions.size();
-
-        this->vertices.clear();
-        this->vertices.reserve(count);
-
-        for (size_t i = 0; i < count; i++)
-        {
-            Vertex v{ .pos = FLOAT4(_positions[i], 0),
-                      .normal = {},
-                      .color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
-                                                    : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f },
-                      .uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f },
-                      .pad0 = FLOAT2{ 0.0f, 0.0f } };
-            vertices.push_back(v);
-        }
-    }
 };
 
 // camera

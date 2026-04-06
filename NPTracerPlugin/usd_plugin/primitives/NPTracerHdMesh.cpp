@@ -5,7 +5,6 @@
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
 #include <pxr/base/gf/vec2f.h>
-#include <pxr/base/gf/matrix4f.h>
 #include <pxr/imaging/hd/vtBufferSource.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -29,248 +28,202 @@ HdDirtyBits NPTracerHdMesh::GetInitialDirtyBitsMask() const
 void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
                           HdDirtyBits* dirtyBits, const TfToken& reprToken)
 {
-    const bool isMeshDirty = IsDirty(dirtyBits);
-    // TODO: check if instance dirty and material dirty
+    const SdfPath& id = GetId();
 
-    if (_pCreator->GetRendererApp() && isMeshDirty)
+    // transform
+    if (*dirtyBits & HdChangeTracker::DirtyTransform)
     {
-        _UpdateInScene(delegate);
+        // retrieve the transform first (it only gets more complex from here)
+        FLOAT4x4 xform = GfToGLMMat4f(delegate->GetTransform(id));
+        if constexpr (np::gDEBUG)  // TEMP: renderer assumes z-up?
+        {
+            static FLOAT4x4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f),
+                                                   glm::vec3(1.0f, 0.0f, 0.0f));
+            xform = rotation * xform;
+        }
+
+        _pMesh->transform = xform;
     }
+
+    // material
+    // check if material exists / needs to be updated in scene
+    if (*dirtyBits & HdChangeTracker::DirtyMaterialId)
+    {
+        np::ScenePath currMaterialScenePath = delegate->GetMaterialId(id).GetString();
+        if (!currMaterialScenePath.empty() && (currMaterialScenePath != _pMesh->_materialScenePath))
+        {
+            _pMesh->_materialScenePath = currMaterialScenePath;
+            _pMesh->bMaterialNeedsFinalization = true;
+        }
+    }
+
+    bool bNeedsReconstruction = false;
+    bool bNeedsPrimvarsUpdate = false;
+
+    // indices
+    if (*dirtyBits & HdChangeTracker::DirtyTopology)
+    {
+        _trisArray.clear();
+        // use Hydra utilities to retrieve triangulated indices
+        const HdMeshTopology& topo = delegate->GetMeshTopology(id);
+        const HdMeshUtil meshUtil(&topo, id);
+        VtIntArray primitiveParams;
+        meshUtil.ComputeTriangleIndices(&_trisArray, &primitiveParams);  // get triangulated indices
+        _tris = VtValue(_trisArray);  // TODO: check is this update necessary?
+        bNeedsReconstruction = true;
+    }
+
+    // positions
+    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points))
+    {
+        PrimvarPayload& payload = _primvarMap[PrimvarType::POSITION];
+        payload.primvar = delegate->Get(id, HdTokens->points);
+        payload.isDirty = true;
+        bNeedsReconstruction = true;
+    }
+
+    // normals
+    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals))
+    {
+        _primvarMap[PrimvarType::NORMAL] = {};  // reset map entry
+        bNeedsReconstruction = true;
+        bNeedsPrimvarsUpdate = true;
+    }
+
+    // colors
+    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->displayColor))
+    {
+        _primvarMap[PrimvarType::COLOR] = {};  // reset map entry
+        bNeedsReconstruction = true;
+        bNeedsPrimvarsUpdate = true;
+    }
+
+    // UVs
+    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, TfToken("st"))  // UVs
+        || HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, TfToken("map1")))  // Maya UVs
+    {
+        _primvarMap[PrimvarType::UV] = {};  // reset map entry
+        bNeedsReconstruction = true;
+        bNeedsPrimvarsUpdate = true;
+    }
+
+    if (bNeedsPrimvarsUpdate) UpdateMeshPrimvarMap(delegate);
+
+    if (bNeedsReconstruction) sConstructMesh(id, delegate, _tris, _primvarMap, _pMesh);
 
     *dirtyBits &= ~HdChangeTracker::AllSceneDirtyBits;  // set all bits to clean!
 }
 
-bool NPTracerHdMesh::IsDirty(const HdDirtyBits* dirtyBits) const
+void NPTracerHdMesh::UpdateMeshPrimvarMap(HdSceneDelegate* delegate)
 {
     const SdfPath& id = GetId();
+    const HdMeshTopology& topo = delegate->GetMeshTopology(id);
+    const HdMeshUtil meshUtil(&topo, id);
+    const size_t faceVaryingCount = _tris.GetArraySize() * 3;
 
-    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points)
-        || HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals)
-        || HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, TfToken("st"))
-        || HdChangeTracker::IsTopologyDirty(*dirtyBits, id))
-    {  // check vertex attributes
-        return true;
+    // build a flat vector of all the descriptors
+    HdPrimvarDescriptorVector allDescriptors;
+    for (uint8_t i = 0; i < HdInterpolationCount; ++i)
+    {
+        const HdInterpolation& interpolation = static_cast<HdInterpolation>(i);
+        const HdPrimvarDescriptorVector& descs = delegate->GetPrimvarDescriptors(id, interpolation);
+        allDescriptors.reserve(allDescriptors.size() + descs.size());
+        allDescriptors.insert(allDescriptors.end(), descs.begin(), descs.end());
     }
-    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->displayColor)
-        || (*dirtyBits & HdChangeTracker::DirtyMaterialId)
-        || HdChangeTracker::IsVisibilityDirty(*dirtyBits, id))
-    {  // check mesh attributes
-        return true;
+
+    for (uint8_t i = 0; i < PrimvarType::_COUNT; ++i)
+    {
+        PrimvarType type = static_cast<PrimvarType>(i);
+        PrimvarPayload& payload = _primvarMap[type];
+        if (!payload.isDirty) continue;  // nothing else needed for this primvar
+
+        if (payload.primvar.IsEmpty())
+        {
+            const IsPrimvarDescPredicateFn& pred = sMapIsPrimvarDescPredicateFn(type);
+            auto it = std::ranges::find_if(allDescriptors, pred);
+            if (it != allDescriptors.end())
+            {
+                payload.desc = it[0];  // fill in payload with found descriptor
+                payload.primvar = delegate->Get(id,
+                                                payload.desc.name);  // use the name to get the value
+            }
+        }
+        const UpdatePrimvarFn& updater = sMapUpdatePrimvarFn(payload.desc.interpolation);
+        updater(meshUtil, payload);
+        TF_DEV_AXIOM(payload.primvar.GetArraySize() == faceVaryingCount);
+        payload.isDirty = false;
     }
-    return false;
 }
 
-void NPTracerHdMesh::_UpdateInScene(HdSceneDelegate* delegate) const
+void NPTracerHdMesh::sConstructMesh(
+    const SdfPath& id, HdSceneDelegate* delegate, const VtValue& tris,
+    const std::unordered_map<PrimvarType, PrimvarPayload>& primvarMap, np::Mesh* outMesh)
 {
-    const SdfPath& id = GetId();
-
-    // TODO: figure out how to handle visibility for meshes, if desired
-
-    sConstructMesh(id, delegate, _pMesh);
-
-    np::ScenePath currMaterialScenePath = delegate->GetMaterialId(id).GetString();
-    if (!currMaterialScenePath.empty() && (currMaterialScenePath != _pMesh->_materialScenePath))
-    {
-        _pMesh->_materialScenePath = currMaterialScenePath;
-        _pMesh->bMaterialNeedsFinalization = true;
-    }
-}
-
-VtValue NPTracerHdMesh::sGetPrimvar(const SdfPath& id, HdSceneDelegate* delegate,
-                                    const TfToken& name)
-{
-    return delegate->Get(id, name);
-}
-
-bool NPTracerHdMesh::sIsUVPrimvarDescriptor(const std::string& primvarName)
-{
-    // the primvar set would either be called `st` or `map1` from Maya
-    return primvarName.compare("st") == 0 || primvarName.substr(0, 3).compare("map") == 0;
-}
-
-bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const std::string& primvarName)
-{
-    return primvarName == HdTokens->normals;
-}
-
-void NPTracerHdMesh::sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, np::Mesh* outMesh)
-{
-    // retrieve the transform first (it only gets more convoluted from here)
-    FLOAT4x4 xform = GfToGLMMat4f(delegate->GetTransform(id));
-    if constexpr (np::gDEBUG)  // TEMP: renderer assumes z-up?
-    {
-        static FLOAT4x4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f),
-                                               glm::vec3(1.0f, 0.0f, 0.0f));
-        xform = rotation * xform;
-    }
-
-    outMesh->transform = xform;
-
-    // use Hydra utilities to retrieve triangulated indices
-    HdMeshTopology topo = delegate->GetMeshTopology(id);
-    HdMeshUtil meshUtil(&topo, id);
-    VtVec3iArray tris;
-    VtIntArray primitiveParams;
-    meshUtil.ComputeTriangleIndices(&tris, &primitiveParams);  // get triangulated indices
-
-    size_t flattenedCount = tris.size() * 3;
-    bool hasUVs = false;
-    bool hasFlattenedUVs = false;
-    bool hasNormals = false;
-    bool hasFlattenedNormals = false;
-
-    auto indexedPositions = delegate->Get(id, HdTokens->points).Get<VtVec3fArray>();
-    auto indexedNormals = delegate->Get(id, HdTokens->normals).Get<VtVec3fArray>();
-    VtVec2fArray indexedUVs;
-
-    // try to fill `indexedUVs` with per-vertex interpolated attributes
-    if (VtValue uvValue = delegate->Get(id, TfToken("map1")); !uvValue.IsEmpty())
-    {  // check the first way that UV's would be stored on a mesh
-        indexedUVs = uvValue.Get<VtVec2fArray>();
-    }
-    else
-    {
-        VtValue stValue = delegate->Get(id, TfToken("st"));
-        if (!stValue.IsEmpty())
-        {
-            indexedUVs = stValue.Get<VtVec2fArray>();
-        }
-    }
-
-    hasUVs = !indexedUVs.empty() && (indexedUVs.size() == indexedPositions.size());
-    // look for UVs in primvars as they are more ideal
-    VtValue uvValue;
-    if (sReadMeshPrimvars(id, delegate, meshUtil, &uvValue, sIsUVPrimvarDescriptor))
-    {
-        if (uvValue.GetArraySize() == flattenedCount)
-        {
-            auto vtUVArray = uvValue.Get<VtVec2fArray>();
-            VtArrayToGLMVector(vtUVArray, &outMesh->_uvs);
-
-            hasFlattenedUVs = true;
-        }
-        else
-        {
-            TF_WARN("Primvar UVs were found for %s but count of %i does not match "
-                    "flattened index count of %i.",
-                    id.GetText(), uvValue.GetArraySize(), flattenedCount);
-        }
-    }
-
-    // second condition is what is received from USD for geometry that has no normals
-    hasNormals = indexedNormals.size() == indexedPositions.size()
-                 && !(indexedNormals.size() == 1 && indexedNormals[0] == GfVec3f(0.f));
-
-    // look for normals in primvars
-    VtValue normalsValue;
-    if (sReadMeshPrimvars(id, delegate, meshUtil, &normalsValue, sIsNormalsPrimvarDescriptor))
-    {
-        if (normalsValue.GetArraySize() == flattenedCount)
-        {
-            auto vtNormalsArray = normalsValue.Get<VtArray<GfVec3f>>();
-            VtArrayToGLMVector(vtNormalsArray, &outMesh->_normals);
-
-            hasFlattenedNormals = true;
-        }
-        else
-        {
-            TF_WARN("Primvar normals were found for %s but count of %i does not match "
-                    "flattened index count of %i.",
-                    id.GetText(), normalsValue.GetArraySize(), flattenedCount);
-        }
-    }
+    const VtVec3iArray& trisArray = tris.Get<VtVec3iArray>();
+    const size_t faceVaryingCount = trisArray.size() * 3;  // expected count for face-varying attrs
 
     // resize all to desired size
-    outMesh->indices.resize(flattenedCount);
-    outMesh->vertices.resize(flattenedCount);
-    outMesh->_positions.resize(flattenedCount);
-    outMesh->_normals.resize(flattenedCount);
-    outMesh->_uvs.resize(flattenedCount);
+    outMesh->indices.resize(faceVaryingCount);
+    outMesh->vertices.resize(faceVaryingCount);
 
-    int maxAllowedIndex = static_cast<int>(indexedPositions.size()) - 1;
+    const VtVec3fArray& positions = primvarMap.at(PrimvarType::POSITION).primvar.Get<VtVec3fArray>();
+    const VtVec3fArray& normals = primvarMap.at(PrimvarType::NORMAL).primvar.Get<VtVec3fArray>();
+    const VtVec3fArray& colors = primvarMap.at(PrimvarType::COLOR).primvar.Get<VtVec3fArray>();
+    const VtVec2fArray& uvs = primvarMap.at(PrimvarType::UV).primvar.Get<VtVec2fArray>();
 
-    // flatten all vertex data
-    for (size_t i = 0; i < tris.size(); i++)
+    // fill in all vertex data
+    uint32_t flatIdx = 0u;
+    for (size_t i = 0u; i < faceVaryingCount; ++i)
     {
-        const GfVec3i& tri = tris[i];
+        const GfVec3i& tri = GfVec3i(1);
 
-        int t0 = std::min(maxAllowedIndex, tri[0]);
-        int t1 = std::min(maxAllowedIndex, tri[1]);
-        int t2 = std::min(maxAllowedIndex, tri[2]);
+        const uint32_t t0 = tri[0];
+        const uint32_t t1 = tri[1];
+        const uint32_t t2 = tri[2];
 
-        int flatIdx0 = i * 3 + 0;
-        int flatIdx1 = i * 3 + 1;
-        int flatIdx2 = i * 3 + 2;
+        const uint32_t flatIdx0 = flatIdx;
+        const uint32_t flatIdx1 = flatIdx + 1;
+        const uint32_t flatIdx2 = flatIdx + 2;
 
         outMesh->indices[flatIdx0] = t0;
         outMesh->indices[flatIdx1] = t1;
         outMesh->indices[flatIdx2] = t2;
 
-        outMesh->_positions[flatIdx0] = GfToGLMVec3f(indexedPositions[t0]);
-        outMesh->_positions[flatIdx1] = GfToGLMVec3f(indexedPositions[t1]);
-        outMesh->_positions[flatIdx2] = GfToGLMVec3f(indexedPositions[t2]);
+        outMesh->vertices[flatIdx0] = {
+            .pos = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(positions[flatIdx0]), 1.f),
+            .normal = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(normals[flatIdx0]), 1.f),
+            .color = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(colors[flatIdx0]), 1.f),
+            .uv = GfToGLM<GfVec2f, FLOAT2>(uvs[flatIdx0]),
+        };
+        outMesh->vertices[flatIdx1] = {
+            .pos = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(positions[flatIdx1]), 1.f),
+            .normal = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(normals[flatIdx1]), 1.f),
+            .color = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(colors[flatIdx1]), 1.f),
+            .uv = GfToGLM<GfVec2f, FLOAT2>(uvs[flatIdx1]),
+        };
+        outMesh->vertices[flatIdx2] = {
+            .pos = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(positions[flatIdx2]), 1.f),
+            .normal = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(normals[flatIdx2]), 1.f),
+            .color = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(colors[flatIdx2]), 1.f),
+            .uv = GfToGLM<GfVec2f, FLOAT2>(uvs[flatIdx2]),
+        };
 
-        if (hasNormals && !hasFlattenedNormals)
-        {
-            outMesh->_normals[flatIdx0] = GfToGLMVec3f(indexedNormals[t0]);
-            outMesh->_normals[flatIdx1] = GfToGLMVec3f(indexedNormals[t1]);
-            outMesh->_normals[flatIdx2] = GfToGLMVec3f(indexedNormals[t2]);
-        }
-        if (hasUVs && !hasFlattenedUVs)
-        {
-            outMesh->_uvs[flatIdx0] = GfToGLMVec2f(indexedUVs[t0]);
-            outMesh->_uvs[flatIdx1] = GfToGLMVec2f(indexedUVs[t1]);
-            outMesh->_uvs[flatIdx2] = GfToGLMVec2f(indexedUVs[t2]);
-        }
+        flatIdx += 3;
     }
-    if (!hasNormals && !hasFlattenedNormals)
-    {  // fill with default value if has none
-        std::fill(outMesh->_normals.begin(), outMesh->_normals.end(), FLOAT3(0.f, 0.f, 0.f));
-    }
-    if (!hasUVs && !hasFlattenedUVs)
-    {  // fill with default value if has none
-        std::fill(outMesh->_uvs.begin(), outMesh->_uvs.end(), FLOAT2(0.f, 0.f));
-    }
-
-    outMesh->populateVertices();  // populate when everything is finalized for simplicity
 }
 
-bool NPTracerHdMesh::sReadMeshPrimvars(const SdfPath& id, HdSceneDelegate* delegate,
-                                       const HdMeshUtil& meshUtil, VtValue* pvValueOut,
-                                       const std::function<bool(const std::string&)>& pred)
+HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const
 {
-    HdPrimvarDescriptorVector primvars = delegate->GetPrimvarDescriptors(id,
-                                                                         HdInterpolationFaceVarying);
+    return bits;
+}
 
-    const HdPrimvarDescriptor* foundPvDesc = nullptr;
-    for (size_t idx = 0; idx < primvars.size(); idx++)
+void NPTracerHdMesh::_InitRepr(const TfToken& reprToken, HdDirtyBits*)
+{
+    auto it = std::find_if(_reprs.begin(), _reprs.end(), _ReprComparator(reprToken));
+    if (it == _reprs.end())
     {
-        const HdPrimvarDescriptor& pvDesc = primvars[idx];
-        const std::string& pvName = pvDesc.name.GetString();
-        if (pred(pvName))
-        {
-            foundPvDesc = &pvDesc;
-            break;
-        }
+        _reprs.emplace_back(reprToken, HdReprSharedPtr());
     }
-
-    if (!foundPvDesc)
-    {
-        return false;
-    }
-
-    const TfToken nameToken = foundPvDesc->name;
-
-    // get the underlying data of the descriptor
-    VtValue pv = sGetPrimvar(id, delegate, nameToken);
-
-    // make a named buffer of the data
-    HdVtBufferSource buffer(nameToken, pv);
-
-    // triangulate the primvar values
-    return meshUtil.ComputeTriangulatedFaceVaryingPrimvar(buffer.GetData(),
-                                                          static_cast<int>(buffer.GetNumElements()),
-                                                          buffer.GetTupleType().type, pvValueOut);
 }
 
 void NPTracerHdMesh::_AddToScene()
@@ -297,18 +250,58 @@ void NPTracerHdMesh::_RemoveFromScene()
     }
 }
 
-HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const
+IsPrimvarDescPredicateFn NPTracerHdMesh::sMapIsPrimvarDescPredicateFn(PrimvarType type)
 {
-    return bits;
+    switch (type)
+    {
+        case PrimvarType::NORMAL: return sIsNormalsPrimvarDescriptor;
+        case PrimvarType::COLOR: return sIsColorsPrimvarDescriptor;
+        case PrimvarType::UV: return sIsUVPrimvarDescriptor;
+        default: UNREACHABLE_CODE;
+    }
 }
 
-void NPTracerHdMesh::_InitRepr(const TfToken& reprToken, HdDirtyBits*)
+UpdatePrimvarFn NPTracerHdMesh::sMapUpdatePrimvarFn(HdInterpolation interpolation)
 {
-    auto it = std::find_if(_reprs.begin(), _reprs.end(), _ReprComparator(reprToken));
-    if (it == _reprs.end())
+    switch (interpolation)
     {
-        _reprs.emplace_back(reprToken, HdReprSharedPtr());
+        case HdInterpolationFaceVarying: return sUpdateFaceVaryingPrimvar;
+        default: UNREACHABLE_CODE;
     }
+}
+
+bool NPTracerHdMesh::sIsUVPrimvarDescriptor(const HdPrimvarDescriptor& desc)
+{
+    const std::string& name = desc.name;
+    // primvar would be called `st` or `map1` when exported from Maya
+    return name.compare("st") == 0 || name.compare("map1") == 0;
+}
+
+bool NPTracerHdMesh::sIsNormalsPrimvarDescriptor(const HdPrimvarDescriptor& desc)
+{
+    const std::string& name = desc.name;
+    return name == HdTokens->normals;
+}
+
+bool NPTracerHdMesh::sIsColorsPrimvarDescriptor(const HdPrimvarDescriptor& desc)
+{
+    const std::string& name = desc.name;
+    return name == HdTokens->displayColor;
+}
+
+void NPTracerHdMesh::sUpdateFaceVaryingPrimvar(const HdMeshUtil& meshUtil,
+                                               PrimvarPayload& payloadToUpdate)
+{
+    // reverse type-erasure. assign the primvar data to a named buffer
+    const HdVtBufferSource buffer(payloadToUpdate.desc.name, payloadToUpdate.primvar);
+
+    // try to triangulate the primvars
+    bool bCanResolveType
+        = meshUtil.ComputeTriangulatedFaceVaryingPrimvar(buffer.GetData(),
+                                                         static_cast<int>(buffer.GetNumElements()),
+                                                         buffer.GetTupleType().type,
+                                                         &payloadToUpdate.primvar);
+    TF_DEV_AXIOM(bCanResolveType);  // if this fails later, we can explictly pass in type
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

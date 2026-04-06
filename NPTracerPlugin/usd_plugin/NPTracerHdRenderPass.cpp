@@ -24,7 +24,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 {
     this->SetConverged(false);
 
-    np::App* app = _pCreator->GetRendererApp();
+    np::App* app = _pCreator->GetApp();
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
     TF_DEV_AXIOM(!aovBindings.empty());

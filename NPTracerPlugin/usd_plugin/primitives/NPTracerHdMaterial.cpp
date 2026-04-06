@@ -134,7 +134,7 @@ void NPTracerHdMaterial::Sync(HdSceneDelegate* delegate, HdRenderParam*, HdDirty
         }
     }
 
-    *dirtyBits = Clean;  // mark as clean
+    *dirtyBits = DirtyBits::Clean;  // mark as clean
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

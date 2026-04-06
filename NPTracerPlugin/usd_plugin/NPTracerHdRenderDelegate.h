@@ -23,16 +23,16 @@ public:
                                            const HdRprimCollection& collection) override;
 
     // query supported hydra prim types
-    const TfTokenVector& GetSupportedRprimTypes() const override;
-    const TfTokenVector& GetSupportedSprimTypes() const override;
-    const TfTokenVector& GetSupportedBprimTypes() const override;
+    const TfTokenVector& GetSupportedRprimTypes() const override;  // renderable primitives
+    const TfTokenVector& GetSupportedSprimTypes() const override;  // state prims
+    const TfTokenVector& GetSupportedBprimTypes() const override;  // buffer prims;
 
-    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };  // renderable primitives
+    const TfTokenVector SUPPORTED_RPRIM_TYPES = { HdPrimTypeTokens->mesh };
     const TfTokenVector SUPPORTED_SPRIM_TYPES = { HdPrimTypeTokens->camera,
                                                   HdPrimTypeTokens->material,
-                                                  HdPrimTypeTokens->sphereLight };  // state prims
-    const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };  // buffer prims;
-    const TfTokenVector NO_SUPPORTED_PRIM_TYPES{};
+                                                  HdPrimTypeTokens->sphereLight };
+    const TfTokenVector SUPPORTED_BPRIM_TYPES = { HdPrimTypeTokens->renderBuffer };
+    const TfTokenVector NO_SUPPORTED_PRIM_TYPES = {};
 
     static constexpr np::RendererConstants RENDERER_CONSTANTS = {
         .executionMode = np::eExecutionMode::OFFSCREEN,
@@ -78,7 +78,7 @@ public:
     // return the AOV description for `aovName`. This will be used to initialize the aov buffers.
     HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
 
-    np::App* GetRendererApp() const
+    np::App* GetApp() const
     {
         return _pApp.get();
     }

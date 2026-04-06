@@ -100,14 +100,42 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
         mesh->vertices.push_back(vert);
     }
 
-    // get indices
-    for (uint32_t j = 0; j < inAiMesh->mNumFaces; j++)
-    {
-        const aiFace* face = &inAiMesh->mFaces[j];
-
-        for (uint32_t k = 0; k < face->mNumIndices; k++)
+    if constexpr (gDEBUG)
+    {  // TEMP
+        // get indices
+        for (uint32_t j = 0; j < inAiMesh->mNumFaces; j++)
         {
-            mesh->indices.push_back(face->mIndices[k]);
+            const aiFace* face = &inAiMesh->mFaces[j];
+
+            for (uint32_t k = 0; k < face->mNumIndices; k++)
+            {
+                mesh->indices.push_back(face->mIndices[k]);
+            }
+        }
+
+        // get indices (flattened)
+        std::vector<Vertex> flattenedVertices;
+        flattenedVertices.reserve(inAiMesh->mNumFaces * 3);
+
+        for (uint32_t j = 0; j < inAiMesh->mNumFaces; j++)
+        {
+            const aiFace* face = &inAiMesh->mFaces[j];
+
+            for (uint32_t k = 0; k < face->mNumIndices; k++)
+            {
+                uint32_t idx = face->mIndices[k];
+                flattenedVertices.push_back(mesh->vertices[idx]);
+            }
+        }
+
+        // overwrite vertices + rebuild indices
+        mesh->vertices = std::move(flattenedVertices);
+
+        mesh->indices.clear();
+        mesh->indices.reserve(mesh->vertices.size());
+        for (uint32_t i = 0; i < mesh->vertices.size(); i++)
+        {
+            mesh->indices.push_back(i);
         }
     }
 

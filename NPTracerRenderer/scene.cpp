@@ -56,8 +56,8 @@ void Scene::finalize()
         mesh->bMaterialNeedsFinalization = false;
     }
 
-    if (gDEBUG
-        && _lights.empty())  // add a default light to the scene if none exist (when debugging)
+    // add a default light to the scene if none exist (when debugging)
+    if (gDEBUG && _lights.empty())
     {
         auto* light = makePrim<Light>();  // NOTE: instantiated with default values
     }
@@ -81,6 +81,17 @@ void Scene::reportState() const
         DBG_PRINT("Num Indices: %llu\n", mesh->indices.size());
         DBG_PRINT("Num Vertices: %llu\n", mesh->vertices.size());
         DBG_PRINT("Material Index: %u\n", mesh->materialIndex);
+
+        for (size_t i = 0; i < mesh->indices.size(); i++)
+        {
+            uint32_t index = mesh->indices[i];
+            const Vertex& vertex = mesh->vertices[index];
+            DBG_PRINT("[%llu] MESH INDEX '%u'\n", i, index);
+            std::cerr << vertex.pos << " [POSITION]" << std::endl;
+            std::cerr << vertex.normal << " [NORMAL]" << std::endl;
+            std::cerr << vertex.color << " [COLOR]" << std::endl;
+            std::cerr << vertex.uv << " [UV]" << std::endl;
+        }
     }
 
     // lights

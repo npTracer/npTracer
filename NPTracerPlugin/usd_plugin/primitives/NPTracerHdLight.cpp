@@ -78,10 +78,11 @@ void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* rende
         intensityVal.IsHolding<float>())
     {
         _pLight->intensity = intensityVal.Get<float>();
-        if (np::gDEBUG) _pLight->intensity *= 100.f;  // TEMP: figure out scaling differences
+        if constexpr (np::gDEBUG)
+            _pLight->intensity *= 100.f;  // TEMP: figure out scaling differences
     }
 
-    *dirtyBits = Clean;
+    *dirtyBits = DirtyBits::Clean;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

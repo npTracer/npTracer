@@ -22,8 +22,11 @@ enum PrimvarType : uint8_t
 
 struct PrimvarPayload
 {
-    VtValue primvar{};
-    HdPrimvarDescriptor desc{};
+    TfToken name{};
+    HdInterpolation interpolation = HdInterpolationCount;  // sentient unimplemented va
+
+    VtValue original{};
+    VtValue processed{};
 
     bool isDirty = true;
 };
@@ -44,7 +47,7 @@ public:
 
     void UpdateMeshPrimvarMap(HdSceneDelegate* delegate);
 
-    static void sConstructMesh(const SdfPath& id, HdSceneDelegate* delegate, const VtValue& tris,
+    static void sConstructMesh(const VtArray<uint32_t>& triIndices,
                                const std::unordered_map<PrimvarType, PrimvarPayload>& primvarMap,
                                np::Mesh* outMesh);
 
@@ -59,8 +62,9 @@ private:
     NPTracerHdRenderDelegate* _pCreator;
     np::Mesh* _pMesh = nullptr;
 
-    VtValue _tris;
-    VtVec3iArray _trisArray;
+    // flattened data of trianglulated indices outputted from `HdMeshUtil::ComputeTriangleIndices`
+    VtArray<uint32_t> _triIndices;
+
     std::unordered_map<PrimvarType, PrimvarPayload> _primvarMap;
 
     void _AddToScene();

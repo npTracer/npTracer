@@ -4,6 +4,7 @@
 #include "usd_plugin/hdMathUtils.h"
 #include "usd_plugin/NPTracerHdRenderDelegate.h"
 
+#include <iostream>
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/imaging/hd/vtBufferSource.h>
 
@@ -63,13 +64,22 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
     // indices
     if (*dirtyBits & HdChangeTracker::DirtyTopology)
     {
-        _trisArray.clear();
         // use Hydra utilities to retrieve triangulated indices
         const HdMeshTopology& topo = delegate->GetMeshTopology(id);
         const HdMeshUtil meshUtil(&topo, id);
+        VtArray<GfVec3i> tris;
         VtIntArray primitiveParams;
-        meshUtil.ComputeTriangleIndices(&_trisArray, &primitiveParams);  // get triangulated indices
-        _tris = VtValue(_trisArray);  // TODO: check is this update necessary?
+        meshUtil.ComputeTriangleIndices(&tris, &primitiveParams);  // get triangulated indices
+
+        const size_t targetIndicesCount = tris.size() * 3llu;
+        const size_t indicesByteSize = sizeof(uint32_t) * targetIndicesCount;
+        const GfVec3i* trisData = tris.data();
+
+        TF_DEV_AXIOM(sizeof(trisData) == indicesByteSize);  // ensure this memcpy will succeed
+
+        _triIndices.resize(targetIndicesCount);
+        std::memcpy(_triIndices.data(), trisData, indicesByteSize);
+
         bNeedsReconstruction = true;
     }
 
@@ -77,7 +87,7 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
     if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points))
     {
         PrimvarPayload& payload = _primvarMap[PrimvarType::POSITION];
-        payload.primvar = delegate->Get(id, HdTokens->points);
+        payload.original = delegate->Get(id, HdTokens->points);
         payload.isDirty = true;
         bNeedsReconstruction = true;
     }
@@ -109,7 +119,7 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
 
     if (bNeedsPrimvarsUpdate) UpdateMeshPrimvarMap(delegate);
 
-    if (bNeedsReconstruction) sConstructMesh(id, delegate, _tris, _primvarMap, _pMesh);
+    if (bNeedsReconstruction) sConstructMesh(_triIndices, _primvarMap, _pMesh);
 
     *dirtyBits &= ~HdChangeTracker::AllSceneDirtyBits;  // set all bits to clean!
 }
@@ -119,7 +129,7 @@ void NPTracerHdMesh::UpdateMeshPrimvarMap(HdSceneDelegate* delegate)
     const SdfPath& id = GetId();
     const HdMeshTopology& topo = delegate->GetMeshTopology(id);
     const HdMeshUtil meshUtil(&topo, id);
-    const size_t faceVaryingCount = _tris.GetArraySize() * 3;
+    const size_t targetIndicesCount = _triIndices.size();
 
     // build a flat vector of all the descriptors
     HdPrimvarDescriptorVector allDescriptors;
@@ -137,78 +147,61 @@ void NPTracerHdMesh::UpdateMeshPrimvarMap(HdSceneDelegate* delegate)
         PrimvarPayload& payload = _primvarMap[type];
         if (!payload.isDirty) continue;  // nothing else needed for this primvar
 
-        if (payload.primvar.IsEmpty())
+        if (payload.original.IsEmpty())
         {
             const IsPrimvarDescPredicateFn& pred = sMapIsPrimvarDescPredicateFn(type);
             auto it = std::ranges::find_if(allDescriptors, pred);
             if (it != allDescriptors.end())
             {
-                payload.desc = it[0];  // fill in payload with found descriptor
-                payload.primvar = delegate->Get(id,
-                                                payload.desc.name);  // use the name to get the value
+                // fill in payload with found descriptor
+                const HdPrimvarDescriptor& desc = it[0];
+                payload.name = desc.name;
+                payload.interpolation = desc.interpolation;
+
+                // use the name to query the value
+                payload.original = delegate->Get(id, payload.name);
             }
         }
-        const UpdatePrimvarFn& updater = sMapUpdatePrimvarFn(payload.desc.interpolation);
+        const UpdatePrimvarFn& updater = sMapUpdatePrimvarFn(payload.interpolation);
         updater(meshUtil, payload);
-        TF_DEV_AXIOM(payload.primvar.GetArraySize() == faceVaryingCount);
+        TF_DEV_AXIOM(payload.original.GetArraySize() == targetIndicesCount);
         payload.isDirty = false;
     }
 }
 
 void NPTracerHdMesh::sConstructMesh(
-    const SdfPath& id, HdSceneDelegate* delegate, const VtValue& tris,
+    const VtUIntArray& triIndices,
     const std::unordered_map<PrimvarType, PrimvarPayload>& primvarMap, np::Mesh* outMesh)
 {
-    const VtVec3iArray& trisArray = tris.Get<VtVec3iArray>();
-    const size_t faceVaryingCount = trisArray.size() * 3;  // expected count for face-varying attrs
+    // expected count for all attrs
+    const uint32_t count = static_cast<uint32_t>(triIndices.size());
 
     // resize all to desired size
-    outMesh->indices.resize(faceVaryingCount);
-    outMesh->vertices.resize(faceVaryingCount);
+    outMesh->indices.resize(count);
+    outMesh->vertices.resize(count);
 
-    const VtVec3fArray& positions = primvarMap.at(PrimvarType::POSITION).primvar.Get<VtVec3fArray>();
-    const VtVec3fArray& normals = primvarMap.at(PrimvarType::NORMAL).primvar.Get<VtVec3fArray>();
-    const VtVec3fArray& colors = primvarMap.at(PrimvarType::COLOR).primvar.Get<VtVec3fArray>();
-    const VtVec2fArray& uvs = primvarMap.at(PrimvarType::UV).primvar.Get<VtVec2fArray>();
+    const VtVec3fArray& positions = primvarMap.at(PrimvarType::POSITION).original.Get<VtVec3fArray>();
+    const VtVec3fArray& normals = primvarMap.at(PrimvarType::NORMAL).original.Get<VtVec3fArray>();
+    const VtVec3fArray& colors = primvarMap.at(PrimvarType::COLOR).original.Get<VtVec3fArray>();
+    const VtVec2fArray& uvs = primvarMap.at(PrimvarType::UV).original.Get<VtVec2fArray>();
+
+    const uint32_t maxAllowedIdx = positions.size();  // indices should not go out of bounds
+
+    // copy indices over to mesh
+    std::memcpy(outMesh->indices.data(), triIndices.data(), count * sizeof(uint32_t));
 
     // fill in all vertex data
-    uint32_t flatIdx = 0u;
-    for (size_t i = 0u; i < faceVaryingCount; ++i)
+    for (uint32_t i = 0u; i < count; ++i)
     {
-        const GfVec3i& tri = GfVec3i(1);
+        uint32_t idx = outMesh->indices[i];
+        idx = std::min<uint32_t>(idx, maxAllowedIdx);
 
-        const uint32_t t0 = tri[0];
-        const uint32_t t1 = tri[1];
-        const uint32_t t2 = tri[2];
-
-        const uint32_t flatIdx0 = flatIdx;
-        const uint32_t flatIdx1 = flatIdx + 1;
-        const uint32_t flatIdx2 = flatIdx + 2;
-
-        outMesh->indices[flatIdx0] = t0;
-        outMesh->indices[flatIdx1] = t1;
-        outMesh->indices[flatIdx2] = t2;
-
-        outMesh->vertices[flatIdx0] = {
-            .pos = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(positions[flatIdx0]), 1.f),
-            .normal = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(normals[flatIdx0]), 1.f),
-            .color = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(colors[flatIdx0]), 1.f),
-            .uv = GfToGLM<GfVec2f, FLOAT2>(uvs[flatIdx0]),
+        outMesh->vertices[idx] = {
+            .pos = FLOAT4(GfToGLMVec3f(positions[idx]), 1.f),
+            .normal = FLOAT4(GfToGLMVec3f(normals[idx]), 1.f),
+            .color = FLOAT4(GfToGLMVec3f(colors[idx]), 1.f),
+            .uv = GfToGLMVec2f(uvs[idx]),
         };
-        outMesh->vertices[flatIdx1] = {
-            .pos = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(positions[flatIdx1]), 1.f),
-            .normal = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(normals[flatIdx1]), 1.f),
-            .color = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(colors[flatIdx1]), 1.f),
-            .uv = GfToGLM<GfVec2f, FLOAT2>(uvs[flatIdx1]),
-        };
-        outMesh->vertices[flatIdx2] = {
-            .pos = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(positions[flatIdx2]), 1.f),
-            .normal = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(normals[flatIdx2]), 1.f),
-            .color = FLOAT4(GfToGLM<GfVec3f, FLOAT3>(colors[flatIdx2]), 1.f),
-            .uv = GfToGLM<GfVec2f, FLOAT2>(uvs[flatIdx2]),
-        };
-
-        flatIdx += 3;
     }
 }
 
@@ -293,14 +286,14 @@ void NPTracerHdMesh::sUpdateFaceVaryingPrimvar(const HdMeshUtil& meshUtil,
                                                PrimvarPayload& payloadToUpdate)
 {
     // reverse type-erasure. assign the primvar data to a named buffer
-    const HdVtBufferSource buffer(payloadToUpdate.desc.name, payloadToUpdate.primvar);
+    const HdVtBufferSource buffer(payloadToUpdate.name, payloadToUpdate.original);
 
     // try to triangulate the primvars
     bool bCanResolveType
         = meshUtil.ComputeTriangulatedFaceVaryingPrimvar(buffer.GetData(),
                                                          static_cast<int>(buffer.GetNumElements()),
                                                          buffer.GetTupleType().type,
-                                                         &payloadToUpdate.primvar);
+                                                         &payloadToUpdate.processed);
     TF_DEV_AXIOM(bCanResolveType);  // if this fails later, we can explictly pass in type
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "usd_plugin/usdMathUtils.h"
+#include "usdPlugin/library/usdMath.h"
 
 #include <NPTracerRenderer/structs.h>
 
@@ -13,7 +13,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 class NPTracerHdRenderDelegate;  // forward declare
 
-enum PrimvarType : uint8_t
+enum class PrimvarType : uint8_t
 {
     POSITION,
     NORMAL,
@@ -24,8 +24,7 @@ enum PrimvarType : uint8_t
 
 struct PrimvarPayload
 {
-    TfToken name{};
-    HdInterpolation interpolation = HdInterpolationCount;  // sentient unimplemented va
+    HdPrimvarDescriptor desc{};
 
     VtValue original{};
     VtValue processed{};
@@ -33,7 +32,7 @@ struct PrimvarPayload
     bool isDirty = true;
 };
 
-using IsPrimvarDescPredicateFn = std::function<bool(const HdPrimvarDescriptor&)>;
+using IsPrimvarFn = bool (*)(const HdPrimvarDescriptor&);
 using UpdatePrimvarFn = std::function<void(const HdMeshUtil&, PrimvarPayload&)>;
 
 class NPTracerHdMesh : public HdMesh
@@ -46,6 +45,7 @@ public:
 
     void Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam, HdDirtyBits* dirtyBits,
               const TfToken& reprToken) override;
+    bool SyncPrimvars(HdSceneDelegate* delegate, HdDirtyBits* dirtyBits);
 
     void UpdateMeshPrimvarMap(HdSceneDelegate* delegate);
 
@@ -73,12 +73,16 @@ private:
     void _RemoveFromScene();
 
     // manual maps
-    static IsPrimvarDescPredicateFn sMapIsPrimvarDescPredicateFn(PrimvarType type);
     static UpdatePrimvarFn sMapUpdatePrimvarFn(HdInterpolation interpolation);
 
-    static bool sIsNormalsPrimvarDescriptor(const HdPrimvarDescriptor& desc);
-    static bool sIsColorsPrimvarDescriptor(const HdPrimvarDescriptor& desc);
-    static bool sIsUVPrimvarDescriptor(const HdPrimvarDescriptor& desc);
+    static bool sIsPositionPrimvar(const HdPrimvarDescriptor& desc);
+    static bool sIsNormalPrimvar(const HdPrimvarDescriptor& desc);
+    static bool sIsColorPrimvar(const HdPrimvarDescriptor& desc);
+    static bool sIsUVPrimvar(const HdPrimvarDescriptor& desc);
+
+    // this should follow the order of `PrimvarType`
+    static constexpr IsPrimvarFn IS_PRIMVAR_FN_TABLE[] = { &sIsPositionPrimvar, &sIsNormalPrimvar,
+                                                           &sIsColorPrimvar, &sIsUVPrimvar };
 
     static void sUpdateFaceVaryingPrimvar(const HdMeshUtil& meshUtil,
                                           PrimvarPayload& payloadToUpdate);

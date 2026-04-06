@@ -1,8 +1,8 @@
-#include "usd_plugin/primitives/NPTracerHdLight.h"
+#include "usdPlugin/primitives/NPTracerHdLight.h"
 
-#include "usd_plugin/NPTracerHdRenderDelegate.h"
-#include "usd_plugin/debugCodes.h"
-#include "usd_plugin/usdMathUtils.h"
+#include "usdPlugin/NPTracerHdRenderDelegate.h"
+#include "usdPlugin/debugCodes.h"
+#include "usdPlugin/library/usdMath.h"
 
 #include "pxr/imaging/hd/sceneDelegate.h"
 

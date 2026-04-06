@@ -1,12 +1,12 @@
-#include "usd_plugin/NPTracerHdRenderDelegate.h"
+#include "usdPlugin/NPTracerHdRenderDelegate.h"
 
-#include "usd_plugin/debugCodes.h"
-#include "usd_plugin/NPTracerHdRenderPass.h"
-#include "usd_plugin/NPTracerHdRenderBuffer.h"
+#include "usdPlugin/debugCodes.h"
+#include "usdPlugin/NPTracerHdRenderPass.h"
+#include "usdPlugin/NPTracerHdRenderBuffer.h"
 
-#include "usd_plugin/primitives/NPTracerHdMesh.h"
-#include "usd_plugin/primitives/NPTracerHdLight.h"
-#include "usd_plugin/primitives/NPTracerHdMaterial.h"
+#include "usdPlugin/primitives/NPTracerHdMesh.h"
+#include "usdPlugin/primitives/NPTracerHdLight.h"
+#include "usdPlugin/primitives/NPTracerHdMaterial.h"
 
 #include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/sprim.h>
@@ -39,7 +39,7 @@ NPTracerHdRenderDelegate::~NPTracerHdRenderDelegate()
 };
 
 HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* index,
-                                                                 HdRprimCollection const& collection)
+                                                                 const HdRprimCollection& collection)
 {
     return std::make_shared<NPTracerHdRenderPass>(index, collection, this);
 }

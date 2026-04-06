@@ -1,7 +1,7 @@
 #pragma once
 
-#include "usd_plugin/NPTracerHdRenderDelegate.h"
-#include "usd_plugin/NPTracerHdRenderBuffer.h"
+#include "usdPlugin/NPTracerHdRenderDelegate.h"
+#include "usdPlugin/NPTracerHdRenderBuffer.h"
 
 #include <NPTracerRenderer/structs.h>
 
@@ -12,12 +12,12 @@ PXR_NAMESPACE_OPEN_SCOPE
 class NPTracerHdRenderPass : public HdRenderPass
 {
 public:
-    NPTracerHdRenderPass(HdRenderIndex* index, HdRprimCollection const& collection,
+    NPTracerHdRenderPass(HdRenderIndex* index, const HdRprimCollection& collection,
                          NPTracerHdRenderDelegate* delegate);
 
 protected:
-    void _Execute(HdRenderPassStateSharedPtr const& renderPassState,
-                  TfTokenVector const& renderTags) override;
+    void _Execute(const HdRenderPassStateSharedPtr& renderPassState,
+                  const TfTokenVector& renderTags) override;
 
     bool IsConverged() const override;
 
@@ -31,7 +31,7 @@ private:
 
     // camera should not be synced if we are overriding
     static constexpr bool _bSyncCameraPerPass = !ASSIMP_OVERRIDE;
-    static void sSyncCameraToState(HdRenderPassStateSharedPtr const& renderPassState,
+    static void sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
                                    np::CameraRecord* outCam);
 
     // TEMP: only create rendering resources once

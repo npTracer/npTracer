@@ -1,7 +1,7 @@
-#include "usd_plugin/primitives/NPTracerHdMaterial.h"
+#include "usdPlugin/primitives/NPTracerHdMaterial.h"
 
-#include "usd_plugin/NPTracerHdRenderDelegate.h"
-#include "usd_plugin/debugCodes.h"
+#include "usdPlugin/NPTracerHdRenderDelegate.h"
+#include "usdPlugin/debugCodes.h"
 
 #include <pxr/imaging/hd/sceneDelegate.h>
 

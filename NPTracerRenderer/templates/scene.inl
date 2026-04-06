@@ -37,7 +37,7 @@ inline bool Scene::deletePrim(T* primToDelete)
 template<typename T>
 inline size_t Scene::getPrimCount() const
 {
-    std::vector<std::unique_ptr<T>> const& primVector = getPrimVector<T>();
+    const std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
     return primVector.size();
 }
 

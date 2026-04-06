@@ -29,7 +29,7 @@ You should add `CUSTOM_DSO_PATH` to it.
 
 - This variable is the directory that Houdini will look for `plugInfo.json`, which is how the NPTracer Hydra Renderer Plugin will be registered with the USD ecosystem. This process is automated through CMake, so long as the correct environment variables are set.
 
-The standard location of `CUSTOM_USD_DSO_PATH` is: `<CUSTOM_DSO_PATH>/usd_plugins`
+The standard location of `CUSTOM_USD_DSO_PATH` is: `<CUSTOM_DSO_PATH>/usdPlugins`
 
 #### `HOUDINI_USD_DSO_PATH`
 

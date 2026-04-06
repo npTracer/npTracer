@@ -235,7 +235,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
 
 void AssimpScene::processAiLight(const aiLight* inAiLight)
 {
-    if (!inAiLight->mType == aiLightSourceType::aiLightSource_POINT)
+    if (inAiLight->mType != aiLightSourceType::aiLightSource_POINT)
         return;  // TEMP: only support point lights
 
     auto* light = makePrim<Light>();

@@ -1,7 +1,7 @@
-#include "usd_plugin/NPTracerHdRenderBuffer.h"
+#include "usdPlugin/NPTracerHdRenderBuffer.h"
 
-#include "usd_plugin/debugCodes.h"
-#include "usd_plugin/NPTracerHdRenderParam.h"
+#include "usdPlugin/debugCodes.h"
+#include "usdPlugin/NPTracerHdRenderParam.h"
 
 #define PREPARE_UNIQUE_PTR(_ptr, _ptrType, _destroyer)                                             \
     do                                                                                             \

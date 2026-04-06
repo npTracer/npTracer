@@ -1,4 +1,4 @@
-#include "usd_plugin/debugCodes.h"
+#include "usdPlugin/debugCodes.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 

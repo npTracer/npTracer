@@ -1,6 +1,6 @@
 #pragma once
 
-#include "usd_plugin/NPTracerHdRenderParam.h"
+#include "usdPlugin/NPTracerHdRenderParam.h"
 #include <NPTracerRenderer/structs.h>
 
 #include <pxr/imaging/hd/light.h>

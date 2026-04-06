@@ -18,6 +18,7 @@ endif()
 
 # target configuration
 add_subdirectory(primitives)
+add_subdirectory(library)
 
 set(NPTracerPlugin_PLUG_INFO_IN_PATH "${NPTracerPlugin_USD_PLUG_DIR}/plugInfo.json.in")
 
@@ -33,13 +34,13 @@ set(USD_PLUG_SOURCES
 
 set(USD_PLUG_HEADERS
     "${NPTracerPlugin_USD_PLUG_DIR}/debugCodes.h"
-    "${NPTracerPlugin_USD_PLUG_DIR}/usdMathUtils.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRendererPlugin.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderDelegate.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderPass.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderBuffer.h"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderParam.h"
     ${USD_PLUG_PRIM_HEADERS}
+    ${USD_PLUG_LIBRARY_HEADERS}
 )
 
 set(COMMON_USD_CONFIGURATION_ARGS
@@ -68,8 +69,12 @@ ConfigureUSDPluginTarget(${USD_PLUGIN_TARGET_NAME} "${CUSTOM_USD_DSO_PATH}"
 if(SHOULD_CREATE_STANDALONE_USD_PLUGIN)
     UsdUtilsValidate()
     set(pxr_DIR "${USD_INSTALL_PATH}") # forces search at given path BEFORE system `PATH`
+    list(APPEND CMAKE_PREFIX_PATH ${USD_INSTALL_PATH}) # helps find dependencies like `tbb`
+
     find_package(pxr CONFIG REQUIRED)
     UsdUtilsAnnounceState()
+
+    find_package(pxr CONFIG REQUIRED)
 
     ConfigureUSDPluginTarget(${STANDALONE_USD_PLUGIN_TARGET_NAME} "${CMAKE_INSTALL_PREFIX}"
         ${COMMON_USD_CONFIGURATION_ARGS}

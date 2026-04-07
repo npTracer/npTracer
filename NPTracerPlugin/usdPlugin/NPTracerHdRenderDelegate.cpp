@@ -205,12 +205,10 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
     {
         return { HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)) };
     }
-#if 0
     else if (aovName == HdAovTokens->depth)
     {
-        return { HdFormatFloat32, false, VtValue(1.0f) };
+        return HdAovDescriptor(HdFormatFloat32, false, VtValue(1.0f));
     }
-#endif
     return {};
 }
 

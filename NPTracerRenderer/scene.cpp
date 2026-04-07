@@ -85,6 +85,8 @@ void Scene::reportState() const
     DBG_PRINT("Num Materials: %llu\n", _materials.size());
     DBG_PRINT("Num Textures: %llu\n", _textures.size());
 
+    if constexpr (false) return;  // toggle on for verbose debugging
+
     // meshes
     for (const auto& mesh : _meshes)
     {

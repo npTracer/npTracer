@@ -417,7 +417,7 @@ struct RenderSettings
 
 struct RendererAovs
 {
-    Image* rgb = nullptr;
+    Image* color = nullptr;
     Image* depth = nullptr;
     // normals?
 };

@@ -70,8 +70,6 @@ private:
 
     np::Context* _pCtx;
     VkCommandBuffer _transferCmdBuffer = VK_NULL_HANDLE;
-
-    std::vector<uint8_t> _cpuDebugBuffer;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

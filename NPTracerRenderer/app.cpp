@@ -58,7 +58,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
         else
         {
             RendererAovs& aovs = aovsRef.value();
-            mContext.createResultImages(aovs.rgb->width, aovs.rgb->height);
+            mContext.createResultImages(aovs.color->width, aovs.color->height);
         }
     }
 
@@ -874,8 +874,8 @@ void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
 
 void App::executeDrawCall(RendererAovs& aovs)
 {
-    DEV_ASSERT(aovs.rgb, "aovs not created properly");
-    Image* rgb = aovs.rgb;
+    DEV_ASSERT(aovs.color, "aovs not created properly");
+    Image* colorAov = aovs.color;
 
     // grab a frame
     Frame& frame = mContext.frames[mCurrentFrameInFlight];
@@ -884,8 +884,8 @@ void App::executeDrawCall(RendererAovs& aovs)
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
     // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
-    VkExtent2D extent = { rgb->width, rgb->height };
-    populateDrawCallRT(frame.commandBuffer, rgb->image, extent,
+    VkExtent2D extent = { colorAov->width, colorAov->height };
+    populateDrawCallRT(frame.commandBuffer, colorAov->image, extent,
                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkResetFences(
         mContext.device, 1,
@@ -1067,7 +1067,7 @@ void App::populateDrawCallRaster(Frame& frame, uint32_t imageIndex)
                               mContext.doneRenderingSemaphores[imageIndex]);
 }
 
-void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent,
+void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
                              VkImageLayout dstImageLayout)
 {
     vkResetCommandBuffer(commandBuffer, 0);
@@ -1088,7 +1088,7 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExte
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
                                extent.width, extent.height, 1);
 
-    mContext.transitionImageLayout(commandBuffer, rgb, VK_IMAGE_LAYOUT_UNDEFINED,
+    mContext.transitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_UNDEFINED,
                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1099,10 +1099,10 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExte
     region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
     region.extent = { extent.width, extent.height, 1 };
 
-    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, rgb,
+    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, colorAov,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.transitionImageLayout(commandBuffer, rgb, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    mContext.transitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                    dstImageLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);

@@ -1,4 +1,6 @@
-# NPTracer - **Non-Photorealistic Pathtracing** in Houdini
+# NPTracer - **_Non-Photorealistic Pathtracing_** in Houdini
+
+![sponza in houdini](docs/assets/sponza_in_houdini.png)
 
 ## Build Instructions
 
@@ -58,3 +60,5 @@ cmake -B path/to/project/build/directory -S path/to/project/source/directory/con
 ```
 
 This variable will be cached in CMake so it does not have to be set on every build. It _does_ have to be set again after an action such as deleting your build folder.
+
+![sponza in usdview](docs/assets/sponza_in_usdview.png)

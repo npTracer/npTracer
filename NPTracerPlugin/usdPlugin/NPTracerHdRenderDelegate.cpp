@@ -1,16 +1,22 @@
-#include "usd_plugin/NPTracerHdRenderDelegate.h"
+#include "usdPlugin/NPTracerHdRenderDelegate.h"
 
-#include "usd_plugin/debugCodes.h"
-#include "usd_plugin/NPTracerHdRenderPass.h"
-#include "usd_plugin/NPTracerHdRenderBuffer.h"
-#include "usd_plugin/primitives/NPTracerHdMesh.h"
+#include "usdPlugin/debugCodes.h"
+#include "usdPlugin/NPTracerHdRenderPass.h"
+#include "usdPlugin/NPTracerHdRenderBuffer.h"
+
+#include "usdPlugin/primitives/NPTracerHdMesh.h"
+#include "usdPlugin/primitives/NPTracerHdLight.h"
+#include "usdPlugin/primitives/NPTracerHdMaterial.h"
 
 #include <pxr/imaging/hd/rprim.h>
 #include <pxr/imaging/hd/sprim.h>
 #include <pxr/imaging/hd/bprim.h>
 #include <pxr/imaging/hd/camera.h>
+#include <pxr/imaging/hdSt/light.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
+
+#define VECTOR_FROM_C_ARRAY(T, arr) std::vector<T>(std::begin(arr), std::end(arr))
 
 NPTracerHdRenderDelegate::NPTracerHdRenderDelegate()
 {
@@ -33,19 +39,19 @@ NPTracerHdRenderDelegate::~NPTracerHdRenderDelegate()
 };
 
 HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* index,
-                                                                 HdRprimCollection const& collection)
+                                                                 const HdRprimCollection& collection)
 {
     return std::make_shared<NPTracerHdRenderPass>(index, collection, this);
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedRprimTypes() const
 {
-    return SUPPORTED_RPRIM_TYPES;
+    return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_RPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedSprimTypes() const
 {
-    return SUPPORTED_SPRIM_TYPES;
+    return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_SPRIM_TYPES;
 }
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
@@ -96,6 +102,7 @@ HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyRprim(HdRprim* rprim)
 {
+    if (!rprim) return;  // necessary since we purposefully do not initialize some prims
     NP_DBG("Destroy Rprim: id=%s\n", rprim->GetId().GetText());
     delete rprim;
 }
@@ -108,6 +115,14 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
     {
         return new HdCamera(sprimId);
     }
+    else if (typeId == HdPrimTypeTokens->material)
+    {
+        return new NPTracerHdMaterial(sprimId, this);
+    }
+    else if (typeId == HdPrimTypeTokens->sphereLight)
+    {
+        return new NPTracerHdSphereLight(sprimId, this);
+    }
     else
     {
         TF_FATAL_CODING_ERROR("Unknown Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
@@ -118,6 +133,7 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroySprim(HdSprim* sprim)
 {
+    if (!sprim) return;  // necessary since we purposefully do not initialize some prims
     NP_DBG("Destroy Sprim: id=%s\n", sprim->GetId().GetText());
     delete sprim;
 }
@@ -129,6 +145,11 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     if (typeId == HdPrimTypeTokens->camera)
     {
         return new HdCamera(SdfPath::EmptyPath());
+    }
+    else if (typeId == HdPrimTypeTokens->material || typeId == HdPrimTypeTokens->sphereLight)
+    {
+        // do not corrupt our scene with other fallback prims as it their data is not initialized and they are also not properly deleted
+        return nullptr;
     }
     else
     {
@@ -155,8 +176,8 @@ HdBprim* NPTracerHdRenderDelegate::CreateBprim(const TfToken& typeId, const SdfP
 
 void NPTracerHdRenderDelegate::DestroyBprim(HdBprim* bprim)
 {
+    if (!bprim) return;  // necessary since we purposefully do not initialize some prims
     NP_DBG("Destroy Bprim: id=%s\n", bprim->GetId().GetText());
-
     delete bprim;
 }
 
@@ -184,17 +205,25 @@ HdAovDescriptor NPTracerHdRenderDelegate::GetDefaultAovDescriptor(const TfToken&
     {
         return { HdFormatUNorm8Vec4, true, VtValue(GfVec4f(0.0f)) };
     }
-    /*else if (aovName == HdAovTokens->depth)
+#if 0
+    else if (aovName == HdAovTokens->depth)
     {
         return { HdFormatFloat32, false, VtValue(1.0f) };
-    }*/
+    }
+#endif
     return {};
 }
 
 void NPTracerHdRenderDelegate::_Initialize()
 {
-    _pApp = std::make_unique<App>();
-    //_pApp->create();
+    _pApp = std::make_unique<np::App>();
+
+    _pApp->create(RENDERER_CONSTANTS);  // hydra assumes bottom-left origin for NDC
+
+    if (_bOverrideSceneWithAssimp)
+    {
+        _pApp->loadSceneFromPath(_kAssimpOverrideFilePath);
+    }
 
     _pRenderParam = std::make_unique<NPTracerHdRenderParam>();
     _pResourceRegistry = std::make_shared<HdResourceRegistry>();

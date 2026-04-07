@@ -5,88 +5,95 @@
 
 #include <memory>
 
+NP_TRACER_NAMESPACE_BEGIN
+
 class App
 {
-    static constexpr bool kDEBUG = NPTRACER_DEBUG;
-    static constexpr bool kSTANDALONE = NPTRACER_STANDALONE;
-
-    static constexpr uint32_t WIDTH = 2560;
-    static constexpr uint32_t HEIGHT = 1440;
-
-    std::unique_ptr<NPRendererAovs> m_aovs = nullptr;
-
 public:
     Context* getContext()
     {
-        return &context;
+        return &mContext;
     }
 
     Scene* getScene() const
     {
-        return scene.get();
+        return mpScene.get();
     }
 
-    void setAov(std::unique_ptr<NPRendererAovs> aovs)
-    {
-        m_aovs = std::move(aovs);
-    }
+    // public interface
 
-    // interface
-    void create();
+    void create(const RendererConstants& rendererConstants);
     void destroy();
 
-    void loadScene(const char* path);
+    void loadSceneFromPath(const char* path);
 
-    void createRenderingResources();
-    void executeDrawCallCallable(NPRendererAovs* aovs = nullptr);
+    void createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef = std::nullopt);
+    void executeDrawCall(RendererAovs& aovs);
 
-    void run();
     void render();
 
 private:
-    static constexpr int FRAME_COUNT = 2;
-    static constexpr uint32_t MAX_RESOURCE_COUNT = 10000;
-    uint32_t currentFrame = 0;
+    // this is a runtime constant, just update whenever needed
+    static constexpr size_t kPushConstantCount = 4;
 
-    Context context;
-    GLFWwindow* window = nullptr;
+    Context mContext{};
+    GLFWwindow* mpWindow = nullptr;
 
-    // push constants
-    std::vector<uint32_t> indexCounts;
-    uint32_t numLights = 0;
+    // renderer-level constants
+    RendererConstants mRendererConstants{};
+    SpecializationConstants mSpecializationConstants{};  // renderer-level consts exposed to shaders
 
     // rendering resources
-    std::unique_ptr<Scene> scene;
+    std::unique_ptr<Scene> mpScene;
 
-    NPPipeline pipeline;
-    std::vector<NPDescriptorSetLayout> descriptorSetLayouts;
-    std::vector<VkDescriptorSet> descriptorSets;
-    VkSampler sampler = VK_NULL_HANDLE;
+    Pipeline mRasterPipeline;
+    Pipeline mRtPipeline;
+    ShaderBindingTable mSbt{};
 
-    // SET 0: GEOMETRY
-    NPBuffer meshRecordBuffer;
-    NPBuffer vertexBuffer;
-    NPBuffer indexBuffer;
+    std::vector<DescriptorSetLayout> mDescriptorSetLayouts;
+    std::vector<VkDescriptorSet> mDescriptorSets;
+    VkSampler mSampler = VK_NULL_HANDLE;
 
-    // SET 1: TRANSFORMS
-    NPBuffer geometryTransformsBuffer;
-    NPBuffer lightTransformsBuffer;
+    uint32_t mCurrentFrameInFlight = 0u;
+    uint32_t mNumLights = 0;
+    std::vector<uint32_t> mIndexCounts;
 
-    // SET 2: CAMERA & LIGHTS
-    NPBuffer cameraRecordBuffer;
-    NPBuffer lightRecordBuffer;
+    // SET 0: MESHES
+    Buffer mMeshRecordBuffer;
+    Buffer mVertexBuffer;
+    Buffer mIndexBuffer;
+    Buffer mMeshTransformsBuffer;
 
-    // SET 3: MATERIALS
-    NPBuffer materialRecordsBuffer;
-    std::vector<NPImage> textures;
+    // SET 1: LIGHTS
+    Buffer mLightRecordBuffer;
+
+    // SET 2: CAMERA
+    Buffer mCameraRecordBuffer;
+
+    // SET 3: MATERIALS & TEXTURES
+    Buffer mMaterialRecordsBuffer;
+    std::vector<Image> mTextures;
+
+    // SET 4: RT
+    std::vector<AccelerationStructure> mBlasses;
+    AccelerationStructure mTlas{};
 
     // resource creation
-    void createGraphicsPipeline();
+    void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
+    void createRTPipeline();
+    void createAccelerationStructures(std::vector<MeshRecord>& meshes,
+                                      std::vector<FLOAT4x4>& transforms,
+                                      VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallCallable(NPFrame& frame, NPImage* renderTarget);
-    void populateDrawCallSwapchain(NPFrame& frame, uint32_t imageIndex);
+    void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);
+    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent,
+                            VkImageLayout dstImageLayout);
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();
+
+    void createSpecializationConstants();
 };
+
+NP_TRACER_NAMESPACE_END

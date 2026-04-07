@@ -1,5 +1,6 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
+[require(spvShaderNonUniformEXT)]
 
 struct MeshRecord
 {
@@ -14,9 +15,10 @@ struct MeshRecord
 
 struct CameraRecord
 {
-    float4x4 model;
     float4x4 view;
     float4x4 proj;
+    float4x4 invView;
+    float4x4 invProj;
 };
 
 struct LightRecord

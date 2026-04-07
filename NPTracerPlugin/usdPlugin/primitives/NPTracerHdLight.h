@@ -1,0 +1,38 @@
+#pragma once
+
+#include "usdPlugin/NPTracerHdRenderParam.h"
+#include <NPTracerRenderer/structs.h>
+
+#include <pxr/imaging/hd/light.h>
+#include <pxr/imaging/hd/renderDelegate.h>
+
+PXR_NAMESPACE_OPEN_SCOPE
+
+class NPTracerHdRenderDelegate;  // forward declare
+
+class NPTracerHdLight : public HdLight
+{
+public:
+    NPTracerHdLight(const SdfPath& sprimId, NPTracerHdRenderDelegate* renderDelegate);
+    ~NPTracerHdLight() override;
+
+    HdDirtyBits GetInitialDirtyBitsMask() const override;
+
+protected:
+    NPTracerHdRenderDelegate* _pCreator;
+    np::Light* _pLight = nullptr;
+
+    void _AddToScene();
+    void _RemoveFromScene();
+};
+
+// in USD (specifically Houdini Solaris USD), sphere light is essentially a point light
+class NPTracerHdSphereLight : public NPTracerHdLight
+{
+public:
+    NPTracerHdSphereLight(const SdfPath& sprimId, NPTracerHdRenderDelegate* renderDelegate);
+    void Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
+              HdDirtyBits* dirtyBits) override;
+};
+
+PXR_NAMESPACE_CLOSE_SCOPE

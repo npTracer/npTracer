@@ -1,69 +1,105 @@
 ﻿#pragma once
 
-#define GLM_ENABLE_EXPERIMENTAL
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#include "framework.h"
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+#include <vk_mem_alloc.h>
 
 #include <string>
 #include <array>
 #include <optional>
 #include <vector>
+#include <memory>
 
+// alias-like template types can stay in global namespace
 using FLOAT2 = glm::f32vec2;
 using FLOAT3 = glm::f32vec3;
 using FLOAT4 = glm::f32vec4;
-using FLOAT4X4 = glm::f32mat4;
+using FLOAT4x4 = glm::f32mat4x4;
 
-using NPScenePath = std::string;
-using NPScenePathCollection = std::vector<NPScenePath>;
+template<typename T>
+using WRAP_REF = std::reference_wrapper<T>;
 
-struct Dummy
+template<typename T>
+using UPTR = std::unique_ptr<T>;
+
+NP_TRACER_NAMESPACE_BEGIN
+
+using ScenePath = std::string;
+
+enum class eSceneType : uint8_t
 {
-    float a;
-    float b;
-    float c;
-    float d;
+    ASSIMP,
+    DEFAULT
 };
 
-struct NPVertex
+enum class eExecutionMode : uint8_t
 {
-    FLOAT4 pos;
-    FLOAT4 normal;
-    FLOAT4 color;
-    FLOAT2 uv;
-    FLOAT2 pad0;
+    OFFSCREEN,
+    SWAPCHAIN
+};
+
+// these values are renderer-level and thus differ from render settings
+struct RendererConstants
+{
+    eExecutionMode executionMode = eExecutionMode::OFFSCREEN;
+    eSceneType sceneType = eSceneType::DEFAULT;
+    bool bFlipUVY = true;  // Hydra assumes bottom-left UV origin, Vulkan top-left
+};
+
+// constants set at pipeline creation time
+struct SpecializationConstants
+{
+    uint32_t kFlipUVY = 1u;
+};
+
+struct Vertex
+{
+    FLOAT4 pos = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 normal = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 color = FLOAT4(1.f);
+    FLOAT2 uv = FLOAT2(0.f);
+    FLOAT2 pad0 = FLOAT2(0.f);
 
     // tell vulkan how vertices should be moved through
     static VkVertexInputBindingDescription getBindingDescription()
     {
-        return { 0, sizeof(NPVertex), VK_VERTEX_INPUT_RATE_VERTEX };
+        return VkVertexInputBindingDescription{ .binding = 0,
+                                                .stride = sizeof(Vertex),
+                                                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
     }
 
     // tell vulkan what attributes exist within each vertex and how big they are
     static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
     {
         return {
-            VkVertexInputAttributeDescription{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(NPVertex, pos) },
-            VkVertexInputAttributeDescription{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(NPVertex, normal) },
-            VkVertexInputAttributeDescription{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT,
-                                               offsetof(NPVertex, color) },
-            VkVertexInputAttributeDescription{ 3, 0, VK_FORMAT_R32G32_SFLOAT,
-                                               offsetof(NPVertex, uv) },
+            VkVertexInputAttributeDescription{ .location = 0,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32B32_SFLOAT,
+                                               .offset = offsetof(Vertex, pos) },
+            VkVertexInputAttributeDescription{ .location = 1,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32B32_SFLOAT,
+                                               .offset = offsetof(Vertex, normal) },
+            VkVertexInputAttributeDescription{ .location = 2,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32B32_SFLOAT,
+                                               .offset = offsetof(Vertex, color) },
+            VkVertexInputAttributeDescription{ .location = 3,
+                                               .binding = 0,
+                                               .format = VK_FORMAT_R32G32_SFLOAT,
+                                               .offset = offsetof(Vertex, uv) },
         };
     }
 };
 
-struct NPBuffer
+struct Buffer
 {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
-    VmaAllocationInfo allocInfo = {};
+    VmaAllocationInfo allocInfo{};
 
     void destroy(VmaAllocator allocator)
     {
@@ -73,7 +109,7 @@ struct NPBuffer
         }
     }
 
-    static std::vector<VkBuffer> extractVkBuffers(const std::vector<NPBuffer>& buffers)
+    static std::vector<VkBuffer> extractVkBuffers(const std::vector<Buffer>& buffers)
     {
         std::vector<VkBuffer> vkBuffers;
         vkBuffers.reserve(buffers.size());
@@ -86,7 +122,7 @@ struct NPBuffer
     }
 };
 
-struct NPImage
+struct Image
 {
     VkImage image = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
@@ -102,34 +138,31 @@ struct NPImage
     void transitionLayout(VkCommandBuffer commandBuffer, VkImageLayout newLayout,
                           VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                           VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
-                          std::optional<VkImageAspectFlags> overrideAspectFlags = std::nullopt)
+                          std::optional<VkImageAspectFlags> overrideAspect = std::nullopt)
     {
-        VkImageMemoryBarrier2 barrier{};
-
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-        barrier.srcStageMask = srcStageMask;
-        barrier.srcAccessMask = srcAccessMask;
-        barrier.dstStageMask = dstStageMask;
-        barrier.dstAccessMask = dstAccessMask;
-        barrier.oldLayout = layout;
-        barrier.newLayout = newLayout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image;
-
-        barrier.subresourceRange.aspectMask = overrideAspectFlags.value_or(
+        const VkImageAspectFlags aspectMask = overrideAspect.value_or(
             format == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
 
-        VkDependencyInfo dependencyInfo{};
+        VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                                       .srcStageMask = srcStageMask,
+                                       .srcAccessMask = srcAccessMask,
+                                       .dstStageMask = dstStageMask,
+                                       .dstAccessMask = dstAccessMask,
+                                       .oldLayout = layout,
+                                       .newLayout = newLayout,
+                                       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                       .image = image,
+                                       .subresourceRange = { .aspectMask = aspectMask,
+                                                             .baseMipLevel = 0,
+                                                             .levelCount = 1,
+                                                             .baseArrayLayer = 0,
+                                                             .layerCount = 1 } };
 
-        dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-        dependencyInfo.dependencyFlags = {};
-        dependencyInfo.imageMemoryBarrierCount = 1;
-        dependencyInfo.pImageMemoryBarriers = &barrier;
+        VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                         .dependencyFlags = {},
+                                         .imageMemoryBarrierCount = 1,
+                                         .pImageMemoryBarriers = &barrier };
 
         vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 
@@ -138,22 +171,22 @@ struct NPImage
 
     void destroy(VkDevice device, VmaAllocator allocator)
     {
+        if (view != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(device, view, nullptr);
+            view = VK_NULL_HANDLE;
+        }
+
         if (image != VK_NULL_HANDLE)
         {
             vmaDestroyImage(allocator, image, allocation);
             image = VK_NULL_HANDLE;
             allocInfo = {};
         }
-
-        if (view != VK_NULL_HANDLE)
-        {
-            vkDestroyImageView(device, view, nullptr);
-            view = VK_NULL_HANDLE;
-        }
     }
 };
 
-struct NPPipeline
+struct Pipeline
 {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
@@ -174,7 +207,7 @@ struct NPPipeline
     }
 };
 
-struct NPFrame
+struct Frame
 {
     VkSemaphore donePresentingSemaphore;
     VkFence doneExecutingFence;
@@ -187,7 +220,33 @@ struct NPFrame
     }
 };
 
-enum class NPQueueType : uint8_t
+struct SwapchainParams
+{
+    VkSurfaceFormatKHR surfaceFormat;
+    VkPresentModeKHR presentMode;
+    VkExtent2D extent;
+};
+
+struct DescriptorSetLayout
+{
+    VkDescriptorSetLayout layout;
+    VkDescriptorPool pool;
+
+    void destroy(VkDevice device)
+    {
+        if (pool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(device, pool, nullptr);
+        }
+
+        if (layout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        }
+    }
+};
+
+enum class QueueType : uint8_t
 {
     GRAPHICS,
     TRANSFER,
@@ -195,7 +254,7 @@ enum class NPQueueType : uint8_t
     _COUNT  // sentinel
 };
 
-struct NPQueue
+struct Queue
 {
     VkQueue queue = VK_NULL_HANDLE;
     std::optional<uint32_t> index;
@@ -215,15 +274,46 @@ struct NPQueue
     }
 };
 
-// shared structs
-struct NPCameraRecord
+struct ShaderBindingTable
 {
-    alignas(16) FLOAT4X4 model;
-    alignas(16) FLOAT4X4 view;
-    alignas(16) FLOAT4X4 proj;
+    uint32_t handleSize;
+    uint32_t handleAlign;
+    uint32_t baseAlign;
+
+    Buffer buffer;
+    VkDeviceAddress deviceAddress;
+
+    VkStridedDeviceAddressRegionKHR rgen{};
+    VkStridedDeviceAddressRegionKHR miss{};
+    VkStridedDeviceAddressRegionKHR hit{};
+    VkStridedDeviceAddressRegionKHR callable{};
+
+    void destroy(VmaAllocator allocator)
+    {
+        buffer.destroy(allocator);
+    }
 };
 
-struct NPMeshRecord
+struct AccelerationStructure
+{
+    VkAccelerationStructureKHR accelerationStructure = VK_NULL_HANDLE;
+    Buffer handleBuffer;
+    Buffer scratchBuffer;
+    VkDeviceAddress deviceAddress;
+
+    void destroyBuffers(VkDevice device, VmaAllocator allocator)
+    {
+        // VkDestroyAccelerationStructure requires context so destroy it outside of struct
+
+        handleBuffer.destroy(allocator);
+        scratchBuffer.destroy(allocator);
+    }
+};
+
+// primitive types
+
+// meshes
+struct MeshRecord
 {
     uint32_t vertexOffset;
     uint32_t indexOffset;
@@ -231,156 +321,105 @@ struct NPMeshRecord
     uint32_t vertexCount;
 
     uint32_t transformIndex;
-    uint32_t materialIndex;
+    uint32_t materialIndex = UINT32_MAX;
 };
 
-struct NPMesh
+struct Mesh
 {
-    uint64_t objectId;  // the hash of the mesh's `SdfPath`
-    NPScenePath scenePath;
+    ScenePath scenePath;
+
+    FLOAT4x4 transform = FLOAT4x4(1.f);  // i.e. objectToWorld
 
     std::vector<uint32_t> indices;
-    std::vector<NPVertex> vertices;
+    std::vector<Vertex> vertices;
 
-    // NOTE: this vertex data should be stored flattened.
-    // i.e. `_positions.size() == indices.size()`, etc.
-    std::vector<FLOAT3> _positions;
-    std::vector<FLOAT3> _normals;
-    std::vector<FLOAT2> _uvs;
-    std::vector<FLOAT3> _colors;
-    std::vector<uint32_t> _materialIds;
+    // NOTE: since Hydra does not guarantee creating materials before meshes, we save the material's unique `SdfPath` to fill in the `materialIndex` during 'finalization'
+    ScenePath _materialScenePath;
+    uint32_t materialIndex = UINT32_MAX;
 
-    FLOAT4X4 objectToWorld;
-    FLOAT4X4 worldToObject;  // model matrix
+    bool bMaterialNeedsFinalization = false;
+};
 
-    FLOAT3 bboxMin;
-    FLOAT3 bboxMax;
+// camera
+struct CameraRecord
+{
+    FLOAT4x4 view;
+    FLOAT4x4 proj;
+    FLOAT4x4 invView;
+    FLOAT4x4 invProj;
+};
 
-    uint32_t materialIndex;
+using Camera = CameraRecord;
 
-    void populateVertices()
+// lights
+struct LightRecord
+{
+    FLOAT4x4 transform = FLOAT4x4{ 1.f };
+    FLOAT4 color = FLOAT4{ 1.f, 1.f, 1.f, 1.f };  // 4 channels for alignment purposes
+    float intensity = 1.f;
+};
+
+struct Light : LightRecord
+{
+    ScenePath scenePath;
+
+    LightRecord toRecord() const
     {
-        size_t count = _positions.size();
-
-        this->vertices.clear();
-        this->vertices.reserve(count);
-
-        for (size_t i = 0; i < count; i++)
-        {
-            NPVertex v{};
-            v.pos = FLOAT4(_positions[i], 0);
-            v.color = (i < _colors.size()) ? FLOAT4(_colors[i], 0)
-                                           : FLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
-            v.uv = (i < _uvs.size()) ? _uvs[i] : FLOAT2{ 0.0f, 0.0f };
-            v.pad0 = FLOAT2{ 0.0f, 0.0f };
-            vertices.push_back(v);
-        }
+        return LightRecord(*this);
     }
 };
 
-struct NPMaterial
+// materials
+struct MaterialRecord
 {
-    FLOAT4 ambient;
-    FLOAT4 diffuse;
-    FLOAT4 specular;
-    FLOAT4 emission;
+    FLOAT4 diffuse = FLOAT4(1.f);
+    FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 specular = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f);
 
-    uint32_t diffuseTextureIdx;
+    uint32_t diffuseTextureIndex = UINT32_MAX;
 };
 
-enum class NPLightType : uint8_t
+struct Material : MaterialRecord
 {
-    POINT,
-    AREA
+    ScenePath scenePath;
+
+    MaterialRecord toRecord() const
+    {
+        return MaterialRecord(*this);
+    }
 };
 
-struct NPLightRecord
+// textures
+struct TextureRecord
 {
-    uint32_t lightTransformIndex;
-    FLOAT4 color;
-    float intensity;
+    void* pixels;  // pixels should have 4 channels
+    uint32_t width;
+    uint32_t height;
 };
 
-struct NPLight
-{
-    NPLightType type;
+using Texture = TextureRecord;
 
-    FLOAT4X4 transform;
-
-    FLOAT3 color;
-    float intensity;
-
-    // for area lights
-    FLOAT3 u;
-    FLOAT3 v;
-
-    // for point / area
-    float radius;
-
-    uint32_t lightId;
-};
-
-enum class NPStylizationFunction : uint8_t
+enum class StylizationFunction : uint8_t
 {
     PASSTHROUGH
 };
 
-struct NPRenderSettings
+struct RenderSettings
 {
     // general settings
     uint32_t maxDepth = 1;
     uint32_t samplesPerPixel = 1;
 
     // stylization-specific
-    NPStylizationFunction stylizationFunction = NPStylizationFunction::PASSTHROUGH;
+    StylizationFunction stylizationFunction = StylizationFunction::PASSTHROUGH;
 };
 
-struct NPRendererAovs
+struct RendererAovs
 {
-    NPImage* color = nullptr;
-    NPImage* depth = nullptr;
+    Image* rgb = nullptr;
+    Image* depth = nullptr;
     // normals?
 };
 
-struct SwapchainParams
-{
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR presentMode;
-    VkExtent2D extent;
-    VkFormat depthFormat;
-};
-
-struct NPDescriptorSetLayout
-{
-    VkDescriptorSetLayout layout;
-    VkDescriptorPool pool;
-
-    void destroy(VkDevice device)
-    {
-        if (pool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(device, pool, nullptr);
-        }
-
-        if (layout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
-        }
-    }
-};
-
-enum class TextureOwnership
-{
-    NONE,
-    STB,
-    MALLOC
-};
-
-// TODO: move this to scene
-struct PendingTexture
-{
-    void* pixels;
-    uint32_t width;
-    uint32_t height;
-    TextureOwnership ownership = TextureOwnership::NONE;
-};
+NP_TRACER_NAMESPACE_END

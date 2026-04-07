@@ -1,13 +1,14 @@
-#include "usd_plugin/NPTracerHdRenderPass.h"
+#include "usdPlugin/NPTracerHdRenderPass.h"
 
-#include "usd_plugin/debugCodes.h"
-#include "usd_plugin/hdMathUtils.h"
+#include "usdPlugin/debugCodes.h"
+#include "usdPlugin/library/usdMath.h"
 
 #include <pxr/imaging/hd/camera.h>
 #include <pxr/imaging/hd/renderPassState.h>
 #include <pxr/imaging/hd/renderBuffer.h>
 
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/matrix_operation.hpp>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -21,33 +22,28 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPassState,
                                     const TfTokenVector& renderTags)
 {
-    NP_DBG("Render pass executed.\n");
-
     this->SetConverged(false);
 
-    App* app = _pCreator->GetRendererApp();
+    np::App* app = _pCreator->GetApp();
 
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
     TF_DEV_AXIOM(!aovBindings.empty());
 
-    NPRendererAovs payload;
+    np::RendererAovs payload;
 
-    std::vector<NPTracerHdRenderBuffer*> requestedWriters;
-    requestedWriters.reserve(aovBindings.size());
+    std::vector<NPTracerHdRenderBuffer*> aovsRequestedForWrite;
+    aovsRequestedForWrite.reserve(aovBindings.size());
 
     for (const HdRenderPassAovBinding& binding : aovBindings)
     {
         auto buffer = dynamic_cast<NPTracerHdRenderBuffer*>(binding.renderBuffer);
-        if (!buffer)  // `dynamic_cast` failed
-        {
-            continue;
-        }
+        if (!buffer) continue;  // `dynamic_cast` failed
 
         TF_DEV_AXIOM(buffer->IsConverged() && !buffer->IsMapped());
 
         if (binding.aovName == HdAovTokens->color)
         {
-            payload.color = buffer->RequestImageForWrite(true);
+            payload.rgb = buffer->RequestImageForWrite(true);
         }
         else if (binding.aovName == HdAovTokens->depth)
         {
@@ -58,38 +54,51 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
             continue;  // skip pushing onto buffer vector
         }
 
-        requestedWriters.push_back(buffer);
+        aovsRequestedForWrite.push_back(buffer);
     }
 
-    NPCameraRecord* cam = app->getScene()->getCamera();
-    _SyncCamera(renderPassState, cam);  // fill in camera data after all buffers have been requested
+    // fill in camera data after all buffers have been requested
+    if (_bSyncCameraPerPass)
+    {
+        np::CameraRecord* cam = app->getScene()->getCamera();
+        sSyncCameraToState(renderPassState, cam);
+    }
 
-    app->executeDrawCallCallable(&payload);
+    if (!_resourcesCreatedFlag.load())
+    {
+        app->createRenderingResources(payload);
+        _resourcesCreatedFlag.store(true);
+    }
 
-    for (NPTracerHdRenderBuffer* buffer : requestedWriters)
+    app->executeDrawCall(payload);
+
+    for (NPTracerHdRenderBuffer* buffer : aovsRequestedForWrite)
     {
         buffer->EndWrite();  // mark all requested buffers
     }
 
     this->SetConverged(true);
+
+    NP_DBG("Render pass executed.\n");
 }
 
 bool NPTracerHdRenderPass::IsConverged() const
 {
-    return _converged.load();
+    return _bConverged.load();
 }
 
 void NPTracerHdRenderPass::SetConverged(bool converged)
 {
-    _converged.store(converged);
+    _bConverged.store(converged);
 }
 
-void NPTracerHdRenderPass::_SyncCamera(const HdRenderPassStateSharedPtr& renderPassState,
-                                       NPCameraRecord* outCam) const
+void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
+                                              np::CameraRecord* outCam)
 {
-    const HdCamera* hdCam = renderPassState->GetCamera();
-    outCam->view = GfMatrix4dToGLM(renderPassState->GetWorldToViewMatrix());
-    outCam->proj = GfMatrix4dToGLM(renderPassState->GetProjectionMatrix());
+    outCam->view = GfToGLMMat4f(renderPassState->GetWorldToViewMatrix());
+    outCam->proj = GfToGLMMat4f(renderPassState->GetProjectionMatrix());
+    outCam->invView = glm::inverse(outCam->view);
+    outCam->invProj = glm::inverse(outCam->proj);
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

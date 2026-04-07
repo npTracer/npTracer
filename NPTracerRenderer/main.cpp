@@ -4,19 +4,25 @@
 #include <stdexcept>
 #include <string>
 
+constexpr np::RendererConstants RENDERER_CONSTANTS = {
+    .executionMode = np::eExecutionMode::SWAPCHAIN,
+    .sceneType = np::eSceneType::ASSIMP,
+    .bFlipUVY = false
+};
+
 int main(int argc, char** argv)
 {
-    App app;
-    app.create();
+    np::App app;
+    app.create(RENDERER_CONSTANTS);
     if (argc == 2)
     {
         std::string scenePath = argv[1];
 
         try
         {
-            app.loadScene(scenePath.c_str());
+            app.loadSceneFromPath(scenePath.c_str());
             app.createRenderingResources();
-            app.run();
+            app.render();
         }
         catch (const std::exception e)
         {

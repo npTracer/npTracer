@@ -87,7 +87,7 @@ private:
 
     // render commands recording
     void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);
-    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExtent2D& extent,
+    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
                             VkImageLayout dstImageLayout);
 
     // private execute draw call standalone

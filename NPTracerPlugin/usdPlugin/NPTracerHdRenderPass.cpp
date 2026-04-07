@@ -43,7 +43,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 
         if (binding.aovName == HdAovTokens->color)
         {
-            payload.rgb = buffer->RequestImageForWrite(true);
+            payload.color = buffer->RequestImageForWrite(true);
         }
         else if (binding.aovName == HdAovTokens->depth)
         {

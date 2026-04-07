@@ -164,6 +164,17 @@ private:
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
     static void sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+    template<typename T>
+    inline T sLoadDeviceFunction(VkDevice device, VkInstance instance, const char* name)
+    {
+        T fn = reinterpret_cast<T>(vkGetDeviceProcAddr(device, name));
+        if (!fn)
+        {
+            fn = reinterpret_cast<T>(vkGetInstanceProcAddr(instance, name));
+        }
+        return fn;
+    }
 };
 
 NP_TRACER_NAMESPACE_END

@@ -8,7 +8,7 @@ NP_TRACER_NAMESPACE_BEGIN
 enum class eAovType : uint8_t
 {
     INVALID,
-    RGB,
+    COLOR,
     DEPTH,
 };
 
@@ -48,7 +48,7 @@ inline const AovTokens& getAovTokens(const eAovType aovType)
 {
     switch (aovType)
     {
-        case eAovType::RGB: return kRGBTokens;
+        case eAovType::COLOR: return kRGBTokens;
         case eAovType::DEPTH: return kDepthTokens;
         default: return kInvalidFormatTokens;
     }

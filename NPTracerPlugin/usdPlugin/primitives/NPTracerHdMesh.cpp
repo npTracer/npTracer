@@ -1,10 +1,12 @@
 #include "usdPlugin/primitives/NPTracerHdMesh.h"
 
-#include "glm/gtx/type_trait.hpp"
+#include "NPTracerHdLight.h"
 #include "usdPlugin/debugCodes.h"
 #include "usdPlugin/NPTracerHdRenderDelegate.h"
 
 #include <pxr/imaging/hd/vtBufferSource.h>
+#include <pxr/base/gf/rotation.h>
+#include <pxr/base/gf/matrix3f.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -37,15 +39,16 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
     if (*dirtyBits & HdChangeTracker::DirtyTransform)
     {
         // retrieve the transform first (it only gets more complex from here)
-        FLOAT4x4 xform = GfToGLMMat4f(delegate->GetTransform(id));
+        GfMatrix4f transform = GfMatrix4f(delegate->GetTransform(id));
+
         if constexpr (np::gDEBUG)  // TEMP: renderer assumes z-up?
         {
-            static FLOAT4x4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f),
-                                                   glm::vec3(1.0f, 0.0f, 0.0f));
-            xform = rotation * xform;
+            static const GfMatrix4f rotator = GfMatrix4f().SetRotate(
+                GfRotation(GfVec3f(1, 0, 0), 90.f));
+            transform = rotator * transform;
         }
 
-        _pMesh->transform = xform;
+        _pMesh->transform = GfToGLMMat4f(transform);
     }
 
     // material
@@ -97,12 +100,6 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         allDescriptors.insert(allDescriptors.end(), descs.begin(), descs.end());
     }
 
-    for (auto& desc : allDescriptors)
-    {
-        NP_DBG("desc: name %s, role %s, interpolation: %u, indexed: %i\n", desc.name.GetText(),
-               desc.role.GetText(), desc.interpolation, int(desc.indexed));
-    }
-
     // initialize some function-scoped data structures
     std::unordered_map<HdInterpolation, std::vector<PrimvarPayloadBase*>> primvarInterpolationMap;
     primvarInterpolationMap.reserve(HdInterpolationCount);
@@ -142,12 +139,6 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         const ProcessPrimvarsFn& kProcessFn
             = PROCESS_PRIMVARS_FN_TABLE[static_cast<uint32_t>(interpolation)];
         kProcessFn(meshUtil, _triIndices, pPayloads);
-
-        /*for (auto* payload : pPayloads)
-        {
-            NP_DBG("src name %s size %i\n", payload->desc.name.GetText(),
-                   payload->GetSource().GetArraySize());
-        }*/
     }
 }
 
@@ -162,13 +153,10 @@ void NPTracerHdMesh::sConstructMesh(
     outMesh->indices.resize(count);
     outMesh->vertices.resize(count);
 
-    const VtVec3fArray& positions = GetPayload<GfVec3f>(primvarMap, POSITION)->GetSourceArray();
-
-    const VtVec3fArray& normals = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetSourceArray();
-    const VtVec3fArray& colors = GetPayload<GfVec3f>(primvarMap, COLOR)->GetSourceArray();
-    const VtVec2fArray& uvs = GetPayload<GfVec2f>(primvarMap, UV)->GetSourceArray();
-
-    const uint32_t maxAllowedIdx = positions.size();  // indices should not go out of bounds
+    const VtVec3fArray& position = GetPayload<GfVec3f>(primvarMap, POSITION)->GetProcessedArray();
+    const VtVec3fArray& normal = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetProcessedArray();
+    const VtVec3fArray& color = GetPayload<GfVec3f>(primvarMap, COLOR)->GetProcessedArray();
+    const VtVec2fArray& uv = GetPayload<GfVec2f>(primvarMap, UV)->GetProcessedArray();
 
     // copy indices over to mesh
     std::memcpy(outMesh->indices.data(), triIndices.data(), count * sizeof(uint32_t));
@@ -176,14 +164,12 @@ void NPTracerHdMesh::sConstructMesh(
     // fill in all vertex data
     for (uint32_t i = 0u; i < count; ++i)
     {
-        uint32_t idx = outMesh->indices[i];
-        idx = std::min<uint32_t>(idx, maxAllowedIdx);
-
-        outMesh->vertices[idx] = {
-            .pos = FLOAT4(GfToGLMVec3f(positions[idx]), 1.f),
-            .normal = FLOAT4(GfToGLMVec3f(normals[idx]), 1.f),
-            .color = FLOAT4(GfToGLMVec3f(colors[idx]), 1.f),
-            .uv = GfToGLMVec2f(uvs[idx]),
+        // simple linear indexing as all primvars have been preprocessed
+        outMesh->vertices[i] = {
+            .pos = FLOAT4(GfToGLMVec3f(position[i]), 1.f),
+            .normal = FLOAT4(GfToGLMVec3f(normal[i]), 1.f),
+            .color = FLOAT4(GfToGLMVec3f(color[i]), 1.f),
+            .uv = GfToGLMVec2f(uv[i]),
         };
     }
 }

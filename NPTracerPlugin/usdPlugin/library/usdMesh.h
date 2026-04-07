@@ -79,9 +79,9 @@ public:
         return source;  // return const reference
     }
 
-    inline const VtArray<T>& GetSourceArray() const
+    inline const VtArray<T>& GetProcessedArray() const
     {
-        return source.UncheckedGet<VtArray<T>>();
+        return processed.UncheckedGet<VtArray<T>>();
     }
 
     inline void SetProcessed(VtValue& value) override

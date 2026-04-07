@@ -116,12 +116,14 @@ function(SetupDebugCompileDefinition var_name default_value)
     set(${OUTPUT_VARIABLE_NAME} ${COMPILE_DEFINITION_VALUE} PARENT_SCOPE)
 endfunction()
 
-function(ConfigureDebugger target_name cmd cmd_args)
+function(ConfigureDebugger target_name cmd cmd_args cmd_env)
     # set some useful VS settings for QOL
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
         set_target_properties(${target_name} PROPERTIES VS_DEBUGGER_COMMAND "${cmd}")
         
         set_target_properties(${target_name} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "${cmd_args}")
+
+        set_target_properties(${target_name} PROPERTIES VS_DEBUGGER_ENVIRONMENT "${cmd_env}")
     endif()
 endfunction()
 

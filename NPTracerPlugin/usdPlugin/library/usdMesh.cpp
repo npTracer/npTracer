@@ -8,7 +8,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 extern const std::array<TfToken, 3> gUVTokensArray = {
     TfToken("st", TfToken::_ImmortalTag::Immortal),
     TfToken("map1", TfToken::_ImmortalTag::Immortal),  // maya convention
-    TfToken("map2", TfToken::_ImmortalTag::Immortal)  // maya co
+    TfToken("map2", TfToken::_ImmortalTag::Immortal)  // maya convention as well
 };
 
 bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc)
@@ -49,10 +49,9 @@ bool IsColorPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
 
 bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
 {
-    static auto pred = [&](const TfToken& token)
-    { return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, token); };
-
-    return std::ranges::any_of(gUVTokensArray.begin(), gUVTokensArray.end(), pred);
+    return std::ranges::any_of(gUVTokensArray.begin(), gUVTokensArray.end(),
+                               [dirtyBits, id](const TfToken& uvToken)
+                               { return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, uvToken); });
 }
 
 void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& indices,

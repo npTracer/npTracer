@@ -6,6 +6,7 @@ function(ConfigureUSDPluginTarget target_name install_dir)
     set(oneValueArgs
         DEBUGGER_CMD
         DEBUGGER_CMD_ARGS
+        DEBUGGER_CMD_ENV
         INSTALL_COMPONENT
         PLUG_INFO_IN_PATH
     )
@@ -69,7 +70,7 @@ function(ConfigureUSDPluginTarget target_name install_dir)
 
     include(core_utils)
 
-    ConfigureDebugger(${target_name} "${arg_DEBUGGER_CMD}" "${arg_DEBUGGER_CMD_ARGS}")
+    ConfigureDebugger(${target_name} "${arg_DEBUGGER_CMD}" "${arg_DEBUGGER_CMD_ARGS}" "${arg_DEBUGGER_CMD_ENV}")
 endfunction()
 
 # print all useful variables to command-line

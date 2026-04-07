@@ -97,6 +97,12 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         allDescriptors.insert(allDescriptors.end(), descs.begin(), descs.end());
     }
 
+    for (auto& desc : allDescriptors)
+    {
+        NP_DBG("desc: name %s, role %s, interpolation: %u, indexed: %i\n", desc.name.GetText(),
+               desc.role.GetText(), desc.interpolation, int(desc.indexed));
+    }
+
     // initialize some function-scoped data structures
     std::unordered_map<HdInterpolation, std::vector<PrimvarPayloadBase*>> primvarInterpolationMap;
     primvarInterpolationMap.reserve(HdInterpolationCount);
@@ -107,7 +113,7 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         const IsPrimvarDirtyFn& kIsDirtyFn = IS_PRIMVAR_DIRTY_FN_TABLE[type];
         if (kIsDirtyFn(dirtyBits, id))
         {
-            payload = {};  // reset the payload, which subsequently marks it as dirty
+            payload->isDirty = true;
 
             const IsPrimvarDescFn& kIsDescFn = IS_PRIMVAR_DESC_FN_TABLE[static_cast<uint8_t>(type)];
             auto it = std::ranges::find_if(allDescriptors, kIsDescFn);
@@ -136,6 +142,12 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         const ProcessPrimvarsFn& kProcessFn
             = PROCESS_PRIMVARS_FN_TABLE[static_cast<uint32_t>(interpolation)];
         kProcessFn(meshUtil, _triIndices, pPayloads);
+
+        /*for (auto* payload : pPayloads)
+        {
+            NP_DBG("src name %s size %i\n", payload->desc.name.GetText(),
+                   payload->GetSource().GetArraySize());
+        }*/
     }
 }
 

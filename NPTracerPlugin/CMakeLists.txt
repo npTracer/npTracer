@@ -44,4 +44,4 @@ houdini_configure_target(${PROJECT_NAME} INSTDIR "${CUSTOM_DSO_PATH}")
 add_subdirectory(usdPlugin)
 
 add_dependencies(${PROJECT_NAME} ${USD_PLUGIN_TARGET_NAME})
-ConfigureDebugger(${PROJECT_NAME} "${HOUDINI_DEBUGGER_CMD}" "${HOUDINI_DEBUGGER_CMD_ARGS}")
+ConfigureDebugger(${PROJECT_NAME} "${HOUDINI_DEBUGGER_CMD}" "${HOUDINI_DEBUGGER_CMD_ARGS}" "")

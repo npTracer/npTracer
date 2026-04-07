@@ -1,15 +1,23 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
+[require(spvShaderNonUniformEXT)]
+
+/*
+NPTracer coordinate system conventions:
+Right-handedness - up=+Y, forward=-Z
+Flipped UVs - origin (0,0) at top-left corner, (1,1) at bottom-right corner
+*/
+
+// TODO: move all shared structs and bindings to a common shader module
 
 struct MeshRecord
 {
-    uint vertexOffset;
-    uint indexOffset;
-    uint indexCount;
-    uint vertexCount;
-    
-    uint transformIndex;
-    uint materialIndex;
+    uint32_t vertexOffset;
+    uint32_t indexOffset;
+    uint32_t indexCount;
+    uint32_t vertexCount;
+    uint32_t transformIndex;
+    uint32_t materialIndex;
 };
 
 struct CameraRecord
@@ -22,18 +30,18 @@ struct CameraRecord
 
 struct LightRecord
 {
-    uint transformIndex;
+    float4x4 transform;
     float4 color;
     float intensity;
 };
 
 struct MaterialRecord
 {
-    float4 ambient;
     float4 diffuse;
+    float4 ambient;
     float4 specular;
     float4 emissive;
-    uint textureIndex;
+    uint32_t diffuseTextureIndex;
 };
 
 struct Vertex
@@ -56,9 +64,9 @@ struct VertexOutput
 
 struct PushConstants
 {
-    uint meshIndex;
-    uint numLights;
-    uint frameIndex;
+    uint32_t meshIndex;
+    uint32_t numLights;
+    uint32_t frameIndex;
 };
 
 struct Payload
@@ -76,6 +84,8 @@ struct ShadowPayload
     bool hit;
 };
 
+[[vk::constant_id(0)]] const uint32_t kFlipUVY;
+
 [[vk::push_constant]]
 ConstantBuffer<PushConstants> pushConstants;
 
@@ -86,19 +96,16 @@ StructuredBuffer<MeshRecord> meshRecords;
 StructuredBuffer<Vertex> globalVertices;
 
 [[vk::binding(2, 0)]]
-StructuredBuffer<uint> globalIndices;
+StructuredBuffer<uint32_t> globalIndices;
 
-[[vk::binding(0, 1)]]
+[[vk::binding(3, 0)]]
 StructuredBuffer<float4x4> globalTransforms;
 
-[[vk::binding(1, 1)]]
-StructuredBuffer<float4x4> lightTransforms;
+[[vk::binding(0, 1)]]
+StructuredBuffer<LightRecord> lights;
 
 [[vk::binding(0, 2)]]
 ConstantBuffer<CameraRecord> camera;
-
-[[vk::binding(1, 2)]]
-StructuredBuffer<LightRecord> lights;
 
 [[vk::binding(0, 3)]]
 StructuredBuffer<MaterialRecord> materials;
@@ -117,8 +124,10 @@ RWTexture2D<float4> accumulationImage;
 
 float3 generateCameraRayDir(float2 uv)
 {
-    float2 clipXY = uv * 2.0 - 1.0;
-    float4 target = mul(camera.invProj, float4(clipXY, 1.0, 1.0)); // in homogeneous view space
+    // map vulkan top-left UV origin convention to NDC space (-1, -1)
+    float clipX = uv.x * 2.0 - 1.0; // i.e. 0 to -1, 1 to 1
+    float clipY = uv.y * -2.0 + 1.0; // i.e. 0 to 1, 1 to -1
+    float4 target = mul(camera.invProj, float4(clipX, clipY, 1.0, 1.0)); // in homogeneous view space
     target /= target.w;
     
     float3 dirView = normalize(target.xyz);
@@ -128,14 +137,14 @@ float3 generateCameraRayDir(float2 uv)
 }
 
 // https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
-uint pcg_hash(uint x)
+uint32_t pcg_hash(uint32_t x)
 {
     x = x * 747796405u + 2891336453u;
-    uint r = ((x >> ((x >> 28u) + 4u)) ^ x) * 277803737u;
+    uint32_t r = ((x >> ((x >> 28u) + 4u)) ^ x) * 277803737u;
     return (r >> 22u) ^ r;
 }
 
-float rand(inout uint state)
+float rand(inout uint32_t state)
 {
     state = state * 1664525u + 1013904223u;
     return float(state) / 4294967296.0;
@@ -167,10 +176,10 @@ float3 computeDirectLighting(Payload payload, float3 wo)
 
     float3 Lo = float3(0.0);
 
-    for (uint i = 0; i < pushConstants.numLights; i++)
+    for (uint32_t i = 0; i < pushConstants.numLights; i++)
     {
         LightRecord light = lights[i];
-        float4x4 lightTransform = lightTransforms[light.transformIndex];
+        float4x4 lightTransform = light.transform;
 
         float3 lightPos = float3(
             lightTransform[0][3],
@@ -233,25 +242,25 @@ float3 stylizeGreyScale(float3 samples)
 [shader("raygeneration")]
 void rgenMain()
 {
-    uint2 pixel = DispatchRaysIndex().xy; // pixel responsible for dispatch
-    uint2 dims = DispatchRaysDimensions().xy; // image dimensions in pixels
+    uint32_t2 pixel = DispatchRaysIndex().xy; // pixel responsible for dispatch
+    uint32_t2 dims = DispatchRaysDimensions().xy; // image dimensions in pixels
     
     float3 cameraOrigin = mul(camera.invView, float4(0.0, 0.0, 0.0, 1.0)).xyz; // camera origin in world space
     
     float tMin = 0.001;
     float tMax = 10000.0;
     
-    uint samples = 5;
-    uint bounces = 3;
+    uint32_t samples = 5;
+    uint32_t bounces = 3;
     
     float3 finalColor = float3(0.0);
     
     // random init
-    uint baseSeed = pixel.x + pixel.y * dims.x;
+    uint32_t baseSeed = pixel.x + pixel.y * dims.x;
     
-    for (uint sample = 0; sample < samples; sample++)
+    for (uint32_t sample = 0; sample < samples; sample++)
     {
-        uint seed = pcg_hash(
+        uint32_t seed = pcg_hash(
             baseSeed
             ^ (sample * 0x9E3779B9u)
             ^ (pushConstants.frameIndex * 0x85EBCA6Bu)
@@ -260,6 +269,8 @@ void rgenMain()
         // generate a ray for this pixel
         float2 jitter = float2(rand(seed), rand(seed));
         float2 uv = (float2(pixel) + jitter) / dims;
+        uv.y = lerp(uv.y, 1.0 - uv.y, float(kFlipUVY)); // use lerp to flip coord system Y w/o a boolean check
+        
         float3 origin = cameraOrigin;
         float3 wi = generateCameraRayDir(uv);
         
@@ -269,7 +280,7 @@ void rgenMain()
         bool stylize = false;
         
         // shoot ray (bounceable) into the scene
-        for (uint bounce = 0; bounce < bounces; bounce++)
+        for (uint32_t bounce = 0; bounce < bounces; bounce++)
         {
             // given the new ray direction and origin shoot off in direction
             Payload payload;
@@ -337,17 +348,17 @@ void rgenMain()
     
     if (pushConstants.frameIndex == 0)
     {
-        accumulationImage[pixel] = float4(curr.bgr, 1.0);
-        resultImage[pixel] = float4(curr.bgr, 1.0);
+        accumulationImage[pixel] = float4(curr.rgb, 1.0);
+        resultImage[pixel] = float4(curr.rgb, 1.0);
         return;
     }
     
-    float3 prev = accumulationImage[pixel].bgr;
+    float3 prev = accumulationImage[pixel].rgb;
     float n = float(pushConstants.frameIndex);
     float3 blended = (prev * n + curr) / (n + 1.0);
     
-    accumulationImage[pixel] = float4(blended.bgr, 1.0);
-    resultImage[pixel] = float4(blended.bgr, 1.0);
+    accumulationImage[pixel] = float4(blended.rgb, 1.0);
+    resultImage[pixel] = float4(blended.rgb, 1.0);
 }
 
 [shader("miss")]
@@ -366,18 +377,18 @@ void shadowmissMain(inout ShadowPayload payload)
 void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     // instance data
-    uint instanceIdx = InstanceID();
+    uint32_t instanceIdx = InstanceID();
     MeshRecord rec = meshRecords[instanceIdx];
     
     float4x4 transform = globalTransforms[rec.transformIndex];
     MaterialRecord material = materials[rec.materialIndex];
 
     // TODO: register file doesn't like this
-    uint primIdx = PrimitiveIndex();
+    uint32_t primIdx = PrimitiveIndex();
     
-    uint i0 = globalIndices[rec.indexOffset + primIdx * 3 + 0];
-    uint i1 = globalIndices[rec.indexOffset + primIdx * 3 + 1];
-    uint i2 = globalIndices[rec.indexOffset + primIdx * 3 + 2];
+    uint32_t i0 = globalIndices[rec.indexOffset + primIdx * 3 + 0];
+    uint32_t i1 = globalIndices[rec.indexOffset + primIdx * 3 + 1];
+    uint32_t i2 = globalIndices[rec.indexOffset + primIdx * 3 + 2];
     
     Vertex v0 = globalVertices[i0];
     Vertex v1 = globalVertices[i1];
@@ -398,9 +409,9 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     float3 N = normalize(worldNormal);
     float3 baseColor = material.diffuse.rgb;
     
-    if (material.textureIndex != 0xFFFFFFFF)
+    if (material.diffuseTextureIndex != 0xFFFFFFFF)
     {
-        Sampler2D texture = textures[material.textureIndex];
+        Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
         

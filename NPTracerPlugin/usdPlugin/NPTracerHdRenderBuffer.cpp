@@ -1,28 +1,31 @@
-#include "usd_plugin/NPTracerHdRenderBuffer.h"
+#include "usdPlugin/NPTracerHdRenderBuffer.h"
 
-#include "usd_plugin/debugCodes.h"
-#include "usd_plugin/NPTracerHdRenderParam.h"
+#include "usdPlugin/debugCodes.h"
+#include "usdPlugin/NPTracerHdRenderParam.h"
 
 #define PREPARE_UNIQUE_PTR(_ptr, _ptrType, _destroyer)                                             \
-    if (_ptr == nullptr)                                                                           \
+    do                                                                                             \
     {                                                                                              \
-        _ptr = std::make_unique<_ptrType>();                                                       \
-    }                                                                                              \
-    else                                                                                           \
-    {                                                                                              \
-        _destroyer();                                                                              \
-        _ptr.reset();                                                                              \
-        _ptr = std::make_unique<_ptrType>();                                                       \
-    }
+        if (_ptr == nullptr)                                                                       \
+        {                                                                                          \
+            _ptr = std::make_unique<_ptrType>();                                                   \
+        }                                                                                          \
+        else                                                                                       \
+        {                                                                                          \
+            _destroyer();                                                                          \
+            _ptr.reset();                                                                          \
+            _ptr = std::make_unique<_ptrType>();                                                   \
+        }                                                                                          \
+    } while (0)
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, Context* context)
+NPTracerHdRenderBuffer::NPTracerHdRenderBuffer(const SdfPath& bprimId, np::Context* context)
     : HdRenderBuffer(bprimId)
     , _pCtx(context)
     , _pImage(nullptr)
     , _pStagingBuffer(nullptr)
-    , _fmtTokens(Np::GetFormatTokens(HdFormatInvalid))
+    , _aovTokens(np::getAovTokens(np::eAovType::INVALID))
 {
 }
 
@@ -31,14 +34,14 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
     NP_DBG("Requested allocation of render buffer: id=%s, dimensions=(%i, %i, %i), format=%i\n",
            GetId().GetText(), dimensions[0], dimensions[1], dimensions[2], format);
 
-    TF_DEV_AXIOM(dimensions[2] == 1);  // temp: only support 2D buffers
+    TF_DEV_AXIOM(dimensions[2] == 1);  // TEMP: only support 2D buffers
 
     _Deallocate();
 
     _dimensions = dimensions;
     _format = format;
-    _multiSampled = multiSampled;
-    _fmtTokens = Np::GetFormatTokens(format);
+    _bMultiSampled = multiSampled;
+    _aovTokens = np::getAovTokens(sHdFormatToNPAovType(format));
 
     const VkDeviceSize size = GetSize();
 
@@ -47,36 +50,35 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
         return false;
     }
 
-    VkFormat vkFormat = _fmtTokens.vkFormat;
+    VkFormat vkFormat = _aovTokens.format;
     if (vkFormat == VK_FORMAT_UNDEFINED)
     {
         return false;
     }
 
-    PREPARE_UNIQUE_PTR(_pImage, NPImage,
+    PREPARE_UNIQUE_PTR(_pImage, np::Image,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
     _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
-                       _fmtTokens.usage,
-                       0  // device local
-    );
+                       _aovTokens.imageUsage, 0, _aovTokens.imageAspect, true);
 
     VkCommandBuffer commandBuffer;
-    _pCtx->createCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    _pCtx->createCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
     _pCtx->beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    // temp: transition into general with all access and stage.
-    _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, 0,
+    // transition into transfer src optimal for renderer
+    // TEMP: set all access and stage for ease-of-use
+    _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0,
                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT
                                   | VK_ACCESS_2_SHADER_WRITE_BIT,
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
 
-    _pCtx->endCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    _pCtx->endCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
 
-    vkQueueWaitIdle(_pCtx->queues[NPQueueType::GRAPHICS].queue);
-    _pCtx->freeCommandBuffer(commandBuffer, NPQueueType::GRAPHICS);
+    vkQueueWaitIdle(_pCtx->queues[np::QueueType::GRAPHICS].queue);
+    _pCtx->freeCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
 
-    PREPARE_UNIQUE_PTR(_pStagingBuffer, NPBuffer,
+    PREPARE_UNIQUE_PTR(_pStagingBuffer, np::Buffer,
                        [this]() { _pStagingBuffer->destroy(_pCtx->allocator); });
     _pCtx->createBuffer(*_pStagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                         VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -90,29 +92,6 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     NP_DBG("Allocated render buffer: id=%s, dimensions=(%i, %i, %i), format=%i\n",
            GetId().GetText(), dimensions[0], dimensions[1], dimensions[2], format);
-
-    _cpuDebugBuffer.resize(size);
-
-    // Fill with solid red depending on format
-    if (_format == HdFormatUNorm8Vec4)
-    {
-        for (size_t i = 0; i < size; i += 4)
-        {
-            _cpuDebugBuffer[i + 0] = 255;  // R
-            _cpuDebugBuffer[i + 1] = 0;  // G
-            _cpuDebugBuffer[i + 2] = 0;  // B
-            _cpuDebugBuffer[i + 3] = 255;  // A
-        }
-    }
-    else if (_format == HdFormatFloat32)
-    {
-        float* data = reinterpret_cast<float*>(_cpuDebugBuffer.data());
-        size_t count = size / sizeof(float);
-        for (size_t i = 0; i < count; i++)
-        {
-            data[i] = 1.0f;  // depth = 1 (far plane)
-        }
-    }
 
     return true;
 }
@@ -140,12 +119,12 @@ HdFormat NPTracerHdRenderBuffer::GetFormat() const
 size_t NPTracerHdRenderBuffer::GetSize() const
 {
     TF_DEV_AXIOM(_dimensions[0] > 0 && _dimensions[1] > 0 && _dimensions[2]);
-    return _fmtTokens.bytesPerPixel * _dimensions[0] * _dimensions[1];
+    return _aovTokens.bytesPerPixel * _dimensions[0] * _dimensions[1];
 }
 
 bool NPTracerHdRenderBuffer::IsMultiSampled() const
 {
-    return _multiSampled;
+    return _bMultiSampled;
 }
 
 // copy underlying image data to a staging buffer for i/o mapping
@@ -165,53 +144,17 @@ void* NPTracerHdRenderBuffer::Map()
         std::this_thread::yield();  // for now ensure reading can only occur during writing
     }
 
-    uint8_t* dbgData = _cpuDebugBuffer.data();
-
-    // print a few pixels
-    // if (_format == HdFormatUNorm8Vec4)
-    // {
-    //     for (int i = 0; i < 5; i++)
-    //     {
-    //         int idx = i * 4;
-    //         NP_DBG("[CPU] Pixel %d: (%u, %u, %u, %u)\n", i, dbgData[idx + 0], dbgData[idx + 1],
-    //                dbgData[idx + 2], dbgData[idx + 3]);
-    //     }
-    // }
-    // return dbgData;
-
     if (_transferCmdBuffer != VK_NULL_HANDLE) vkResetCommandBuffer(_transferCmdBuffer, 0);
 
-    _pCtx->createCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
+    _pCtx->createCommandBuffer(_transferCmdBuffer, np::QueueType::TRANSFER);
     _pCtx->beginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-    /*_pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image, VK_IMAGE_LAYOUT_GENERAL,
-                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _fmtTokens.writeAccess,
-                                 VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeStage,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.aspect);*/
 
     _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
                              static_cast<uint32_t>(_dimensions[0]),
-                             static_cast<uint32_t>(_dimensions[1]));
+                             static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
 
-    // restore image layout for future passes
-    /*_pCtx->transitionImageLayout(_transferCmdBuffer, _pImage->image,
-                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-                                 VK_ACCESS_2_TRANSFER_READ_BIT, _fmtTokens.writeAccess,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, _fmtTokens.writeStage,
-                                 _fmtTokens.aspect);*/
-
-    _pCtx->endCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
-    vkQueueWaitIdle(_pCtx->queues[NPQueueType::TRANSFER].queue);
-
-    uint8_t* data = static_cast<uint8_t*>(_pStagingBuffer->allocInfo.pMappedData);
-
-    const size_t size = GetSize();
-    for (size_t i = 0; i < size; i += 4)
-    {
-        if (size > 23 && i > 20) continue;  // only debug log a few
-        NP_DBG("[Pixel %d] (%u, %u, %u, %u)\n", i / 4, data[i + 0], data[i + 1], data[i + 2],
-               data[i + 3]);
-    }
+    _pCtx->endCommandBuffer(_transferCmdBuffer, np::QueueType::TRANSFER);
+    vkQueueWaitIdle(_pCtx->queues[np::QueueType::TRANSFER].queue);
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op
 }
@@ -230,12 +173,12 @@ bool NPTracerHdRenderBuffer::IsMapped() const
 
 bool NPTracerHdRenderBuffer::IsConverged() const
 {
-    return _converged.load();
+    return _bConverged.load();
 }
 
 void NPTracerHdRenderBuffer::SetConverged(bool converged)
 {
-    _converged.store(converged);
+    _bConverged.store(converged);
 }
 
 void NPTracerHdRenderBuffer::Resolve()
@@ -245,10 +188,10 @@ void NPTracerHdRenderBuffer::Resolve()
 
 bool NPTracerHdRenderBuffer::HasWriter() const
 {
-    return _hasWriter.load();
+    return _bHasWriter.load();
 }
 
-NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
+np::Image* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 {
     if (waitUntilSuccess)
     {
@@ -261,7 +204,7 @@ NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
     if (!HasWriter() && !IsMapped())
     {
         SetConverged(false);  // first mark not converged
-        _hasWriter.store(true);
+        _bHasWriter.store(true);
         return _pImage.get();
     }
     return nullptr;
@@ -270,7 +213,7 @@ NPImage* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 void NPTracerHdRenderBuffer::EndWrite()
 {
     SetConverged(true);
-    _hasWriter.store(false);
+    _bHasWriter.store(false);
 }
 
 void NPTracerHdRenderBuffer::_Deallocate()
@@ -278,6 +221,8 @@ void NPTracerHdRenderBuffer::_Deallocate()
     NP_DBG("Requested deallocate of render buffer: id=%s\n", GetId().GetText());
 
     TF_DEV_AXIOM(!HasWriter() && !IsMapped() && IsConverged());
+
+    _pCtx->waitIdle();  // TEMP: we should use fences instead
 
     // reset to default/empty values
     if (_pImage)
@@ -293,7 +238,7 @@ void NPTracerHdRenderBuffer::_Deallocate()
 
     if (_transferCmdBuffer != VK_NULL_HANDLE)
     {
-        _pCtx->freeCommandBuffer(_transferCmdBuffer, NPQueueType::TRANSFER);
+        _pCtx->freeCommandBuffer(_transferCmdBuffer, np::QueueType::TRANSFER);
         _transferCmdBuffer = VK_NULL_HANDLE;
     }
 
@@ -301,9 +246,19 @@ void NPTracerHdRenderBuffer::_Deallocate()
     _format = HdFormatInvalid;
 
     _readers.store(0);
-    _converged.store(false);
+    _bConverged.store(false);
 
     NP_DBG("Deallocate complete of render buffer: id=%s\n", GetId().GetText());
+}
+
+np::eAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
+{
+    switch (format)
+    {
+        case HdFormatUNorm8Vec4: return np::eAovType::RGB;
+        case HdFormatFloat32: return np::eAovType::DEPTH;
+        default: return np::eAovType::INVALID;
+    }
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

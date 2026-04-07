@@ -1,3 +1,5 @@
+#include "LOP_NPTracerRenderSettings.h"
+
 #include <DM/DM_RenderTable.h>
 #include <HOM/HOM_Module.h>
 #include <OP/OP_OperatorTable.h>
@@ -5,33 +7,13 @@
 
 static void check_houdini_version()
 {
-    const char build_version[] = SYS_VERSION_MAJOR "." SYS_VERSION_MINOR "." SYS_VERSION_BUILD;
-    std::string runtime_version;
-    try
-    {
-        runtime_version = ::HOM().applicationVersionString();
-    }
-    catch (...)
-    {
-        /*
-            According to header comments, this should not happen. But it does
-            when running hython. If we ever want the warning for that case, we
-            could possibly parse ${HFS}/toolkit/include/SYS/SYS_Version.h
-        */
-        return;
-    }
+    constexpr char build_version[] = SYS_VERSION_MAJOR "." SYS_VERSION_MINOR "." SYS_VERSION_BUILD;
+    const std::string runtime_version = HOM().applicationVersionString();
 
-    /*
-        Check the version only once. We try multiple times because of the above
-        failure case. With hython, the call from newVopOperator() works. But we
-        still want to try checking as early as possible when not in hython.
-    */
-    static bool checked = false;
-    if (checked)
-    {
-        return;
-    }
-    checked = true;
+    static bool sChecked = false;
+    if (sChecked) return;
+
+    sChecked = true;
 
     if (runtime_version != build_version)
     {
@@ -48,52 +30,18 @@ extern "C" SYS_VISIBILITY_EXPORT void HoudiniDSOInit(UT_DSOInfo&)
     check_houdini_version();
 }
 
-/**
- * @brief ROP node definition here
- * @param io_table
- * @return
- */
-extern "C" SYS_VISIBILITY_EXPORT void newDriverOperator(OP_OperatorTable* io_table)
+extern "C" SYS_VISIBILITY_EXPORT void newLopOperator(OP_OperatorTable* table)
 {
     check_houdini_version();
-}
 
-/**
- * @brief LOP node definition here
- * @param io_table
- * @return
- */
-extern "C" SYS_VISIBILITY_EXPORT void newLopOperator(OP_OperatorTable* io_table)
-{
-    check_houdini_version();
-}
-
-/**
- * @brief VOP node definition here
- * @param io_table
- * @return
- */
-extern "C" SYS_VISIBILITY_EXPORT void newVopOperator(OP_OperatorTable* io_table)
-{
-    check_houdini_version();
-}
-
-/**
- * @brief custom node type definition here
- * @param io_table
- * @return
- */
-extern "C" SYS_VISIBILITY_EXPORT void newObjectOperator(OP_OperatorTable* io_table)
-{
-    check_houdini_version();
-}
-
-/**
- * @brief render hook here
- * @param io_table
- * @return
- */
-extern "C" SYS_VISIBILITY_EXPORT void newRenderHook(DM_RenderTable* io_table)
-{
-    check_houdini_version();
+    table->addOperator(
+        new OP_Operator(LOP_NPTracerRenderSettings::INTERNAL_NAME,  // Internal name
+                        LOP_NPTracerRenderSettings::UI_NAME,  // UI name
+                        LOP_NPTracerRenderSettings::sNodeConstructor,  // How to build the node
+                        LOP_NPTracerRenderSettings::TEMPLATE_LIST,  // parameters
+                        0,  // Min inputs
+                        0,  // Max inputs
+                        LOP_NPTracerRenderSettings::LOCAL_VARIABLES,  // Local variables
+                        0)  // Operator flags
+    );
 }

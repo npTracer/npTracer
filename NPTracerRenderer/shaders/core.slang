@@ -1,5 +1,6 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
+[require(spvShaderNonUniformEXT)]
 
 struct MeshRecord
 {

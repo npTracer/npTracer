@@ -6,84 +6,63 @@
 #include <memory>
 #include <mutex>
 
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-#include <unordered_map>
-
-// assimp loading
-struct AssimpMeshInstance
-{
-    const aiMesh* mesh;
-    FLOAT4X4 transform;
-    std::string nodeName;
-};
+NP_TRACER_NAMESPACE_BEGIN
 
 class Scene
 {
 public:
     Scene();
-    ~Scene();
+    virtual ~Scene() = default;
 
-    std::unordered_map<std::string, FLOAT4X4> nodeTransforms;
-    std::vector<std::unique_ptr<PendingTexture>> pendingTextures;
-    std::vector<AssimpMeshInstance> pendingMeshes;
-    std::unordered_map<std::string, uint32_t> textureIndexByKey;
+    virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
 
-    void loadSceneAssimp(const char* path);
-    void processNode(const aiScene* scene, const aiNode* node, const FLOAT4X4& transform);
-    void processMesh(const aiScene* scene, const aiMesh* currMesh, const FLOAT4X4& localTransform);
-    void processCamera(const aiScene* scene);
-    void processLight(const aiLight* light);
-
-    NPMesh* addMesh();
-    bool removeMesh(const uint32_t& objectId);
-
-    const NPMesh* getMeshAtIndex(int idx) const;
-
-    size_t getMeshCount() const
+    inline virtual eSceneType getSceneType()
     {
-        return _meshes.size();
+        return eSceneType::DEFAULT;
     }
 
-    const std::vector<std::unique_ptr<NPLight>>& getLights() const
-    {
-        return _lights;
-    }
+    template<typename T>
+    T* makePrim();
 
-    const NPLight* getLightAtIndex(int idx) const;
+    template<typename T>
+    bool deletePrim(T* primToDelete);
 
-    size_t getLightCount() const
-    {
-        return _lights.size();
-    }
+    template<typename T>
+    size_t getPrimCount() const;
 
-    NPCameraRecord* getCamera()
+    template<typename T>
+    T* getPrimAtIndex(size_t idx);
+
+    inline Camera* getCamera()
     {
         return &_camera;
     }
 
-    const std::vector<std::unique_ptr<NPMaterial>>& getMaterials() const
-    {
-        return _materials;
-    }
+    void guard();
+    void finalize();
+    void reportState() const;
 
-    size_t getMaterialCount() const
-    {
-        return _materials.size();
-    }
+protected:
+    std::mutex _readWriteMutex;  // for now temp? keeps i/o single-threaded
 
-    const NPMaterial* getMaterialAtIndex(int idx) const;
+    std::vector<UPTR<Mesh>> _meshes;
 
-private:
-    std::mutex _meshMutex;
-    std::vector<std::unique_ptr<NPMesh>> _meshes;
+    std::vector<UPTR<Light>> _lights;
+    std::vector<UPTR<Material>> _materials;
 
-    std::vector<std::unique_ptr<NPLight>> _lights;
-    std::vector<FLOAT4X4> _transforms;
-    std::vector<std::unique_ptr<NPMaterial>> _materials;
+    std::vector<UPTR<Texture>> _textures;
 
-    NPCameraRecord _camera;
+    Camera _camera;
 
-    NPRenderSettings _settings;
+    RenderSettings _settings;
+
+    template<typename T>
+    const std::vector<UPTR<T>>& getPrimVector() const;
+
+    template<typename T>
+    std::vector<UPTR<T>>& getPrimVector();
 };
+
+NP_TRACER_NAMESPACE_END
+
+#include "templates/scene.inl"

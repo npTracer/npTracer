@@ -1,14 +1,12 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 project(NPTracerRenderer)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT DEFINED NPTracerRenderer_ROOT_DIR)
     set(NPTracerRenderer_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "NPTracer Renderer Root Directory")
 endif()
-set(RENDERER_TARGET_NAME ${PROJECT_NAME} CACHE INTERNAL "Name of renderer CMake target")
+set(NPTracerRenderer_PROJECT_NAME ${PROJECT_NAME} CACHE INTERNAL "NPTracer Renderer Cmake Project Name")
+set(NPTRACER_STANDALONE_RENDERER_DEBUGGER_CMD_ARGS "${NPTRACER_STANDALONE_RENDERER_DEBUGGER_CMD_ARGS}" CACHE PATH "Debugger Command Arguments for NPTracer Standalone Vulkan Renderer. Should be the path to a 3D model file on disk that will be loaded via Assimp.") # if not set will just be an empty string, which is fine
 
 include(slang_utils)
 
@@ -19,19 +17,27 @@ set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/shaders")
 
 find_package(Vulkan REQUIRED)
 
+add_subdirectory(templates)
+
 set(CURR_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
 set(LIB_SOURCES
+    "${NPTracerRenderer_ROOT_DIR}/external_impl.cpp"
     "${NPTracerRenderer_ROOT_DIR}/context.cpp"
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
     "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
+    "${NPTracerRenderer_ROOT_DIR}/assimp_scene.cpp"
 )
 
 set(LIB_HEADERS
+    "${NPTracerRenderer_ROOT_DIR}/framework.h"
+    "${NPTracerRenderer_ROOT_DIR}/utils.h"
+    "${NPTracerRenderer_ROOT_DIR}/tokens.h"
+    "${NPTracerRenderer_ROOT_DIR}/structs.h"
     "${NPTracerRenderer_ROOT_DIR}/context.h"
     "${NPTracerRenderer_ROOT_DIR}/app.h"
     "${NPTracerRenderer_ROOT_DIR}/scene.h"
-    "${NPTracerRenderer_ROOT_DIR}/utils.h"
-    "${NPTracerRenderer_ROOT_DIR}/structs.h"
+    "${NPTracerRenderer_ROOT_DIR}/assimp_scene.h"
+    ${NPTracerRenderer_INLINE_TEMPLATES}
 )
 
 set(CURR_SHADER_SPECS
@@ -62,21 +68,26 @@ target_include_directories(${PROJECT_NAME}
 
 find_program(SLANGC_EXECUTABLE slangc REQUIRED)
 
+set(ALL_SPV_OUTPUTS "")
 foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
+    # add shader as source to be able to edit in IDEs
+    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
     AddSlangShaderTarget(
-        ${COMPILE_SHADERS_TARGET}
         "${CURR_SHADER_FILE}"
         "${CURR_SHADER_STAGES}"
         "${SHADER_OUTPUT_DIR}"
         "${PROJECT_NAME}"
     )
-    target_sources(${PROJECT_NAME} PRIVATE "${CURR_SHADER_FILE}")
+    list(APPEND ALL_SPV_OUTPUTS ${CURR_SPV_OUTPUTS})
 endforeach()
 
-get_property(ALL_SPV_OUTPUTS GLOBAL PROPERTY ALL_SPV_OUTPUTS)
-add_custom_target(${COMPILE_SHADERS_TARGET} ALL DEPENDS ${ALL_SPV_OUTPUTS})
-target_sources(${PROJECT_NAME} PRIVATE "${ALL_SPV_OUTPUTS}") # specify that the project depends on the output files
+# also add spv outputs as sources to force re-compile when they change
+target_sources(${PROJECT_NAME} PRIVATE ${ALL_SPV_OUTPUTS})
+add_custom_target(${COMPILE_SHADERS_TARGET} 
+    DEPENDS ${ALL_SPV_OUTPUTS}
+    COMMENT "Compiling all shaders."
+)
 
 # organize into a separate folder
 set_target_properties(${COMPILE_SHADERS_TARGET} PROPERTIES FOLDER "utility")
@@ -86,11 +97,15 @@ add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_TARGET})
 target_link_libraries(${PROJECT_NAME} PUBLIC 
     glfw
     Vulkan::Vulkan 
-    glm::glm-header-only # use header-only GLM
+    glm
     assimp
 )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE TEXTURE_PATH="${NPTracerRenderer_ROOT_DIR}/textures")
+target_compile_definitions(${PROJECT_NAME} 
+    PUBLIC 
+        TEXTURES_ROOT="${NPTracerRenderer_ROOT_DIR}/textures"
+        NPTRACER_DEBUG=$<BOOL:${CMAKE_NPTRACER_DEBUG}>
+)
 
 # create a separate executable target for testing
 set(EXE_SOURCES
@@ -100,6 +115,7 @@ set(EXE_SOURCES
 add_executable(${STANDALONE_EXECUTABLE_TARGET} ${EXE_SOURCES})
 target_link_libraries(${STANDALONE_EXECUTABLE_TARGET} PRIVATE ${PROJECT_NAME})
 add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${PROJECT_NAME})
+ConfigureDebugger(${STANDALONE_EXECUTABLE_TARGET} "$<TARGET_FILE:${STANDALONE_EXECUTABLE_TARGET}>" "${NPTRACER_STANDALONE_RENDERER_DEBUGGER_CMD_ARGS}" "")
 
 # installation of renderer as library
 
@@ -136,13 +152,3 @@ configure_package_config_file(${NPTracer_CMAKE_MODULE_PATH}/Config.cmake.in
 install(FILES "${NPTracer_CMAKE_BINARY_PREFIX_PATH}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${PACKAGE_CONFIG_FILES_INSTALL_DIR}
 )
-
-option(NPTRACER_STANDALONE "Compile NPTracer with standalone swapchain runtime." OFF)
-
-target_compile_definitions(${PROJECT_NAME}
-    PUBLIC
-        NPTRACER_DEBUG=$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>
-        NPTRACER_STANDALONE=$<BOOL:${NPTRACER_STANDALONE}>
-)
-
-add_dependencies(${STANDALONE_EXECUTABLE_TARGET} ${COMPILE_SHADERS_TARGET})

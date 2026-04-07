@@ -1,10 +1,12 @@
 #pragma once
 
-#include <fstream>
-#include <filesystem>
-#include <vulkan/vulkan.h>
+#include "framework.h"
 
-#define TEXTURE(name) (std::filesystem::path(TEXTURE_PATH) / name)
+#include <fstream>
+#include <vector>
+#include <string>
+
+NP_TRACER_NAMESPACE_BEGIN
 
 #define DEV_ASSERT(_cond, ...)                                                                     \
     do                                                                                             \
@@ -36,14 +38,24 @@
     } while (0)
 #endif
 
+// `[[unreachable]]` isn't available until C++23
+#ifdef _MSC_VER
+#define UNREACHABLE_CODE                                                                           \
+    __assume(0);                                                                                   \
+    DEV_ASSERT(false, "reached unreachable code\n");
+#elif defined(__clang__) || defined(__GNUC__)
+#define UNREACHABLE_CODE                                                                           \
+    __builtin_unreachable();                                                                       \
+    DEV_ASSERT(false, "reached unreachable code\n");
+#else
+#define UNREACHABLE_CODE DEV_ASSERT(false, "reached unreachable code\n");
+#endif
+
 static std::vector<char> readFile(const std::string& filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
-    if (!file.is_open())
-    {
-        throw std::runtime_error("failed to open file!");
-    }
+    DEV_ASSERT(file.is_open(), "failed to open file: '%s'\n", filename.c_str());
 
     std::vector<char> buffer(file.tellg());
     file.seekg(0, std::ios::beg);
@@ -64,10 +76,10 @@ static VkDeviceSize alignUpVk(VkDeviceSize value, VkDeviceSize alignment)
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
-static VkTransformMatrixKHR toVkTransform(const FLOAT4X4& m)
+static VkTransformMatrixKHR toVkTransform(const FLOAT4x4& m)
 {
     VkTransformMatrixKHR out{};
-    
+
     out.matrix[0][0] = m[0][0];
     out.matrix[0][1] = m[1][0];
     out.matrix[0][2] = m[2][0];
@@ -84,3 +96,5 @@ static VkTransformMatrixKHR toVkTransform(const FLOAT4X4& m)
     out.matrix[2][3] = m[3][2];
     return out;
 }
+
+NP_TRACER_NAMESPACE_END

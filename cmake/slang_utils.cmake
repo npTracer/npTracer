@@ -1,24 +1,24 @@
 include_guard(GLOBAL)
 
-function(AddSlangShaderTarget compile_target_name shader_file shader_stages output_dir other_targets)
+function(AddSlangShaderTarget shader_file shader_stages output_dir other_targets)
     set(ENTRYPOINT_SUFFIX "Main") # TODO: expose this if necessary
     get_filename_component(SHADER_NAME "${shader_file}" NAME_WE)
 
+    set(CURR_SPV_OUTPUTS "")
     foreach(stage ${shader_stages})
         set(SPV_OUTPUT "${output_dir}/${SHADER_NAME}.${stage}.spv")
         set(ENTRYPOINT_NAME "${stage}${ENTRYPOINT_SUFFIX}")
         add_custom_command(
-            OUTPUT ${SPV_OUTPUT}
-            BYPRODUCTS ${SPV_OUTPUT}
+            OUTPUT "${SPV_OUTPUT}"
+            DEPENDS "${shader_file}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
-            COMMAND "${SLANGC_EXECUTABLE}" ${shader_file}
+            COMMAND "${SLANGC_EXECUTABLE}" "${shader_file}"
                     -target spirv
-                    -profile spirv_1_4
+                    -profile spirv_1_5
                     -emit-spirv-directly
                     -fvk-use-entrypoint-name
                     -entry ${ENTRYPOINT_NAME}
                     -o "${SPV_OUTPUT}"
-            DEPENDS ${shader_file}
             COMMENT "Compiling Slang shader file '${shader_file}' for '${stage}' stage."
             VERBATIM
         )
@@ -31,8 +31,9 @@ function(AddSlangShaderTarget compile_target_name shader_file shader_stages outp
             target_compile_definitions(${tgt} PUBLIC "${COMPILE_DEFINITION_NAME}=\"${SPV_OUTPUT}\"" ) # escape quotes
         endforeach()
 
-        set_property(GLOBAL APPEND PROPERTY ALL_SPV_OUTPUTS "${SPV_OUTPUT}")
+        list(APPEND CURR_SPV_OUTPUTS "${SPV_OUTPUT}")
     endforeach()
+    set(CURR_SPV_OUTPUTS ${CURR_SPV_OUTPUTS} PARENT_SCOPE)
 endfunction()
 
 function(ParseShaderSpec shader_spec)

@@ -75,6 +75,8 @@ struct Payload
     float3 albedo;
     float3 normal;
     float3 hitPos;
+    float3 emission;
+    uint style;
 };
 
 struct ShadowPayload
@@ -172,7 +174,7 @@ float3 computeDirectLighting(Payload payload, float3 wo)
     float3 P = payload.hitPos;
     float3 albedo = payload.albedo;
 
-    float3 Ld = float3(0.0);
+    float3 Lo = float3(0.0);
 
     for (uint32_t i = 0; i < pushConstants.numLights; i++)
     {
@@ -185,15 +187,16 @@ float3 computeDirectLighting(Payload payload, float3 wo)
             lightTransform[2][3]
         );
 
-        float3 L = normalize(lightPos - P);
+        float3 L = lightPos - P;
+        float3 LNorm = normalize(L);
         float dist = length(lightPos - P);
 
-        float NdotL = max(dot(N, L), 0.0);
+        float NdotL = max(dot(N, LNorm), 0.0);
         if (NdotL <= 0.0) continue;
 
         RayDesc shadowRay;
         shadowRay.Origin = P + N * 0.001;
-        shadowRay.Direction = L;
+        shadowRay.Direction = LNorm;
         shadowRay.TMin = 0.001;
         shadowRay.TMax = dist - 0.001;
 
@@ -213,19 +216,28 @@ float3 computeDirectLighting(Payload payload, float3 wo)
 
         if (shadowPayload.hit) continue;
 
-        float3 toLight = lightPos - P;
-        float distSq = max(dot(toLight, toLight), 1e-4);
+        float distSq = max(dot(L, L), 1e-4);
         
         float3 Li = light.color.rgb * light.intensity / distSq;
         
-        float3 f = albedo / 3.14159265;
+        float3 f = albedo / 3.14159265; // lambertian
 
-        Ld += f * Li * NdotL;
+        Lo += f * Li * NdotL;
     }
 
-    return Ld;
+    return Lo;
 }
 
+float luminance(float3 samples)
+{
+    return 0.299 * samples.x + 0.587 * samples.y + 0.114 * samples.z;
+}
+
+float3 stylizeGreyScale(float3 samples)
+{
+    let lum = luminance(samples);
+    return float3(lum, lum, lum);
+}
 
 [shader("raygeneration")]
 void rgenMain()
@@ -260,10 +272,12 @@ void rgenMain()
         uv.y = lerp(uv.y, 1.0 - uv.y, float(kFlipUVY)); // use lerp to flip coord system Y w/o a boolean check
         
         float3 origin = cameraOrigin;
-        float3 dir = generateCameraRayDir(uv);
+        float3 wi = generateCameraRayDir(uv);
         
-        float3 throughput = float3(1.0); // energy that survives along path
         float3 radiance = float3(0.0); // light gathered along the path
+        float3 throughput = float3(1.0); // energy that survives along path
+        
+        bool stylize = false;
         
         // shoot ray (bounceable) into the scene
         for (uint32_t bounce = 0; bounce < bounces; bounce++)
@@ -272,7 +286,7 @@ void rgenMain()
             Payload payload;
             
             RayDesc ray;
-            ray.Direction = dir.xyz;
+            ray.Direction = wi.xyz;
             ray.Origin = origin.xyz;
             ray.TMin = tMin;
             ray.TMax = tMax;
@@ -287,26 +301,42 @@ void rgenMain()
                  ray,
                  payload);
             
+            // hit a surface
             if (!payload.hit)
             {
                 radiance += throughput * float3(0.0, 0.0, 0.0);
                 break;
             }
             
-            // accumuluate
-            float3 Ld = computeDirectLighting(payload, -dir);
-            radiance += throughput * Ld;
-            throughput *= payload.albedo;
+            float3 currRadiance = float3(0.0, 0.0, 0.0);
+            // direct lighting step
+            float3 Ld = computeDirectLighting(payload, -wi);
+            currRadiance += Ld * throughput;
             
-            // sample path 
+            // check surface emission
+            float3 Le = payload.emission;
+            currRadiance += Le * throughput;
+            
+            // sample wi from pdf
             float3 N = normalize(payload.normal);
             float2 xi = float2(rand(seed), rand(seed));
             float3 localDir = cosineSampleHemisphere(xi);
-            float3 newDir = transformWorld(localDir, N);
+            float3 dir = transformWorld(localDir, N);
+            
+            // update throughput
+            float3 f = payload.albedo; // lambertian
+            throughput *= f; 
+                        
+            if (payload.style == 1)
+            {
+                currRadiance = stylizeGreyScale(currRadiance);
+            }
+
+            radiance += currRadiance;
             
             // continue path
-            dir = newDir;
-            origin = payload.hitPos + dir * 0.001f;
+            wi = dir;
+            origin = payload.hitPos + wi * 0.001f;
         }
         
         finalColor += radiance;
@@ -384,10 +414,14 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
+        
+        // temp stylize textured objects
+        payload.style = 1;
     }
-
+    
     payload.hit = true;
     payload.albedo = baseColor;
+    payload.emission = material.emissive.rgb;
     payload.normal = worldNormal;
     payload.hitPos = worldPos;
 }

@@ -30,6 +30,7 @@ set(USD_PLUG_SOURCES
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderBuffer.cpp"
     "${NPTracerPlugin_USD_PLUG_DIR}/NPTracerHdRenderParam.cpp"
     ${USD_PLUG_PRIM_SOURCES}
+    ${USD_PLUG_LIBRARY_SOURCES}
 )
 
 set(USD_PLUG_HEADERS

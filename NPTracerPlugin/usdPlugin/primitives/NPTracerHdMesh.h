@@ -1,39 +1,16 @@
 #pragma once
 
 #include "usdPlugin/library/usdMath.h"
+#include "usdPlugin/library/usdMesh.h"
 
 #include <NPTracerRenderer/structs.h>
 
 #include <pxr/imaging/hd/mesh.h>
 #include <pxr/imaging/hd/meshUtil.h>
 
-#include <functional>
-
 PXR_NAMESPACE_OPEN_SCOPE
 
 class NPTracerHdRenderDelegate;  // forward declare
-
-enum class PrimvarType : uint8_t
-{
-    POSITION,
-    NORMAL,
-    COLOR,
-    UV,
-    _COUNT
-};
-
-struct PrimvarPayload
-{
-    HdPrimvarDescriptor desc{};
-
-    VtValue original{};
-    VtValue processed{};
-
-    bool isDirty = true;
-};
-
-using IsPrimvarFn = bool (*)(const HdPrimvarDescriptor&);
-using UpdatePrimvarFn = std::function<void(const HdMeshUtil&, PrimvarPayload&)>;
 
 class NPTracerHdMesh : public HdMesh
 {
@@ -45,17 +22,12 @@ public:
 
     void Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam, HdDirtyBits* dirtyBits,
               const TfToken& reprToken) override;
-    bool SyncPrimvars(HdSceneDelegate* delegate, HdDirtyBits* dirtyBits);
+    void SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* dirtyBits);
 
-    void UpdateMeshPrimvarMap(HdSceneDelegate* delegate);
-
-    static void sConstructMesh(const VtU32Array& triIndices,
-                               const std::unordered_map<PrimvarType, PrimvarPayload>& primvarMap,
-                               np::Mesh* outMesh);
-
-    static constexpr std::array<HdInterpolation, 1> SUPPORTED_INTERPOLATIONS = {
-        HdInterpolationFaceVarying
-    };
+    static void sConstructMesh(
+        const VtU32Array& triIndices,
+        const std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>& primvarMap,
+        np::Mesh* outMesh);
 
 private:
     HdDirtyBits _PropagateDirtyBits(HdDirtyBits bits) const override;
@@ -67,25 +39,10 @@ private:
     // flattened data of trianglulated indices outputted from `HdMeshUtil::ComputeTriangleIndices`
     VtU32Array _triIndices;
 
-    std::unordered_map<PrimvarType, PrimvarPayload> _primvarMap;
+    std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>> _primvarMap{};
 
     void _AddToScene();
     void _RemoveFromScene();
-
-    // manual maps
-    static UpdatePrimvarFn sMapUpdatePrimvarFn(HdInterpolation interpolation);
-
-    static bool sIsPositionPrimvar(const HdPrimvarDescriptor& desc);
-    static bool sIsNormalPrimvar(const HdPrimvarDescriptor& desc);
-    static bool sIsColorPrimvar(const HdPrimvarDescriptor& desc);
-    static bool sIsUVPrimvar(const HdPrimvarDescriptor& desc);
-
-    // this should follow the order of `PrimvarType`
-    static constexpr IsPrimvarFn IS_PRIMVAR_FN_TABLE[] = { &sIsPositionPrimvar, &sIsNormalPrimvar,
-                                                           &sIsColorPrimvar, &sIsUVPrimvar };
-
-    static void sUpdateFaceVaryingPrimvar(const HdMeshUtil& meshUtil,
-                                          PrimvarPayload& payloadToUpdate);
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

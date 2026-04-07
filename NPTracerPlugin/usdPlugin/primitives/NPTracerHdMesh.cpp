@@ -1,5 +1,6 @@
 #include "usdPlugin/primitives/NPTracerHdMesh.h"
 
+#include "glm/gtx/type_trait.hpp"
 #include "usdPlugin/debugCodes.h"
 #include "usdPlugin/NPTracerHdRenderDelegate.h"
 
@@ -59,9 +60,9 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
         }
     }
 
-    bool bNeedsReconstruction = false;
     // indices
-    if (*dirtyBits & HdChangeTracker::DirtyTopology)
+    const bool bHasDirtyTopology = *dirtyBits & HdChangeTracker::DirtyTopology;
+    if (bHasDirtyTopology)
     {
         // use Hydra utilities to retrieve triangulated indices
         const HdMeshTopology& topo = delegate->GetMeshTopology(id);
@@ -71,65 +72,18 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
         meshUtil.ComputeTriangleIndices(&tris, &primitiveParams);  // get triangulated indices
 
         VtFlattenVec3iArray(tris, &_triIndices);  // make a flat array of indices
-        bNeedsReconstruction = true;
     }
 
-    SyncPrimvars(delegate, dirtyBits);
+    // primvars
+    const bool bHasDirtyPrimvars = *dirtyBits & HdChangeTracker::DirtyPrimvar;
+    if (bHasDirtyPrimvars) SyncPrimvars(delegate, dirtyBits);
 
-    if (bNeedsReconstruction) sConstructMesh(_triIndices, _primvarMap, _pMesh);
+    if (bHasDirtyTopology || bHasDirtyPrimvars) sConstructMesh(_triIndices, _primvarMap, _pMesh);
 
     *dirtyBits &= ~HdChangeTracker::AllSceneDirtyBits;  // set all bits to clean!
 }
 
-bool NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, HdDirtyBits* dirtyBits)
-{
-    const SdfPath& id = GetId();
-    bool bNeedsPrimvarsUpdate = false;
-
-    // positions
-    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points))
-    {
-        PrimvarPayload& payload = _primvarMap[PrimvarType::POSITION];
-
-        // pre-fetch as interpolation is known
-        payload.original = delegate->Get(id, HdTokens->points);
-        payload.isDirty = true;  // still mark as dirty
-    }
-
-    // normals
-    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals))
-    {
-        _primvarMap[PrimvarType::NORMAL] = {};  // reset map entry
-        bNeedsPrimvarsUpdate = true;
-    }
-
-    // colors
-    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->displayColor))
-    {
-        _primvarMap[PrimvarType::COLOR] = {};  // reset map entry
-        bNeedsPrimvarsUpdate = true;
-    }
-
-    // UVs
-    if (HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, TfToken("st"))  // UVs
-        || HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, TfToken("map1")))  // Maya UVs
-    {
-        _primvarMap[PrimvarType::UV] = {};  // reset map entry
-        bNeedsPrimvarsUpdate = true;
-    }
-
-    UpdateMeshPrimvarMap(delegate);
-
-    /*
-    const UpdatePrimvarFn& updater = sMapUpdatePrimvarFn(payload.interpolation);
-    updater(meshUtil, payload);
-    TF_DEV_AXIOM(payload.original.GetArraySize() == targetIndicesCount);
-    payload.isDirty = false;*/
-
-    return bNeedsPrimvarsUpdate;
-}
-
-void NPTracerHdMesh::UpdateMeshPrimvarMap(HdSceneDelegate* delegate)
+void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* dirtyBits)
 {
     const SdfPath& id = GetId();
 
@@ -143,31 +97,51 @@ void NPTracerHdMesh::UpdateMeshPrimvarMap(HdSceneDelegate* delegate)
         allDescriptors.insert(allDescriptors.end(), descs.begin(), descs.end());
     }
 
-    for (uint8_t i = 0; i < static_cast<uint8_t>(PrimvarType::_COUNT); ++i)
-    {
-        PrimvarType type = static_cast<PrimvarType>(i);
-        PrimvarPayload& payload = _primvarMap[type];
-        if (!payload.isDirty) continue;  // nothing else needed for this primvar
+    // initialize some function-scoped data structures
+    std::unordered_map<HdInterpolation, std::vector<PrimvarPayloadBase*>> primvarInterpolationMap;
+    primvarInterpolationMap.reserve(HdInterpolationCount);
 
-        if (payload.original.IsEmpty())
+    const size_t indicesCount = _triIndices.size();
+    for (auto& [type, payload] : _primvarMap)
+    {
+        const IsPrimvarDirtyFn& kIsDirtyFn = IS_PRIMVAR_DIRTY_FN_TABLE[type];
+        if (kIsDirtyFn(dirtyBits, id))
         {
-            const IsPrimvarFn& fn = IS_PRIMVAR_FN_TABLE[static_cast<uint8_t>(type)];
-            auto it = std::ranges::find_if(allDescriptors, fn);
-            if (it == allDescriptors.end()) continue;
+            payload = {};  // reset the payload, which subsequently marks it as dirty
+
+            const IsPrimvarDescFn& kIsDescFn = IS_PRIMVAR_DESC_FN_TABLE[static_cast<uint8_t>(type)];
+            auto it = std::ranges::find_if(allDescriptors, kIsDescFn);
+            if (it == allDescriptors.end())
+            {
+                payload->FillDefault(indicesCount);  // make safe by filling both with default value
+                continue;  // skip processing, primvar does not exist
+            }
 
             // fill in payload with found descriptor
             const HdPrimvarDescriptor& desc = it[0];
 
             // use the name to query the value
-            payload.original = delegate->Get(id, desc.name);
-            payload.desc = desc;
+            VtValue pv = delegate->Get(id, desc.name);
+            payload->SetSource(pv);
+            payload->desc = desc;
+            primvarInterpolationMap[desc.interpolation].push_back(payload.get());
         }
+    }
+
+    // process all primvars according to their interpolation
+    const HdMeshTopology& topo = delegate->GetMeshTopology(id);
+    const HdMeshUtil meshUtil(&topo, id);
+    for (auto& [interpolation, pPayloads] : primvarInterpolationMap)
+    {
+        const ProcessPrimvarsFn& kProcessFn
+            = PROCESS_PRIMVARS_FN_TABLE[static_cast<uint32_t>(interpolation)];
+        kProcessFn(meshUtil, _triIndices, pPayloads);
     }
 }
 
 void NPTracerHdMesh::sConstructMesh(
     const VtUIntArray& triIndices,
-    const std::unordered_map<PrimvarType, PrimvarPayload>& primvarMap, np::Mesh* outMesh)
+    const std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>& primvarMap, np::Mesh* outMesh)
 {
     // expected count for all attrs
     const uint32_t count = static_cast<uint32_t>(triIndices.size());
@@ -176,10 +150,11 @@ void NPTracerHdMesh::sConstructMesh(
     outMesh->indices.resize(count);
     outMesh->vertices.resize(count);
 
-    const VtVec3fArray& positions = primvarMap.at(PrimvarType::POSITION).original.Get<VtVec3fArray>();
-    const VtVec3fArray& normals = primvarMap.at(PrimvarType::NORMAL).original.Get<VtVec3fArray>();
-    const VtVec3fArray& colors = primvarMap.at(PrimvarType::COLOR).original.Get<VtVec3fArray>();
-    const VtVec2fArray& uvs = primvarMap.at(PrimvarType::UV).original.Get<VtVec2fArray>();
+    const VtVec3fArray& positions = GetPayload<GfVec3f>(primvarMap, POSITION)->GetSourceArray();
+
+    const VtVec3fArray& normals = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetSourceArray();
+    const VtVec3fArray& colors = GetPayload<GfVec3f>(primvarMap, COLOR)->GetSourceArray();
+    const VtVec2fArray& uvs = GetPayload<GfVec2f>(primvarMap, UV)->GetSourceArray();
 
     const uint32_t maxAllowedIdx = positions.size();  // indices should not go out of bounds
 
@@ -226,8 +201,14 @@ void NPTracerHdMesh::_AddToScene()
         NP_DBG("Added mesh '%s' to scene\n", id.GetAsString().c_str());
     }
 
-    // this descriptor never has to change
-    _primvarMap[PrimvarType::POSITION].desc = kPositionPrimvarDesc;
+    // reset and reserve space for the map
+    _primvarMap.clear();
+    _primvarMap.reserve(PrimvarType::_COUNT);
+    // set default value for each
+    _primvarMap[PrimvarType::POSITION] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(0.f));
+    _primvarMap[PrimvarType::NORMAL] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(0.f));
+    _primvarMap[PrimvarType::COLOR] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(1.f));
+    _primvarMap[PrimvarType::UV] = std::make_unique<PrimvarPayload<GfVec2f>>(GfVec2f(0.f));
 }
 
 void NPTracerHdMesh::_RemoveFromScene()
@@ -240,51 +221,6 @@ void NPTracerHdMesh::_RemoveFromScene()
 
         NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
     }
-}
-
-UpdatePrimvarFn NPTracerHdMesh::sMapUpdatePrimvarFn(HdInterpolation interpolation)
-{
-    switch (interpolation)
-    {
-        case HdInterpolationFaceVarying: return sUpdateFaceVaryingPrimvar;
-        default: UNREACHABLE_CODE;
-    }
-}
-
-bool NPTracerHdMesh::sIsPositionPrimvar(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == HdTokens->points || desc.role == HdPrimvarRoleTokens->point;
-}
-
-bool NPTracerHdMesh::sIsUVPrimvar(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == TfToken("st") || std::string(desc.name).starts_with("map")
-           || desc.role == HdPrimvarRoleTokens->textureCoordinate;
-}
-
-bool NPTracerHdMesh::sIsNormalPrimvar(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == HdTokens->normals || desc.role == HdPrimvarRoleTokens->normal;
-}
-
-bool NPTracerHdMesh::sIsColorPrimvar(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == HdTokens->displayColor || desc.role == HdPrimvarRoleTokens->color;
-}
-
-void NPTracerHdMesh::sUpdateFaceVaryingPrimvar(const HdMeshUtil& meshUtil,
-                                               PrimvarPayload& payloadToUpdate)
-{
-    // reverse type-erasure. assign the primvar data to a named buffer
-    const HdVtBufferSource buffer(payloadToUpdate.desc.name, payloadToUpdate.original);
-
-    // try to triangulate the primvars
-    bool bCanResolveType
-        = meshUtil.ComputeTriangulatedFaceVaryingPrimvar(buffer.GetData(),
-                                                         static_cast<int>(buffer.GetNumElements()),
-                                                         buffer.GetTupleType().type,
-                                                         &payloadToUpdate.processed);
-    TF_DEV_AXIOM(bCanResolveType);  // if this fails later, we can explictly pass in type
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

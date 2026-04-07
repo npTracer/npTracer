@@ -17,8 +17,8 @@ NP_TRACER_NAMESPACE_BEGIN
  */
 inline constexpr bool gDEBUG = NPTRACER_DEBUG;
 
-constexpr uint32_t DEFAULT_WIDTH = 2560u;  // default width for swapchain
-constexpr uint32_t DEFAULT_HEIGHT = 1440u;  // default width for swapchain
+inline constexpr uint32_t DEFAULT_WIDTH = 2560u;  // default width for swapchain
+inline constexpr uint32_t DEFAULT_HEIGHT = 1440u;  // default width for swapchain
 
 NP_TRACER_NAMESPACE_END
 

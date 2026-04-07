@@ -40,9 +40,13 @@ NP_TRACER_NAMESPACE_BEGIN
 
 // `[[unreachable]]` isn't available until C++23
 #ifdef _MSC_VER
-#define UNREACHABLE_CODE __assume(0)
+#define UNREACHABLE_CODE                                                                           \
+    __assume(0);                                                                                   \
+    DEV_ASSERT(false, "reached unreachable code\n");
 #elif defined(__clang__) || defined(__GNUC__)
-#define UNREACHABLE_CODE __builtin_unreachable()
+#define UNREACHABLE_CODE                                                                           \
+    __builtin_unreachable();                                                                       \
+    DEV_ASSERT(false, "reached unreachable code\n");
 #else
 #define UNREACHABLE_CODE DEV_ASSERT(false, "reached unreachable code\n");
 #endif

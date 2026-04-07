@@ -6,13 +6,8 @@
 
 #include <pxr/imaging/hd/vtBufferSource.h>
 #include <pxr/base/gf/rotation.h>
-#include <pxr/base/gf/matrix3f.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
-
-static const HdPrimvarDescriptor kPositionPrimvarDesc
-    = HdPrimvarDescriptor(HdTokens->points, HdInterpolationVertex,
-                          HdPrimvarRoleTokens->textureCoordinate, false);
 
 NPTracerHdMesh::NPTracerHdMesh(const SdfPath& rprimId, NPTracerHdRenderDelegate* renderDelegate)
     : HdMesh(rprimId), _pCreator(renderDelegate)
@@ -41,7 +36,7 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
         // retrieve the transform first (it only gets more complex from here)
         GfMatrix4f transform = GfMatrix4f(delegate->GetTransform(id));
 
-        if constexpr (np::gDEBUG)  // TEMP: renderer assumes z-up?
+        if constexpr (!np::gDEBUG)  // TEMP: toggle based on scene. renderer assumes z-up?
         {
             static const GfMatrix4f rotator = GfMatrix4f().SetRotate(
                 GfRotation(GfVec3f(1, 0, 0), 90.f));
@@ -153,23 +148,21 @@ void NPTracerHdMesh::sConstructMesh(
     outMesh->indices.resize(count);
     outMesh->vertices.resize(count);
 
-    const VtVec3fArray& position = GetPayload<GfVec3f>(primvarMap, POSITION)->GetProcessedArray();
-    const VtVec3fArray& normal = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetProcessedArray();
-    const VtVec3fArray& color = GetPayload<GfVec3f>(primvarMap, COLOR)->GetProcessedArray();
-    const VtVec2fArray& uv = GetPayload<GfVec2f>(primvarMap, UV)->GetProcessedArray();
-
-    // copy indices over to mesh
-    std::memcpy(outMesh->indices.data(), triIndices.data(), count * sizeof(uint32_t));
+    const VtVec3fArray& positions = GetPayload<GfVec3f>(primvarMap, POSITION)->GetProcessedArray();
+    const VtVec3fArray& normals = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetProcessedArray();
+    const VtVec3fArray& colors = GetPayload<GfVec3f>(primvarMap, COLOR)->GetProcessedArray();
+    const VtVec2fArray& UVs = GetPayload<GfVec2f>(primvarMap, UV)->GetProcessedArray();
 
     // fill in all vertex data
     for (uint32_t i = 0u; i < count; ++i)
     {
-        // simple linear indexing as all primvars have been preprocessed
+        outMesh->indices[i] = i;  // indices will now just increment linearly
+        // simple linear indexing for primvars as well now that they have been preprocessed
         outMesh->vertices[i] = {
-            .pos = FLOAT4(GfToGLMVec3f(position[i]), 1.f),
-            .normal = FLOAT4(GfToGLMVec3f(normal[i]), 1.f),
-            .color = FLOAT4(GfToGLMVec3f(color[i]), 1.f),
-            .uv = GfToGLMVec2f(uv[i]),
+            .pos = FLOAT4(GfToGLMVec3f(positions[i]), 1.f),
+            .normal = FLOAT4(GfToGLMVec3f(normals[i]), 1.f),
+            .color = FLOAT4(GfToGLMVec3f(colors[i]), 1.f),
+            .uv = GfToGLMVec2f(UVs[i]),
         };
     }
 }
@@ -181,7 +174,7 @@ HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const
 
 void NPTracerHdMesh::_InitRepr(const TfToken& reprToken, HdDirtyBits*)
 {
-    auto it = std::find_if(_reprs.begin(), _reprs.end(), _ReprComparator(reprToken));
+    auto it = std::ranges::find_if(_reprs.begin(), _reprs.end(), _ReprComparator(reprToken));
     if (it == _reprs.end())
     {
         _reprs.emplace_back(reprToken, HdReprSharedPtr());
@@ -215,9 +208,8 @@ void NPTracerHdMesh::_RemoveFromScene()
     if (scene && _pMesh)
     {
         bool removed = scene->deletePrim<np::Mesh>(_pMesh);
+        NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetText(), removed);
         _pMesh = nullptr;
-
-        NP_DBG("Removed mesh '%s' from scene: %d\n", GetId().GetAsString().c_str(), removed);
     }
 }
 

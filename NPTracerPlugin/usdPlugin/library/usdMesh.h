@@ -38,7 +38,7 @@ public:
     virtual void SetProcessed(VtValue& value) = 0;
 
     virtual void Prepare(size_t n) = 0;  // prepare payload object state for write
-    virtual void UnsafeWrite(uint32_t idx, size_t i) = 0;  // NOTE: safe but unsafe!
+    virtual void UnsafeWrite(uint32_t srcIdx, uint32_t dstIdx) = 0;  // NOTE: safe but unsafe!
     virtual void Cooldown() = 0;  // reset payload object state after write
 
     virtual ~PrimvarPayloadBase() = default;
@@ -107,11 +107,11 @@ public:
 
     // we will make quite a few unsafe assumptions here to keep write as fast as possible
     // don't say we didn't warn you :D
-    inline void UnsafeWrite(uint32_t idx, size_t i) override
+    inline void UnsafeWrite(uint32_t srcIdx, uint32_t dstIdx) override
     {
         // this write step is a design choice.
         // other options are to write default value if out of bounds or write value of last index
-        runtimeProcessed[i] = (idx < sourceSize) ? runtimeSource[idx] : defaultElement;
+        runtimeProcessed[dstIdx] = (srcIdx < sourceSize) ? runtimeSource[srcIdx] : defaultElement;
     }
 
     inline void Cooldown() override

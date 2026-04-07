@@ -65,24 +65,25 @@ void Scene::finalize()
 
 void Scene::reportState() const
 {
-    if constexpr (!gDEBUG) return;
+    if constexpr (!gDEBUG) return;  // toggle to disable
+
     // prim counts
-    if constexpr (false)
+    DBG_PRINT("Num Meshes: %llu\n", _meshes.size());
+    DBG_PRINT("Num Lights: %llu\n", _lights.size());
+    DBG_PRINT("Num Materials: %llu\n", _materials.size());
+    DBG_PRINT("Num Textures: %llu\n", _textures.size());
+
+    // meshes
+    for (const auto& mesh : _meshes)
     {
-        DBG_PRINT("Num Meshes: %llu\n", _meshes.size());
-        DBG_PRINT("Num Lights: %llu\n", _lights.size());
-        DBG_PRINT("Num Materials: %llu\n", _materials.size());
-        DBG_PRINT("Num Textures: %llu\n", _textures.size());
+        DBG_PRINT("MESH '%s'\n", mesh->scenePath.c_str());
+        std::cerr << "Transform: " << mesh->transform << std::endl;
+        DBG_PRINT("Num Indices: %llu\n", mesh->indices.size());
+        DBG_PRINT("Num Vertices: %llu\n", mesh->vertices.size());
+        DBG_PRINT("Material Index: %u\n", mesh->materialIndex);
 
-        // meshes
-        for (const auto& mesh : _meshes)
+        if constexpr (false)  // toggle on for extremely verbose debugging
         {
-            DBG_PRINT("MESH '%s'\n", mesh->scenePath.c_str());
-            std::cerr << "Transform: " << mesh->transform << std::endl;
-            DBG_PRINT("Num Indices: %llu\n", mesh->indices.size());
-            DBG_PRINT("Num Vertices: %llu\n", mesh->vertices.size());
-            DBG_PRINT("Material Index: %u\n", mesh->materialIndex);
-
             for (size_t i = 0; i < mesh->indices.size(); i++)
             {
                 uint32_t index = mesh->indices[i];
@@ -94,28 +95,29 @@ void Scene::reportState() const
                 std::cerr << vertex.uv << " [UV]" << std::endl;
             }
         }
-        // lights
-        for (const auto& light : _lights)
-        {
-            DBG_PRINT("LIGHT '%s'\n", light->scenePath.c_str());
-            std::cerr << "Transform: " << light->transform << std::endl;
-            std::cerr << "Color: " << light->color << std::endl;
-            DBG_PRINT("Intensity: %f\n", light->intensity);
-        }
+    }
 
-        // materials
-        for (const auto& mat : _materials)
-        {
-            DBG_PRINT("MATERIAL '%s'\n", mat->scenePath.c_str());
-            std::cerr << "Diffuse Color: " << mat->diffuse << std::endl;
-            DBG_PRINT("Diffuse Texture Index: %u\n", mat->diffuseTextureIndex);
-        }
+    // lights
+    for (const auto& light : _lights)
+    {
+        DBG_PRINT("LIGHT '%s'\n", light->scenePath.c_str());
+        std::cerr << "Transform: " << light->transform << std::endl;
+        std::cerr << "Color: " << light->color << std::endl;
+        DBG_PRINT("Intensity: %f\n", light->intensity);
+    }
 
-        // camera
-        {
-            std::cerr << "Camera View: " << _camera.view << std::endl;
-            std::cerr << "Camera Projection: " << _camera.proj << std::endl;
-        }
+    // materials
+    for (const auto& mat : _materials)
+    {
+        DBG_PRINT("MATERIAL '%s'\n", mat->scenePath.c_str());
+        std::cerr << "Diffuse Color: " << mat->diffuse << std::endl;
+        DBG_PRINT("Diffuse Texture Index: %u\n", mat->diffuseTextureIndex);
+    }
+
+    // camera
+    {
+        std::cerr << "Camera View: " << _camera.view << std::endl;
+        std::cerr << "Camera Projection: " << _camera.proj << std::endl;
     }
 }
 

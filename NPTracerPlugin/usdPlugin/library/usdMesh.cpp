@@ -70,7 +70,8 @@ void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& in
         bool bCanResolveType = meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
             buffer.GetData(), static_cast<int>(buffer.GetNumElements()), buffer.GetTupleType().type,
             &processed);
-        TF_DEV_AXIOM(bCanResolveType);  // if this fails later, we can explictly pass in type
+        TF_DEV_AXIOM(bCanResolveType);  // if this fails later, we can explicitly pass in type
+
         payload->SetProcessed(processed);
     }
 }
@@ -88,7 +89,7 @@ void ProcessPrimvarsVertex(const HdMeshUtil& meshUtil, const VtU32Array& indices
         payload->Prepare(indicesCount);
     }
 
-    // scatter all payloads in one loop over indices
+    // gather all payloads in one loop over indices
     for (size_t i = 0; i < indicesCount; ++i)
     {
         const uint32_t idx = indices[i];

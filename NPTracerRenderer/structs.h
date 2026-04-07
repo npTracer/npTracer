@@ -46,6 +46,13 @@ struct RendererConstants
 {
     eExecutionMode executionMode = eExecutionMode::OFFSCREEN;
     eSceneType sceneType = eSceneType::DEFAULT;
+    bool bFlipUVY = true;  // Hydra assumes bottom-left UV origin, Vulkan top-left
+};
+
+// constants set at pipeline creation time
+struct SpecializationConstants
+{
+    uint32_t kFlipUVY = 1u;
 };
 
 struct Vertex

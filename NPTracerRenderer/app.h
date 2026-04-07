@@ -41,6 +41,7 @@ private:
 
     // renderer-level constants
     RendererConstants mRendererConstants{};
+    SpecializationConstants mSpecializationConstants{};  // renderer-level consts exposed to shaders
 
     // rendering resources
     std::unique_ptr<Scene> mpScene;
@@ -91,6 +92,8 @@ private:
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();
+
+    void createSpecializationConstants();
 };
 
 NP_TRACER_NAMESPACE_END

@@ -10,8 +10,6 @@ Flipped UVs - origin (0,0) at top-left corner, (1,1) at bottom-right corner
 
 // TODO: move all shared structs and bindings to a common shader module
 
-static const uint32_t uint32_t32_MAX = 0xFFFFFFFF;
-
 struct MeshRecord
 {
     uint32_t vertexOffset;
@@ -83,6 +81,8 @@ struct ShadowPayload
 {
     bool hit;
 };
+
+[[vk::constant_id(0)]] const uint32_t kFlipUVY;
 
 [[vk::push_constant]]
 ConstantBuffer<PushConstants> pushConstants;
@@ -257,6 +257,8 @@ void rgenMain()
         // generate a ray for this pixel
         float2 jitter = float2(rand(seed), rand(seed));
         float2 uv = (float2(pixel) + jitter) / dims;
+        uv.y = lerp(uv.y, 1.0 - uv.y, float(kFlipUVY)); // use lerp to flip coord system Y w/o a boolean check
+        
         float3 origin = cameraOrigin;
         float3 dir = generateCameraRayDir(uv);
         

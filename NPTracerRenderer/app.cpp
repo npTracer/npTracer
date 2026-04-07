@@ -36,6 +36,8 @@ void App::create(const RendererConstants& rendererConstants)
 
     // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
     mContext.createTextureSampler(mSampler);
+    createSpecializationConstants();
+
     mContext.waitIdle();
 }
 
@@ -47,7 +49,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     {  // this block is so very very TEMP oh god
         // recreate result images
-        // in the future, this should be controlled by the `App` 'controller'
+        // in the future, this should be down before the call by the `App` 'owner'
         if (USE_SWAPCHAIN)
         {
             mContext.createResultImages(mContext.swapchainParams.extent.width,
@@ -587,6 +589,16 @@ void App::createRTPipeline()
         .pPushConstantRanges = &pushConstantRange
     };
 
+    VkSpecializationMapEntry specializationEntry{
+        .constantID = 0,
+        .offset = static_cast<uint32_t>(offsetof(SpecializationConstants, kFlipUVY)),
+        .size = sizeof(SpecializationConstants::kFlipUVY)
+    };
+    VkSpecializationInfo specializationInfo{ .mapEntryCount = 1,
+                                             .pMapEntries = &specializationEntry,
+                                             .dataSize = sizeof(SpecializationConstants),
+                                             .pData = &mSpecializationConstants };
+
     vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRtPipeline.layout);
 
     // shaders
@@ -601,11 +613,13 @@ void App::createRTPipeline()
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
     // STAGE 0: Raygen
+
     VkPipelineShaderStageCreateInfo rgenInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
         .module = rgenModule,
-        .pName = "rgenMain"
+        .pName = "rgenMain",
+        .pSpecializationInfo = &specializationInfo,
     };
     shaderStages.push_back(rgenInfo);
 
@@ -1094,6 +1108,12 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage rgb, VkExte
                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
     vkEndCommandBuffer(commandBuffer);
+}
+
+void App::createSpecializationConstants()
+{
+    // so simple for now
+    mSpecializationConstants = { .kFlipUVY = mRendererConstants.bFlipUVY ? 1u : 0u };
 }
 
 void App::destroy()

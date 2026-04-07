@@ -41,6 +41,7 @@ public:
 #else
         .sceneType = np::eSceneType::DEFAULT,
 #endif
+        .bFlipUVY = true
     };
 
     // return this delegate's render param, which provides top-level scene state

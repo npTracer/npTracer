@@ -56,10 +56,22 @@ void Scene::finalize()
         mesh->bMaterialNeedsFinalization = false;
     }
 
-    // add a default light to the scene if none exist (when debugging)
+    // TEMP: add a default light to the scene if none exist (when debugging)
     if (gDEBUG && _lights.empty())
     {
         auto* light = makePrim<Light>();  // NOTE: instantiated with default values
+    }
+
+    // TEMP: add a default mesh (single triangle) to the scene if none exist to prevent crashes
+    if (gDEBUG && _meshes.empty())
+    {
+        auto* mesh = makePrim<Mesh>();
+        mesh->vertices = {
+            { { 0.0f, -0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 1, 0, 0, 1 }, { 0, 0 } },
+            { { 0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 1, 0, 1 }, { 1, 0 } },
+            { { -0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 1, 1 }, { 0, 1 } },
+        };
+        mesh->indices = { 0, 1, 2 };
     }
 }
 

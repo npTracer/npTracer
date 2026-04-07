@@ -1,7 +1,6 @@
 #pragma once
 
 #include "usdMath.h"
-#include "usdPlugin/debugCodes.h"
 
 #include <NPTracerRenderer/utils.h>
 
@@ -32,6 +31,7 @@ public:
     bool isDirty = false;
 
     virtual void FillDefault(size_t n) = 0;  // fill both source and processed with default elem
+    virtual void FillConstant(size_t n) = 0;  // fill processed with first elem ofsource
 
     virtual void SetSource(VtValue& value) = 0;
     virtual const VtValue& GetSource() const = 0;
@@ -64,6 +64,15 @@ public:
         source.UncheckedMutate<VtArray<T>>([&](VtArray<T>& src) { src.resize(n, defaultElement); });
         sourceSize = n;
         processed = VtValue(source);  // make processed a deep-copy of source
+    }
+
+    inline void FillConstant(size_t n) override
+    {
+        // accept any source so long as non-empty
+        TF_DEV_AXIOM(source.IsHolding<VtArray<T>>() && source.GetArraySize() > 0);
+        if (!processed.IsHolding<VtArray<T>>()) TF_FATAL_CODING_ERROR("Processed corrupted.");
+        const T elem = source.UncheckedGet<VtArray<T>>()[0];
+        processed.UncheckedMutate<VtArray<T>>([&](VtArray<T>& proc) { proc.resize(n, elem); });
     }
 
     inline void SetSource(VtValue& value) override
@@ -127,6 +136,7 @@ public:
 using IsPrimvarDescFn = bool (*)(const HdPrimvarDescriptor& desc);
 using IsPrimvarDirtyFn = bool (*)(const HdDirtyBits* dirtyBits, const SdfPath& id);
 using ProcessPrimvarsFn = void (*)(const HdMeshUtil& meshUtil, const VtU32Array& triIndices,
+                                   const VtIntArray& primitiveParams,
                                    const std::vector<PrimvarPayloadBase*>& pPayloads);
 
 using PrimvarMap = std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>;
@@ -151,11 +161,21 @@ bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id);
 void FillMissingPrimvarGfVec2f(size_t count, PrimvarPayloadBase* pPayload);
 void FillMissingPrimvarGfVec3f(size_t count, PrimvarPayloadBase* pPayload);
 
-void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& indices,
-                                const std::vector<PrimvarPayloadBase*>& pPayloads);
+void ProcessPrimvarsConstant(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                             const VtIntArray& primitiveParams,
+                             const std::vector<PrimvarPayloadBase*>& pPayloads);
+
+void ProcessPrimvarsUniform(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                            const VtIntArray& primitiveParams,
+                            const std::vector<PrimvarPayloadBase*>& pPayloads);
+
 void ProcessPrimvarsVertex(
-    const HdMeshUtil& meshUtil, const VtU32Array& indices,
+    const HdMeshUtil& meshUtil, const VtU32Array& indices, const VtIntArray& primitiveParams,
     const std::vector<PrimvarPayloadBase*>& pPayloads);  // also used for `Varying`
+
+void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                                const VtIntArray& primitiveParams,
+                                const std::vector<PrimvarPayloadBase*>& pPayloads);
 
 // compile-time function tables
 // NOTE: these need to match the ordering in `PrimvarType` exactly
@@ -174,8 +194,8 @@ inline constexpr IsPrimvarDirtyFn IS_PRIMVAR_DIRTY_FN_TABLE[] = {
 };
 
 inline constexpr ProcessPrimvarsFn PROCESS_PRIMVARS_FN_TABLE[] = {
-    nullptr,  // HdInterpolationConstant
-    nullptr,  // HdInterpolationUniform
+    &ProcessPrimvarsConstant,  // HdInterpolationConstant
+    &ProcessPrimvarsUniform,  // HdInterpolationUniform
     &ProcessPrimvarsVertex,  // HdInterpolationVarying
     &ProcessPrimvarsVertex,  // HdInterpolationVertex
     &ProcessPrimvarsFaceVarying,  // HdInterpolationFaceVarying

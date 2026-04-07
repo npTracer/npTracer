@@ -1,4 +1,4 @@
-#include "usdPlugin/library/usdMesh.h"
+#include "usdPlugin/library/usdPrimvar.h"
 
 #include <pxr/imaging/hd/vtBufferSource.h>
 
@@ -54,7 +54,58 @@ bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
                                { return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, uvToken); });
 }
 
+void ProcessPrimvarsConstant(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                             const VtIntArray& primitiveParams,
+                             const std::vector<PrimvarPayloadBase*>& pPayloads)
+{
+    const size_t count = indices.size();
+
+    for (PrimvarPayloadBase* payload : pPayloads)
+    {
+        if (!payload->isDirty || payload->desc.interpolation != HdInterpolationConstant) continue;
+        payload->FillConstant(count);
+    }
+}
+
+void ProcessPrimvarsUniform(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                            const VtIntArray& primitiveParams,
+                            const std::vector<PrimvarPayloadBase*>& pPayloads)
+{
+    const size_t indicesCount = indices.size();
+    TF_DEV_AXIOM(primitiveParams.size() * 3
+                 == indicesCount);  // if fails, `hdMeshUtil` not consistent
+
+    // prepare our payloads for writing
+    for (PrimvarPayloadBase* payload : pPayloads)
+    {
+        // we can verify this assumption so that we don't have to do the check during write
+        TF_DEV_AXIOM(payload->isDirty && payload->desc.interpolation == HdInterpolationUniform);
+        payload->Prepare(indicesCount);
+    }
+
+    // decode the face index and fill the corresponding indices in a single loop
+    size_t triIdx = 0;
+    for (size_t i = 0; i < indicesCount; i += 3, ++triIdx)
+    {
+        const uint32_t faceIdx = HdMeshUtil::DecodeFaceIndexFromCoarseFaceParam(
+            primitiveParams[triIdx]);
+
+        for (PrimvarPayloadBase* payload : pPayloads)
+        {
+            payload->UnsafeWrite(faceIdx, i);
+            payload->UnsafeWrite(faceIdx, i + 1);
+            payload->UnsafeWrite(faceIdx, i + 2);
+        }
+    }
+
+    for (PrimvarPayloadBase* payload : pPayloads)
+    {
+        payload->Cooldown();  // we are done!
+    }
+}
+
 void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                                const VtIntArray& primitiveParams,
                                 const std::vector<PrimvarPayloadBase*>& pPayloads)
 {
     for (PrimvarPayloadBase* payload : pPayloads)
@@ -77,6 +128,7 @@ void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& in
 }
 
 void ProcessPrimvarsVertex(const HdMeshUtil& meshUtil, const VtU32Array& indices,
+                           const VtIntArray& primitiveParams,
                            const std::vector<PrimvarPayloadBase*>& pPayloads)
 {
     const size_t indicesCount = indices.size();

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "usdPlugin/library/usdMath.h"
-#include "usdPlugin/library/usdMesh.h"
+#include "usdPlugin/library/usdPrimvar.h"
 
 #include <NPTracerRenderer/structs.h>
 
@@ -38,6 +38,7 @@ private:
 
     // flattened data of trianglulated indices outputted from `HdMeshUtil::ComputeTriangleIndices`
     VtU32Array _triIndices;
+    VtIntArray _primitiveParams;
 
     std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>> _primvarMap{};
 

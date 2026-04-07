@@ -66,8 +66,8 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
         const HdMeshTopology& topo = delegate->GetMeshTopology(id);
         const HdMeshUtil meshUtil(&topo, id);
         VtVec3iArray tris;
-        VtIntArray primitiveParams;
-        meshUtil.ComputeTriangleIndices(&tris, &primitiveParams);  // get triangulated indices
+        _primitiveParams.clear();
+        meshUtil.ComputeTriangleIndices(&tris, &_primitiveParams);  // get triangulated indices
 
         VtFlattenVec3iArray(tris, &_triIndices);  // make a flat array of indices
     }
@@ -133,7 +133,7 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
     {
         const ProcessPrimvarsFn& kProcessFn
             = PROCESS_PRIMVARS_FN_TABLE[static_cast<uint32_t>(interpolation)];
-        kProcessFn(meshUtil, _triIndices, pPayloads);
+        kProcessFn(meshUtil, _triIndices, _primitiveParams, pPayloads);
     }
 }
 

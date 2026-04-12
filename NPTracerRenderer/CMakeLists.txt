@@ -81,6 +81,8 @@ foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     )
     list(APPEND ALL_SPV_OUTPUTS ${CURR_SPV_OUTPUTS})
 endforeach()
+file(GLOB COMMON_SLANG_FILES "${SHADER_SOURCE_DIR}/common/*.slang")
+target_sources(${PROJECT_NAME} PRIVATE ${COMMON_SLANG_FILES})
 
 # also add spv outputs as sources to force re-compile when they change
 target_sources(${PROJECT_NAME} PRIVATE ${ALL_SPV_OUTPUTS})

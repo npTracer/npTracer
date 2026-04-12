@@ -17,6 +17,8 @@ function(AddSlangShaderTarget shader_file shader_stages output_dir other_targets
                     -profile spirv_1_5
                     -emit-spirv-directly
                     -fvk-use-entrypoint-name
+                    -I "${SHADER_SOURCE_DIR}"
+                    -I "${SHADER_SOURCE_DIR}/common"
                     -entry ${ENTRYPOINT_NAME}
                     -o "${SPV_OUTPUT}"
             COMMENT "Compiling Slang shader file '${shader_file}' for '${stage}' stage."

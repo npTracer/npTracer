@@ -139,7 +139,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
         float intensity;
         if (aiMat->Get(AI_MATKEY_EMISSIVE_INTENSITY, intensity) == AI_SUCCESS)
         {
-            mat->emission.w = intensity * 2.5f; // scale for correct results for now
+            mat->emission.w = intensity; // scale for correct results for now
         }
     }
     

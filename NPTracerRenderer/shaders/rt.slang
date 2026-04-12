@@ -8,81 +8,10 @@ Right-handedness - up=+Y, forward=-Z
 Flipped UVs - origin (0,0) at top-left corner, (1,1) at bottom-right corner
 */
 
-// TODO: move all shared structs and bindings to a common shader module
-
-struct MeshRecord
-{
-    uint32_t vertexOffset;
-    uint32_t indexOffset;
-    uint32_t indexCount;
-    uint32_t vertexCount;
-    uint32_t transformIndex;
-    uint32_t materialIndex;
-};
-
-struct CameraRecord
-{
-    float4x4 view;
-    float4x4 proj;
-    float4x4 invView;
-    float4x4 invProj;
-};
-
-struct LightRecord
-{
-    float4x4 transform;
-    float4 color;
-    float intensity;
-};
-
-struct MaterialRecord
-{
-    float4 diffuse;
-    float4 ambient;
-    float4 specular;
-    float4 emissive;
-    uint32_t diffuseTextureIndex;
-};
-
-struct Vertex
-{
-    float4 pos;
-    float4 normal;
-    float4 color;
-    float2 uv;
-    float2 pad0;
-};
-
-struct VertexOutput
-{
-    float4 pos : SV_Position;
-    float3 worldPos : TEXCOORD0;
-    float3 worldNormal : TEXCOORD1;
-    float3 color : COLOR0;
-    float2 uv : TEXCOORD2;
-};
-
-struct PushConstants
-{
-    uint32_t meshIndex;
-    uint32_t numLights;
-    uint32_t frameIndex;
-};
-
-struct Payload
-{
-    bool hit;
-    float3 albedo;
-    float3 normal;
-    float3 hitPos;
-    float4 emission;
-    uint style;
-};
-
-struct ShadowPayload
-{
-    bool hit;
-};
+import structs;
+import utils;
+import stylizations;
+import interactions;
 
 [[vk::constant_id(0)]] const uint32_t kFlipUVY;
 
@@ -134,38 +63,6 @@ float3 generateCameraRayDir(float2 uv)
     float3 dir = normalize(mul((float3x3)camera.invView, dirView)); // in world space
     
     return dir;
-}
-
-// https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
-uint32_t pcg_hash(uint32_t x)
-{
-    x = x * 747796405u + 2891336453u;
-    uint32_t r = ((x >> ((x >> 28u) + 4u)) ^ x) * 277803737u;
-    return (r >> 22u) ^ r;
-}
-
-float rand(inout uint32_t state)
-{
-    state = state * 1664525u + 1013904223u;
-    return float(state) / 4294967296.0;
-}
-
-float3 cosineSampleHemisphere(float2 xi)
-{
-    float r = sqrt(xi.x);
-    float theta = 2.0f * 3.14159265 * xi.y;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(max(0.0, 1.0 - xi.x));
-    return float3(x, y, z);
-}
-
-float3 transformWorld(float3 localDir, float3 N)
-{
-    float3 up = abs(N.z) < 0.999f ? float3(0, 0, 1) : float3(1, 0, 0);
-    float3 tangent = normalize(cross(up, N));
-    float3 bitangent = cross(N, tangent);
-    return normalize(localDir.x * tangent + localDir.y * bitangent + localDir.z * N);
 }
 
 float3 computeDirectLighting(Payload payload, float3 wo)
@@ -229,17 +126,6 @@ float3 computeDirectLighting(Payload payload, float3 wo)
     return Lo;
 }
 
-float luminance(float3 samples)
-{
-    return dot(samples, float3(0.2126, 0.7152, 0.0722));
-}
-
-float3 stylizeGreyScale(float3 samples)
-{
-    let lum = luminance(samples);
-    return float3(lum, lum, lum);
-}
-
 [shader("raygeneration")]
 void rgenMain()
 {
@@ -273,7 +159,7 @@ void rgenMain()
         uv.y = lerp(uv.y, 1.0 - uv.y, float(kFlipUVY)); // use lerp to flip coord system Y w/o a boolean check
         
         float3 origin = cameraOrigin;
-        float3 wi = generateCameraRayDir(uv);
+        float3 rayDir = generateCameraRayDir(uv);
         
         float3 radiance = float3(0.0); // light gathered along the path
         float3 throughput = float3(1.0); // energy that survives along path
@@ -283,11 +169,13 @@ void rgenMain()
         // shoot ray (bounceable) into the scene
         for (uint32_t bounce = 0; bounce < bounces; bounce++)
         {
+            float3 wo = -rayDir;
+        
             // given the new ray direction and origin shoot off in direction
             Payload payload;
             
             RayDesc ray;
-            ray.Direction = wi.xyz;
+            ray.Direction = rayDir.xyz;
             ray.Origin = origin.xyz;
             ray.TMin = tMin;
             ray.TMax = tMax;
@@ -309,34 +197,35 @@ void rgenMain()
                 break;
             }
             
-            float3 currRadiance = float3(0.0, 0.0, 0.0);
+            float3 Lo = float3(0.0, 0.0, 0.0);
+            
             // direct lighting step
-            float3 Ld = computeDirectLighting(payload, -wi);
-            currRadiance += Ld * throughput;
+            float3 Ld = computeDirectLighting(payload, wo);
+            Lo += Ld * throughput;
             
             // check surface emission
             float3 Le = payload.emission.rgb * payload.emission.w;
-            currRadiance += Le * throughput;
+            Lo += Le * throughput;
             
             // sample wi from pdf
             float3 N = normalize(payload.normal);
-            float2 xi = float2(rand(seed), rand(seed));
-            float3 localDir = cosineSampleHemisphere(xi);
-            float3 dir = transformWorld(localDir, N);
+            float3 wiLocal = cosineSampleHemisphere(seed);
+            float3 wi = transformWorld(wiLocal, N);
             
             // update throughput
-            float3 f = payload.albedo; // lambertian
-            throughput *= f; 
+            float Ndot = max(dot(N, wi), 0.0);
+            float4 brdf = lambertianBRDF(N, wi, payload.albedo);
+            throughput *= Ndot * brdf.xyz * brdf.w;
                         
             if (payload.style == 1)
             {
-                currRadiance = stylizeGreyScale(currRadiance);
+                Lo = stylizeGreyScale(Lo);
             }
 
-            radiance += currRadiance;
+            radiance += Lo;
             
             // continue path
-            wi = dir;
+            rayDir = wi;
             origin = payload.hitPos + wi * 0.001f;
         }
         
@@ -347,7 +236,6 @@ void rgenMain()
     float3 curr = finalColor;
 
     // accumulate and tonemap
-
     if (pushConstants.frameIndex == 0)
     {
         accumulationImage[pixel] = float4(curr.rgb, 1.0); // if first frame store sample directly
@@ -423,7 +311,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         baseColor *= texel.rgb;
         
         // temp stylize textured objects
-        //payload.style = 1;
+        // payload.style = 1;
     }
     
     payload.hit = true;

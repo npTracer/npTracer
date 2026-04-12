@@ -218,7 +218,8 @@ float3 computeDirectLighting(Payload payload, float3 wo)
 
         float distSq = max(dot(L, L), 1e-4);
         
-        float3 Li = light.color.rgb * light.intensity / distSq;
+        float attenuation = 1.0 / max(distSq, 1e-4);
+        float3 Li = light.color.rgb * light.intensity * attenuation;
         
         float3 f = albedo / 3.14159265; // lambertian
 
@@ -230,7 +231,7 @@ float3 computeDirectLighting(Payload payload, float3 wo)
 
 float luminance(float3 samples)
 {
-    return 0.299 * samples.x + 0.587 * samples.y + 0.114 * samples.z;
+    return dot(samples, float3(0.2126, 0.7152, 0.0722));
 }
 
 float3 stylizeGreyScale(float3 samples)
@@ -343,22 +344,28 @@ void rgenMain()
     }
     
     finalColor /= samples;
-   
     float3 curr = finalColor;
-    
+
+    // accumulate and tonemap
+
     if (pushConstants.frameIndex == 0)
     {
-        accumulationImage[pixel] = float4(curr.rgb, 1.0);
-        resultImage[pixel] = float4(curr.rgb, 1.0);
-        return;
+        accumulationImage[pixel] = float4(curr.rgb, 1.0); // if first frame store sample directly
+    }
+    else
+    {
+        float3 prev = accumulationImage[pixel].rgb;
+        float n = float(pushConstants.frameIndex);
+        curr = (prev * n + curr) / (n + 1.0); // incorporate new sample into running summation (the n + 1 sample)
+        accumulationImage[pixel] = float4(curr.rgb, 1.0); // store new running average
     }
     
-    float3 prev = accumulationImage[pixel].rgb;
-    float n = float(pushConstants.frameIndex);
-    float3 blended = (prev * n + curr) / (n + 1.0);
+    // tonemap output
+    float3 display = curr;
+    float luma = luminance(display);
+    display = display * (luma / (luma + 1.0)) / max(luma, 1e-5); // = display / (luma + 1)
     
-    accumulationImage[pixel] = float4(blended.rgb, 1.0);
-    resultImage[pixel] = float4(blended.rgb, 1.0);
+    resultImage[pixel] = float4(display.rgb, 1.0);
 }
 
 [shader("miss")]
@@ -416,7 +423,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         baseColor *= texel.rgb;
         
         // temp stylize textured objects
-        payload.style = 1;
+        //payload.style = 1;
     }
     
     payload.hit = true;

@@ -224,14 +224,16 @@ void AssimpScene::processAiLight(const aiLight* inAiLight)
     {
         light->transform = FLOAT4x4(1.0);
     }
-
-    FLOAT3 lightColor3 = FLOAT3(inAiLight->mColorDiffuse.r, inAiLight->mColorDiffuse.g,
+    
+    FLOAT3 raw = FLOAT3(inAiLight->mColorDiffuse.r, inAiLight->mColorDiffuse.g,
                                 inAiLight->mColorDiffuse.b);
-
+    
     // Assimp will encode intensity into color
-    light->intensity = glm::length(lightColor3);
-    lightColor3 = light->intensity > 0 ? lightColor3 / light->intensity : FLOAT3(1.f);
-    light->color = FLOAT4(lightColor3, 1.f);
+    float intensityScale = 0.01f;
+    float luminanceMag = (0.2126f*raw.r + 0.7152f*raw.g + 0.0722f*raw.b);
+    
+    light->intensity = luminanceMag * intensityScale;
+    light->color = FLOAT4(raw / glm::max(luminanceMag, 1e-5f), 1.0f);
 }
 
 void AssimpScene::processAiCamera(const aiScene* inAiScene)

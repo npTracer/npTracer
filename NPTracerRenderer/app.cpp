@@ -154,13 +154,24 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<MaterialRecord> materialRecords;
     materialRecords.reserve(materialCount);
 
-    for (uint32_t i = 0; i < materialCount; i++)
+    if (materialCount > 0)
     {
-        // right now NPMaterial and record are identical so just use the same struct here (still
-        // looping for easy modification in the future)
-        Material const* material = mpScene->getPrimAtIndex<Material>(i);
-        materialRecords.push_back(material->toRecord());
+        for (uint32_t i = 0; i < materialCount; i++)
+        {
+            // right now NPMaterial and record are identical so just use the same struct here (still
+            // looping for easy modification in the future)
+            Material const* material = mpScene->getPrimAtIndex<Material>(i);
+            materialRecords.push_back(material->toRecord());
+        }
     }
+    else
+    {
+        // push back default material record   
+        MaterialRecord materialRecord{};
+        materialRecord.diffuse = FLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
+        materialRecords.push_back(materialRecord);
+    }
+
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
     mContext.createDeviceLocalBuffer(mMaterialRecordsBuffer, materialRecords.data(),

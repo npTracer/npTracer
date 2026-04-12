@@ -75,7 +75,7 @@ struct Payload
     float3 albedo;
     float3 normal;
     float3 hitPos;
-    float3 emission;
+    float4 emission;
     uint style;
 };
 
@@ -315,7 +315,7 @@ void rgenMain()
             currRadiance += Ld * throughput;
             
             // check surface emission
-            float3 Le = payload.emission;
+            float3 Le = payload.emission.rgb * payload.emission.w;
             currRadiance += Le * throughput;
             
             // sample wi from pdf
@@ -428,7 +428,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     
     payload.hit = true;
     payload.albedo = baseColor;
-    payload.emission = material.emissive.rgb;
+    payload.emission = material.emissive;
     payload.normal = worldNormal;
     payload.hitPos = worldPos;
 }

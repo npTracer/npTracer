@@ -118,8 +118,7 @@ float3 computeDirectLighting(Payload payload, float3 wo)
         float attenuation = 1.0 / max(distSq, 1e-4);
         float3 Li = light.color.rgb * light.intensity * attenuation;
         
-        float3 f = albedo / 3.14159265; // lambertian
-
+        float3 f = evalMicrofacetBRDF(N, wo, LNorm, payload.albedo, payload.mr, payload.specular);
         Lo += f * Li * NdotL;
     }
 
@@ -138,7 +137,7 @@ void rgenMain()
     float tMax = 10000.0;
     
     uint32_t samples = 5;
-    uint32_t bounces = 3;
+    uint32_t bounces = 10;
     
     float3 finalColor = float3(0.0);
     
@@ -207,19 +206,24 @@ void rgenMain()
             float3 Le = payload.emission.rgb * payload.emission.w;
             Lo += Le * throughput;
             
-            // sample wi from pdf
+            // sample and evaluate brdf
             float3 N = normalize(payload.normal);
-            float3 wiLocal = cosineSampleHemisphere(seed);
-            float3 wi = transformWorld(wiLocal, N);
-            
-            // update throughput
-            float Ndot = max(dot(N, wi), 0.0);
-            float4 brdf = lambertianBRDF(N, wi, payload.albedo);
-            throughput *= Ndot * brdf.xyz * brdf.w; // Ndot * f_r * (1 / pdf)
-                        
+            BRDFSample sample = sampleMicrofacetBRDF(
+                N,
+                wo,
+                payload.albedo,
+                payload.mr,
+                payload.specular,
+                seed
+            );
+
+            throughput *= sample.weight;
+            float3 wi = sample.wi;
+
             if (payload.style == 1)
             {
                 Lo = stylizeGreyScale(Lo);
+                payload.style = 0;
             }
 
             radiance += Lo;
@@ -318,9 +322,10 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         texel = normalize(texel * 2.0 - 1.0); // [0, 1] -> [-1, 1]
         
         float4 tangent = v0.tangent * b0 + v1.tangent * b1 + v2.tangent * b2;
-        float3 T = tangent.xyz;
         float handedness = tangent.w;
         
+        float3x3 M = (float3x3)transform;
+        float3 T = normalize(mul(M, tangent.xyz));
         T = normalize(T - dot(T, N) * N); // re-orthogonalize T with respect to N
         
         if (length(T) < 0.0001)
@@ -330,7 +335,18 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         
         float3 B = cross(N, T) * handedness;
         
-        N = normalize(T * texel.r + B * -texel.g + N * texel.b); // flip texel g due to opengl vs dx encoding
+        //N = normalize(T * texel.r + B * -texel.g + N * texel.b); // flip texel g due to opengl vs dx encoding
+    }
+    
+    float metallic = 0.0;
+    float roughness = 1.0;
+    if (material.metallicTextureIndex != 0xFFFFFFFF)
+    {
+        Sampler2D texture = textures[material.metallicTextureIndex];
+        float3 texel = texture.SampleLevel(uv, 0.0).rgb;
+        
+        metallic = texel.b;
+        roughness = texel.g;
     }
     
     payload.hit = true;
@@ -338,6 +354,8 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     payload.emission = material.emissive;
     payload.normal = N;
     payload.hitPos = worldPos;
+    payload.mr = float2(metallic, roughness);
+    payload.specular = material.specular.w;
 }
 
 [shader("closesthit")]

@@ -29,6 +29,7 @@ struct MaterialRecord
     float4 ambient;
     float4 specular;
     float4 emissive;
+    float2 metallic;
     
     uint32_t diffuseTextureIndex;
     uint32_t normalTextureIndex;
@@ -69,9 +70,19 @@ struct Payload
     float3 hitPos;
     float4 emission;
     uint style;
+    
+    float2 mr; // x: metallic, y: roughness
+    float specular;
 };
 
 struct ShadowPayload
 {
     bool hit;
+};
+
+
+struct BRDFSample
+{
+    float3 wi;
+    float3 weight; // f * NoL / pdf
 };

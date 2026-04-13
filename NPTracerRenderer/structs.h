@@ -379,7 +379,8 @@ struct MaterialRecord
     FLOAT4 ambient = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 specular = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f); // w stores emission intensity
-
+    FLOAT2 metallic = FLOAT2(0.f);
+    
     uint32_t diffuseTextureIndex = UINT32_MAX;
     uint32_t normalTextureIndex = UINT32_MAX;
     uint32_t metallicTextureIndex = UINT32_MAX;

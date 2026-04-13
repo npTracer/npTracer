@@ -198,6 +198,11 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     if (aiMat->Get(AI_MATKEY_COLOR_SPECULAR, color) == AI_SUCCESS)
     {
         mat->specular = FLOAT4(color.r, color.g, color.b, 1.0f);
+        float intensity;
+        if (aiMat->Get(AI_MATKEY_SPECULAR_FACTOR, intensity) == AI_SUCCESS)
+        {
+            mat->specular.w = intensity;
+        }
     }
 
     if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, color) == AI_SUCCESS)
@@ -207,8 +212,18 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
         float intensity;
         if (aiMat->Get(AI_MATKEY_EMISSIVE_INTENSITY, intensity) == AI_SUCCESS)
         {
-            mat->emission.w = intensity; // scale for correct results for now
+            mat->emission.w = intensity; 
         }
+    }
+    
+    ai_real factor = 0.0f;
+    if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, factor) == AI_SUCCESS)
+    {
+        mat->metallic.x = factor;
+    }
+    if (aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, factor) == AI_SUCCESS)
+    {
+        mat->metallic.y = factor;
     }
     
     aiString aiStr;

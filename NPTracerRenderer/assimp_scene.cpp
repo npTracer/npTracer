@@ -29,6 +29,7 @@ void AssimpScene::loadSceneFromPath(const char* path)
         // NOTE: assimp is right-handed (+Y=up, -Z=forward) by default, which is what we want. so just flip UVs to match Vulkan UV conventions
         scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GlobalScale
                                             | aiProcess_GenSmoothNormals | aiProcess_FlipUVs
+                                            | aiProcess_CalcTangentSpace
                                             | aiProcess_JoinIdenticalVertices);
     }
     catch (std::exception& e)
@@ -72,6 +73,69 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
     }
 }
 
+void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMat, aiTextureType textureType, uint32_t& targetIndex)
+{
+    aiString aiStr;
+    
+    if (aiMat->GetTexture(textureType, 0, &aiStr) == AI_SUCCESS)
+    {
+        std::string texKey = std::string(aiStr.C_Str());
+
+        auto it = textureIndexByKey.find(texKey);
+        if (it != textureIndexByKey.end())
+        {
+            targetIndex = it->second;
+        }
+        else  // create a new texture
+        {
+            auto texture = makePrim<Texture>();
+            uint32_t texIdx = static_cast<uint32_t>(_textures.size() - 1);
+            targetIndex = texIdx;
+
+            const aiTexture* embedded = scene->GetEmbeddedTexture(aiStr.C_Str());
+
+            if (embedded)
+            {
+                if (embedded->mHeight == 0)
+                {
+                    int width = 0, height = 0, channels = 0;
+
+                    stbi_uc* decodedPixels
+                        = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(embedded->pcData),
+                                                static_cast<int>(embedded->mWidth), &width, &height,
+                                                &channels, STBI_rgb_alpha);
+
+                    DEV_ASSERT(decodedPixels, "failed to decode embedded texture from memory");
+
+                    texture->pixels = decodedPixels;
+                    texture->width = static_cast<uint32_t>(width);
+                    texture->height = static_cast<uint32_t>(height);
+                }
+                else
+                {
+                    texture->pixels = embedded->pcData;
+                    texture->width = embedded->mWidth;
+                    texture->height = embedded->mHeight;
+                }
+            }
+            else
+            {
+                int width = 0, height = 0, channels = 0;
+                stbi_uc* pixels = stbi_load(aiStr.C_Str(), &width, &height, &channels,
+                                            STBI_rgb_alpha);  // TODO: store scene directory
+
+                DEV_ASSERT(pixels, "failed to load external texture: '%s'\n", aiStr.C_Str());
+
+                texture->pixels = pixels;
+                texture->width = static_cast<uint32_t>(width);
+                texture->height = static_cast<uint32_t>(height);
+            }
+
+            textureIndexByKey[texKey] = texIdx;
+        }
+    }
+}
+
 void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
                                 const FLOAT4x4& localTransform)
 {
@@ -89,6 +153,10 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
                                    ? FLOAT4(inAiMesh->mNormals[j].x, inAiMesh->mNormals[j].y,
                                             inAiMesh->mNormals[j].z, 1.0f)
                                    : FLOAT4(0, 0, 0, 0),
+                    .tangent = inAiMesh->HasTangentsAndBitangents()
+                                  ? FLOAT4(inAiMesh->mTangents[j].x, inAiMesh->mTangents[j].y,
+                                           inAiMesh->mTangents[j].z, inAiMesh->mTangents[j][3])
+                                  : FLOAT4(0, 0, 0, 0),
                      .color = inAiMesh->HasVertexColors(0)
                                   ? FLOAT4(inAiMesh->mColors[0][j].r, inAiMesh->mColors[0][j].g,
                                            inAiMesh->mColors[0][j].b, 1.0f)
@@ -150,64 +218,10 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     }
 
     // texturing
-    if (aiMat->GetTexture(aiTextureType_BASE_COLOR, 0, &aiStr) == AI_SUCCESS)
-    {
-        std::string texKey = std::string(aiStr.C_Str());
-
-        auto it = textureIndexByKey.find(texKey);
-        if (it != textureIndexByKey.end())
-        {
-            mat->diffuseTextureIndex = it->second;
-        }
-        else  // create a new texture
-        {
-            auto texture = makePrim<Texture>();
-            uint32_t texIdx = static_cast<uint32_t>(_textures.size() - 1);
-            mat->diffuseTextureIndex = texIdx;
-
-            const aiTexture* embedded = scene->GetEmbeddedTexture(aiStr.C_Str());
-
-            if (embedded)
-            {
-                if (embedded->mHeight == 0)
-                {
-                    int width = 0, height = 0, channels = 0;
-
-                    stbi_uc* decodedPixels
-                        = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(embedded->pcData),
-                                                static_cast<int>(embedded->mWidth), &width, &height,
-                                                &channels, STBI_rgb_alpha);
-
-                    DEV_ASSERT(decodedPixels, "failed to decode embedded texture from memory");
-
-                    texture->pixels = decodedPixels;
-                    texture->width = static_cast<uint32_t>(width);
-                    texture->height = static_cast<uint32_t>(height);
-                }
-                else
-                {
-                    texture->pixels = embedded->pcData;
-                    texture->width = embedded->mWidth;
-                    texture->height = embedded->mHeight;
-                }
-            }
-            else
-            {
-                int width = 0, height = 0, channels = 0;
-                stbi_uc* pixels = stbi_load(aiStr.C_Str(), &width, &height, &channels,
-                                            STBI_rgb_alpha);  // TODO: store scene directory
-
-                DEV_ASSERT(pixels, "failed to load external texture: '%s'\n", aiStr.C_Str());
-
-                texture->pixels = pixels;
-                texture->width = static_cast<uint32_t>(width);
-                texture->height = static_cast<uint32_t>(height);
-            }
-
-            textureIndexByKey[texKey] = texIdx;
-        }
-    }
-
+    loadAndSetTexture(scene, aiMat, aiTextureType_BASE_COLOR, mat->diffuseTextureIndex); // diffuse
+    loadAndSetTexture(scene, aiMat, aiTextureType_NORMALS, mat->normalTextureIndex); // normals
+    loadAndSetTexture(scene, aiMat, aiTextureType_METALNESS, mat->metallicTextureIndex); // metallic
+    
     mesh->materialIndex = static_cast<uint32_t>(_materials.size() - 1);
 }
 

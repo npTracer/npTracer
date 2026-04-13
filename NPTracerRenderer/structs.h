@@ -13,6 +13,8 @@
 #include <vector>
 #include <memory>
 
+#include "glm/gtx/compatibility.hpp"
+
 // alias-like template types can stay in global namespace
 using FLOAT2 = glm::f32vec2;
 using FLOAT3 = glm::f32vec3;
@@ -59,6 +61,7 @@ struct Vertex
 {
     FLOAT4 pos = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 normal = FLOAT4(0.f, 0.f, 0.f, 1.f);
+    FLOAT4 tangent = FLOAT4(0.f, 0.f, 0.f, 1.f);
     FLOAT4 color = FLOAT4(1.f);
     FLOAT2 uv = FLOAT2(0.f);
     FLOAT2 pad0 = FLOAT2(0.f);
@@ -378,6 +381,8 @@ struct MaterialRecord
     FLOAT4 emission = FLOAT4(0.f, 0.f, 0.f, 1.f); // w stores emission intensity
 
     uint32_t diffuseTextureIndex = UINT32_MAX;
+    uint32_t normalTextureIndex = UINT32_MAX;
+    uint32_t metallicTextureIndex = UINT32_MAX;
 };
 
 struct Material : MaterialRecord

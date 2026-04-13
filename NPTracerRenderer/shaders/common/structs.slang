@@ -29,13 +29,17 @@ struct MaterialRecord
     float4 ambient;
     float4 specular;
     float4 emissive;
+    
     uint32_t diffuseTextureIndex;
+    uint32_t normalTextureIndex;
+    uint32_t metallicTextureIndex;
 };
 
 struct Vertex
 {
     float4 pos;
     float4 normal;
+    float4 tangent;
     float4 color;
     float2 uv;
     float2 pad0;

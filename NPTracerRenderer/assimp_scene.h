@@ -41,6 +41,7 @@ private:
     void processAiMesh(const aiScene* scene, const aiMesh* inAiMesh, const FLOAT4x4& localTransform);
     void processAiCamera(const aiScene* inAiScene);
     void processAiLight(const aiLight* inAiLight);
+    void loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMat, aiTextureType textureType, uint32_t& targetIndex);
 };
 
 NP_TRACER_NAMESPACE_END

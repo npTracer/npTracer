@@ -215,7 +215,7 @@ void rgenMain()
             // update throughput
             float Ndot = max(dot(N, wi), 0.0);
             float4 brdf = lambertianBRDF(N, wi, payload.albedo);
-            throughput *= Ndot * brdf.xyz * brdf.w;
+            throughput *= Ndot * brdf.xyz * brdf.w; // Ndot * f_r * (1 / pdf)
                         
             if (payload.style == 1)
             {
@@ -299,7 +299,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     float2 uv = v0.uv * b0 + v1.uv * b1 + v2.uv * b2;
    
     float3 worldPos = mul(transform, pos).xyz;
-    float3 worldNormal = normalize(mul((float3x3)transform, normal.xyz)); // TODO: inverse transpose
+    float3 worldNormal = normalize(mul((float3x3)transform, normal.xyz));
     
     float3 N = normalize(worldNormal);
     float3 baseColor = material.diffuse.rgb;
@@ -309,15 +309,34 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
+    }
+    
+    if (material.normalTextureIndex != 0xFFFFFFFF)
+    {
+        Sampler2D texture = textures[material.normalTextureIndex];
+        float3 texel = texture.SampleLevel(uv, 0.0).rgb;
+        texel = normalize(texel * 2.0 - 1.0); // [0, 1] -> [-1, 1]
         
-        // temp stylize textured objects
-        // payload.style = 1;
+        float4 tangent = v0.tangent * b0 + v1.tangent * b1 + v2.tangent * b2;
+        float3 T = tangent.xyz;
+        float handedness = tangent.w;
+        
+        T = normalize(T - dot(T, N) * N); // re-orthogonalize T with respect to N
+        
+        if (length(T) < 0.0001)
+        {
+            T = computeTangent(v0, v1, v2, (float3x3)transform, N);
+        }
+        
+        float3 B = cross(N, T) * handedness;
+        
+        N = normalize(T * texel.r + B * -texel.g + N * texel.b); // flip texel g due to opengl vs dx encoding
     }
     
     payload.hit = true;
     payload.albedo = baseColor;
     payload.emission = material.emissive;
-    payload.normal = worldNormal;
+    payload.normal = N;
     payload.hitPos = worldPos;
 }
 

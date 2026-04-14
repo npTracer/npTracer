@@ -33,8 +33,8 @@ public:
     void render();
 
 private:
-    // this is a runtime constant, just update whenever needed
-    static constexpr size_t kPushConstantCount = 4;
+    // since this is a runtime constant, we will statically declare it here and update whenever needed
+    static constexpr size_t kPushConstantCount = 3;
 
     Context mContext{};
     GLFWwindow* mpWindow = nullptr;
@@ -79,14 +79,12 @@ private:
     AccelerationStructure mTlas{};
 
     // resource creation
-    void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
     void createRTPipeline();
     void createAccelerationStructures(std::vector<MeshRecord>& meshes,
                                       std::vector<FLOAT4x4>& transforms,
                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);
     void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
                             VkImageLayout dstImageLayout);
 

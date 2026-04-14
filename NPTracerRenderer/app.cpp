@@ -4,7 +4,7 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;
+constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;  // only needs visibility in this translation unit
 
 // for ease-of-use
 #define USE_SWAPCHAIN mRendererConstants.executionMode == eExecutionMode::SWAPCHAIN
@@ -125,16 +125,13 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<LightRecord> lightRecords;
     lightRecords.reserve(lightCount);
 
-    if (lightCount > 0)
+    for (uint32_t i = 0; i < lightCount; i++)
     {
-        for (uint32_t i = 0; i < lightCount; i++)
-        {
-            Light const* light = mpScene->getPrimAtIndex<Light>(i);
-            LightRecord lightRecord = light->toRecord();
-            lightRecords.push_back(lightRecord);
-        }
+        Light const* light = mpScene->getPrimAtIndex<Light>(i);
+        LightRecord lightRecord = light->toRecord();
+        lightRecords.push_back(lightRecord);
     }
-    else DEV_ASSERT(false, "No lights were found in scene.");
+
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
 
     mContext.createDeviceLocalBuffer(mLightRecordBuffer, lightRecords.data(), lightRecordBufferSize,
@@ -423,164 +420,6 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     }
 
     createRTPipeline();
-}
-
-void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format)
-{
-    // shader creation
-    VkShaderModule coreVertModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
-    VkShaderModule coreFragModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
-
-    VkPipelineShaderStageCreateInfo vInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = coreVertModule,
-        .pName = "vertMain"
-    };
-
-    VkPipelineShaderStageCreateInfo fInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = coreFragModule,
-        .pName = "fragMain"
-    };
-
-    VkPipelineShaderStageCreateInfo shaderStages[] = { vInfo, fInfo };
-
-    // viewport
-    std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT,
-                                                  VK_DYNAMIC_STATE_SCISSOR };
-
-    VkPipelineDynamicStateCreateInfo dynamicInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
-        .pDynamicStates = dynamicStates.data()
-    };
-
-    VkPipelineVertexInputStateCreateInfo vertexInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = nullptr,
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = nullptr
-    };
-
-    VkPipelineInputAssemblyStateCreateInfo inputInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-    };
-
-    VkViewport viewport{ 0.0f, 0.0f, 0, 0, 0.0f, 1.0f };
-    viewport.width = width;
-    viewport.height = height;
-
-    VkExtent2D extent{ .width = width, .height = height };
-    VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
-
-    VkPipelineViewportStateCreateInfo viewportState{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .pViewports = nullptr,
-        .scissorCount = 1,
-        .pScissors = nullptr
-    };
-
-    // rasterizer
-    VkPipelineRasterizationStateCreateInfo rasterInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .depthBiasSlopeFactor = 1.0f,
-        .lineWidth = 1.0f
-    };
-
-    VkPipelineMultisampleStateCreateInfo multisampling{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable = VK_FALSE
-    };
-
-    // color blending
-    VkPipelineColorBlendAttachmentState blendInfo{ .blendEnable = VK_FALSE,
-                                                   .colorWriteMask = VK_COLOR_COMPONENT_R_BIT
-                                                                     | VK_COLOR_COMPONENT_G_BIT
-                                                                     | VK_COLOR_COMPONENT_B_BIT
-                                                                     | VK_COLOR_COMPONENT_A_BIT };
-
-    VkPipelineColorBlendStateCreateInfo blendStateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments = &blendInfo
-    };
-
-    // depth testing
-    VkPipelineDepthStencilStateCreateInfo depthInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE
-    };
-
-    // pipeline layout
-    std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
-    vkDescriptorSetLayouts.reserve(mDescriptorSetLayouts.size());
-    for (auto& descriptorSetLayout : mDescriptorSetLayouts)
-    {
-        vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
-    }
-
-    VkPushConstantRange pushConstantRange{ .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
-                                           .offset = 0,
-                                           .size = static_cast<uint32_t>(kPushConstantCount)
-                                                   * sizeof(uint32_t) };
-
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size()),
-        .pSetLayouts = vkDescriptorSetLayouts.data(),
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstantRange
-    };
-
-    vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRasterPipeline.layout);
-
-    VkPipelineRenderingCreateInfo renderingInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &format,
-        .depthAttachmentFormat = mContext.depthFormat
-    };
-
-    VkGraphicsPipelineCreateInfo pipelineInfo{
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = &renderingInfo,
-        .stageCount = 2,
-        .pStages = shaderStages,
-        .pVertexInputState = &vertexInfo,
-        .pInputAssemblyState = &inputInfo,
-        .pViewportState = &viewportState,
-        .pRasterizationState = &rasterInfo,
-        .pMultisampleState = &multisampling,
-        .pDepthStencilState = &depthInfo,
-        .pColorBlendState = &blendStateInfo,
-        .pDynamicState = &dynamicInfo,
-        .layout = mRasterPipeline.layout,
-        .renderPass = nullptr
-    };
-
-    VK_CHECK(vkCreateGraphicsPipelines(mContext.device, nullptr, 1, &pipelineInfo, nullptr,
-                                       &mRasterPipeline.pipeline),
-             "failed to create graphics pipeline");
-
-    vkDestroyShaderModule(mContext.device, coreVertModule, nullptr);
-    vkDestroyShaderModule(mContext.device, coreFragModule, nullptr);
 }
 
 void App::createRTPipeline()
@@ -988,102 +827,6 @@ void App::executeDrawCallSwapchain()
     // increment frame (within ring)
     mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % DEFAULT_FRAMES_IN_FLIGHT;
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
-}
-
-void App::populateDrawCallRaster(Frame& frame, uint32_t imageIndex)
-{
-    vkResetCommandBuffer(frame.commandBuffer, 0);
-    mContext.beginCommandBuffer(frame.commandBuffer);
-
-    mContext.transitionImageLayout(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-    VkClearValue clearColor{ { { 0.0f, 0.0f, 0.0f, 1.0f } } };
-    VkClearValue clearDepth{ { 1.0f, 0 } };
-
-    VkRenderingAttachmentInfo colorAttachmentInfo{};
-    colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachmentInfo.imageView = mContext.swapchainImageViews[imageIndex];
-    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentInfo.clearValue = clearColor;
-
-    VkRenderingAttachmentInfo depthAttachmentInfo{};
-    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = mContext.depthImage.view;
-    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentInfo.clearValue = clearDepth;
-
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-
-    renderingInfo.renderArea.offset.x = 0;
-    renderingInfo.renderArea.offset.y = 0;
-    renderingInfo.renderArea.extent = mContext.swapchainParams.extent;
-
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachmentInfo;
-    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
-
-    // record commands
-    vkCmdBeginRendering(frame.commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      mRasterPipeline.pipeline);
-
-    VkViewport viewport{ 0.0f,
-                         0.0f,
-                         static_cast<float>(mContext.swapchainParams.extent.width),
-                         static_cast<float>(mContext.swapchainParams.extent.height),
-                         0.0f,
-                         1.0f };
-
-    VkRect2D scissor{ { 0, 0 }, mContext.swapchainParams.extent };
-
-    vkCmdSetViewport(frame.commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
-
-    VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            mRasterPipeline.layout, 0,
-                            static_cast<uint32_t>(mDescriptorSets.size()), mDescriptorSets.data(),
-                            0, nullptr);
-
-    for (size_t i = 0; i < mIndexCounts.size(); i++)
-    {
-        std::array<uint32_t, kPushConstantCount> pushConstants{ static_cast<uint32_t>(i),
-                                                                mNumLights, mContext.frameIndex };
-        vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
-                           VK_SHADER_STAGE_ALL_GRAPHICS, 0,
-                           sizeof(uint32_t) * static_cast<uint32_t>(kPushConstantCount),
-                           pushConstants.data());
-        vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
-    }
-
-    vkCmdEndRendering(frame.commandBuffer);
-
-    mContext.transitionImageLayout(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
-
-    // signal that fence is ready to be associated with a new queue submission
-    vkResetFences(mContext.device, 1, &frame.doneExecutingFence);
-
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-    mContext.endCommandBuffer(frame.commandBuffer, QueueType::GRAPHICS, waitDestinationStageMask,
-                              frame.doneExecutingFence, frame.donePresentingSemaphore,
-                              mContext.doneRenderingSemaphores[imageIndex]);
 }
 
 void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,

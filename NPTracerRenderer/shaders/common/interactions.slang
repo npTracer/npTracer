@@ -70,6 +70,7 @@ BRDFSample sampleMicrofacetBRDF(float3 N, float3 wo, float3 albedo, float2 mr, f
     BRDFSample s;
     s.wi = float3(0.0, 0.0, 0.0);
     s.weight = float3(0.0, 0.0, 0.0);
+    s.valid = 0;
     
     float metallic = saturate(mr.x);
     float roughness = max(mr.y, 0.04);   
@@ -129,6 +130,7 @@ BRDFSample sampleMicrofacetBRDF(float3 N, float3 wo, float3 albedo, float2 mr, f
     
     s.wi = wi;
     s.weight = f * NoL / pdf;
+    s.valid = 1; // success
     return s;
 }
 

@@ -13,6 +13,9 @@ import utils;
 import stylizations;
 import interactions;
 
+static const uint32_t kSampleCount = 10;
+static const uint32_t kMaxBounces = 10;
+
 [[vk::constant_id(0)]] const uint32_t kFlipUVY;
 
 [[vk::push_constant]]
@@ -51,6 +54,7 @@ RWTexture2D<float4> resultImage;
 [[vk::binding(2, 4)]]
 RWTexture2D<float4> accumulationImage;
 
+// convert uv coorindate (within pixel) to world space direction
 float3 generateCameraRayDir(float2 uv)
 {
     // map vulkan top-left UV origin convention to NDC space (-1, -1)
@@ -59,38 +63,45 @@ float3 generateCameraRayDir(float2 uv)
     float4 target = mul(camera.invProj, float4(clipX, clipY, 1.0, 1.0)); // in homogeneous view space
     target /= target.w;
     
+    // convert from view to world space
     float3 dirView = normalize(target.xyz);
     float3 dir = normalize(mul((float3x3)camera.invView, dirView)); // in world space
     
     return dir;
 }
 
+// determines radiance going in outgoing direction wo from light sources
 float3 computeDirectLighting(Payload payload, float3 wo)
 {
+    // use the same intersection values from intersection (normal, pos, color, etc)
     float3 N = normalize(payload.normal);
     float3 P = payload.hitPos;
     float3 albedo = payload.albedo;
 
-    float3 Lo = float3(0.0);
+    float3 Lo = float3(0.0); // keeps track of outgoing radiance over all point lights
 
+    // for each point light in the scene
     for (uint32_t i = 0; i < pushConstants.numLights; i++)
     {
+        // recover light world position
         LightRecord light = lights[i];
         float4x4 lightTransform = light.transform;
-
         float3 lightPos = float3(
             lightTransform[0][3],
             lightTransform[1][3],
             lightTransform[2][3]
         );
 
+        // recover vector from position to light
         float3 L = lightPos - P;
         float3 LNorm = normalize(L);
         float dist = length(lightPos - P);
 
+        // recover dot product between light and normal of intersection
         float NdotL = max(dot(N, LNorm), 0.0);
         if (NdotL <= 0.0) continue;
 
+        // shoot ray query from position towards light to see if position is obscured
         RayDesc shadowRay;
         shadowRay.Origin = P + N * 0.001;
         shadowRay.Direction = LNorm;
@@ -100,6 +111,7 @@ float3 computeDirectLighting(Payload payload, float3 wo)
         ShadowPayload shadowPayload;
         shadowPayload.hit = false;
 
+        // trace ray towards light to determine obscurity
         TraceRay(
             scene,
             RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
@@ -110,16 +122,17 @@ float3 computeDirectLighting(Payload payload, float3 wo)
             shadowRay,
             shadowPayload
         );
-
+        
         if (shadowPayload.hit) continue;
 
-        float distSq = max(dot(L, L), 1e-4);
+        // if nothing was obscured we can determine the contribution of the light to the output
+        float distSq = max(dot(L, L), 1e-4); // square distance from position to light
+        float attenuation = 1.0 / max(distSq, 1e-4); // linear falloff with distance
+        float3 Li = light.intensity * attenuation; // pure incoming irradiance to x 
         
-        float attenuation = 1.0 / max(distSq, 1e-4);
-        float3 Li = light.color.rgb * light.intensity * attenuation;
-        
+        // determine brdf evaluation
         float3 f = evalMicrofacetBRDF(N, wo, LNorm, payload.albedo, payload.mr, payload.specular);
-        Lo += f * Li * NdotL;
+        Lo += light.color.rgb * f * Li * NdotL; // add contribution to total across lights for x
     }
 
     return Lo;
@@ -128,57 +141,60 @@ float3 computeDirectLighting(Payload payload, float3 wo)
 [shader("raygeneration")]
 void rgenMain()
 {
+    // initialze ray tracing params
     uint32_t2 pixel = DispatchRaysIndex().xy; // pixel responsible for dispatch
     uint32_t2 dims = DispatchRaysDimensions().xy; // image dimensions in pixels
     
     float3 cameraOrigin = mul(camera.invView, float4(0.0, 0.0, 0.0, 1.0)).xyz; // camera origin in world space
     
+    // ray bounds
     float tMin = 0.001;
     float tMax = 10000.0;
     
-    uint32_t samples = 5;
-    uint32_t bounces = 10;
+    // sample and bounce maximums
+    uint32_t samples = kSampleCount;
+    uint32_t bounces = kMaxBounces;
     
-    float3 finalColor = float3(0.0);
+    float3 finalColor = float3(0.0); // final color of the entire pixel across samples
     
-    // random init
+    // generate seed base
     uint32_t baseSeed = pixel.x + pixel.y * dims.x;
     
+    // each loop describes one evaluation of the rendering equation E[integral]
     for (uint32_t sample = 0; sample < samples; sample++)
     {
+        // generate seed based on sample and frame index
         uint32_t seed = pcg_hash(
             baseSeed
             ^ (sample * 0x9E3779B9u)
             ^ (pushConstants.frameIndex * 0x85EBCA6Bu)
         );
     
-        // generate a ray for this pixel
+        // generate a ray direction for this pixel by jittering uv within pixel
         float2 jitter = float2(rand(seed), rand(seed));
         float2 uv = (float2(pixel) + jitter) / dims;
         uv.y = lerp(uv.y, 1.0 - uv.y, float(kFlipUVY)); // use lerp to flip coord system Y w/o a boolean check
-        
-        float3 origin = cameraOrigin;
         float3 rayDir = generateCameraRayDir(uv);
         
-        float3 radiance = float3(0.0); // light gathered along the path
-        float3 throughput = float3(1.0); // energy that survives along path
-        
-        bool stylize = false;
-        
-        // shoot ray (bounceable) into the scene
+        float3 origin = cameraOrigin; // origin is first point from which rays are shot
+       
+        // set up data structure for intersection data to be collected during a forward pass of a ray
+        Intersection path[kMaxBounces];
+        uint32_t pathLength = 0;
+
+        // shoot ray (bounceable) into the scene and collect list of intersections
         for (uint32_t bounce = 0; bounce < bounces; bounce++)
         {
-            float3 wo = -rayDir;
+            Payload payload; // determines intersection qualities for this bounce (pos, normal, color, etc)
         
-            // given the new ray direction and origin shoot off in direction
-            Payload payload;
-            
+            // describe ray to be shot out with rayDir, origin, and limits (t)
             RayDesc ray;
             ray.Direction = rayDir.xyz;
             ray.Origin = origin.xyz;
             ray.TMin = tMin;
             ray.TMax = tMax;
             
+            // trace the ray
             TraceRay(
                  scene,
                  RAY_FLAG_NONE,
@@ -189,26 +205,17 @@ void rgenMain()
                  ray,
                  payload);
             
-            // hit a surface
+            // if a surface has not been encountered by ray do not record intersection and return
             if (!payload.hit)
             {
-                radiance += throughput * float3(0.0, 0.0, 0.0);
                 break;
             }
             
-            float3 Lo = float3(0.0, 0.0, 0.0);
+            float3 wo = -rayDir; // outgoing direction of radiance at this intersection
+            float3 N = normalize(payload.normal); // intersection normal
             
-            // direct lighting step
-            float3 Ld = computeDirectLighting(payload, wo);
-            Lo += Ld * throughput;
-            
-            // check surface emission
-            float3 Le = payload.emission.rgb * payload.emission.w;
-            Lo += Le * throughput;
-            
-            // sample and evaluate brdf
-            float3 N = normalize(payload.normal);
-            BRDFSample sample = sampleMicrofacetBRDF(
+            // evaluate brdf at this intersection (returns f_r and new wi ray direction)
+            BRDFSample bs = sampleMicrofacetBRDF(
                 N,
                 wo,
                 payload.albedo,
@@ -216,24 +223,60 @@ void rgenMain()
                 payload.specular,
                 seed
             );
-
-            throughput *= sample.weight;
-            float3 wi = sample.wi;
-
-            if (payload.style == 1)
-            {
-                Lo = stylizeGreyScale(Lo);
-                payload.style = 0;
-            }
-
-            radiance += Lo;
             
-            // continue path
-            rayDir = wi;
-            origin = payload.hitPos + wi * 0.001f;
+            // record intersection data and sample data at x
+            path[pathLength].payload = payload;
+            path[pathLength].wo = wo;
+            path[pathLength].weight = bs.weight; // (f * cos / pdf) for sampled next direction wi
+            path[pathLength].validNext = bs.valid; // if valid continuation direction wi was sampled
+            
+            pathLength++; // path length increases
+            
+            // if valid continuation direction wi was not sampled stop recording and break
+            if (!path[pathLength - 1].validNext)
+            {
+                break;
+            }
+            
+            // continue path using new wi from brdf and hitPos
+            rayDir = bs.wi;
+            origin = payload.hitPos + bs.wi * 0.001f;
         }
         
-        finalColor += radiance;
+        // backward fold: compute outgoing radiance going from path end back towards camera
+        float3 Lo = float3(0.0); // outgoing radiance from next intersection along path
+        
+        for (int i = (int)pathLength - 1; i >= 0; i--) // decrement backwards
+        {
+            // retrieve intersection context (pos, normal, albedo, wo direction)
+            Payload payload = path[i].payload;
+            float3 wo = path[i].wo;
+            
+            // calculate lighting contributions at this intersection
+            float3 Le = payload.emission.rgb * payload.emission.w;
+            float3 Ld = computeDirectLighting(payload, wo);
+            
+            // indirect lighting step
+            float3 Li = float3(0.0);
+            if (path[i].validNext == 1) // if valid next direction
+            {
+                Li = path[i].weight * Lo; // brdf weight times previous outgoing radiance value
+            }
+            
+            float3 L = Le + Ld + Li; // outgoing radiance from this intersection is Le + Ld + Li
+            
+            // apply stylization function to the outgoing radiance from this intersection
+            if (payload.style == 1)
+            {
+                //L = stylizeGreyScale(L);
+                L = stylizeContour(L, payload.normal, wo);
+                //L = stylizeStripes(L, payload.hitPos);
+            }
+            
+            Lo = L; // update outgoing radiance from this point with (potentially) stylized radiance
+        }
+        
+        finalColor += Lo; // accumulate radiance values across samples
     }
     
     finalColor /= samples;
@@ -313,6 +356,8 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
+        
+        payload.style = 1;
     }
     
     if (material.normalTextureIndex != 0xFFFFFFFF)

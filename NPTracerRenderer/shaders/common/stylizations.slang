@@ -1,10 +1,39 @@
-float luminance(float3 samples)
+float luminance(float3 color)
 {
-    return dot(samples, float3(0.2126, 0.7152, 0.0722));
+    return dot(color, float3(0.2126, 0.7152, 0.0722));
 }
 
-float3 stylizeGreyScale(float3 samples)
+float3 stylizeGreyScale(float3 sample)
 {
-    let lum = luminance(samples);
+    float lum = luminance(sample);
     return float3(lum, lum, lum);
+}
+
+float3 stylizeContour(float3 sample, float3 normal, float3 wo)
+{
+    float NoV = dot(normal, wo);
+    
+    if (abs(NoV) < 0.5)
+    {
+        return float3(0.0);
+    }
+    
+    return float3(1.0);
+}
+
+float3 stylizeStripes(float3 sample, float3 position)
+{
+    float3 purpleShade = float3(0.81, 0.33, 0.88);
+    float3 yellowShade = float3(0.96, 0.945, 0.07);
+    
+    float stripePat = 0.0;
+    
+    if ((position.y > 0 && position.y - (int)position.y < 0.5) ||
+        (position.y < 0 && (int)position.y - position.y > 0.5))
+    {
+        stripePat = 1.0;
+    }
+    
+    float3 patternShade = purpleShade * stripePat + yellowShade * (1 - stripePat);
+    return patternShade;
 }

@@ -80,9 +80,18 @@ struct ShadowPayload
     bool hit;
 };
 
+// an intersection along the path of a ray
+struct Intersection
+{
+    Payload payload; // represents intersection parameters (pos, normal, albedo, etc)
+    float3 wo; // represents outgoing direction from intersection
+    float3 weight; // represents weight of intersection to path (f * cos / pdf) for sampled next direction
+    uint validNext; // whether a continuation ray was successfully sampled
+}
 
 struct BRDFSample
 {
     float3 wi;
     float3 weight; // f * NoL / pdf
+    uint valid; // whether a continuation ray wi was successfully sampled
 };

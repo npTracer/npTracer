@@ -206,56 +206,41 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         DescriptorSetLayout descriptorSetLayout{};
 
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-
-        // mesh record buffer
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        // vertex ssbo
-        VkDescriptorSetLayoutBinding b1{ .binding = 1,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        // index ssbo
-        VkDescriptorSetLayoutBinding b2{ .binding = 2,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        // transform
-        VkDescriptorSetLayoutBinding b3{ .binding = 3,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        bindings[0] = b0;
-        bindings[1] = b1;
-        bindings[2] = b2;
-        bindings[3] = b3;
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            // mesh record buffer
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR },
+            // vertex ssbo
+            { .binding = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR },
+            // index ssbo
+            { .binding = 2,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR },
+            // transform
+            { .binding = 3,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR }
+        };
 
         mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
 
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mMeshRecordBuffer;
-        bindingBufferMap[1] = &mVertexBuffer;
-        bindingBufferMap[2] = &mIndexBuffer;
-        bindingBufferMap[3] = &mMeshTransformsBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mMeshRecordBuffer, &mVertexBuffer, &mIndexBuffer,
+                                                &mMeshTransformsBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
 
         mDescriptorSets.push_back(descriptorSet);
     }
@@ -264,29 +249,32 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         DescriptorSetLayout descriptorSetLayout{};
 
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+              .pImmutableSamplers = nullptr }
+        };
+        std::vector<VkDescriptorBindingFlags> bindingFlags = {
+            { VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
+              | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+              | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+              | VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT }
+        };
 
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        bindings[0] = b0;
-
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings, &bindingFlags,
+                                           VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+                                           VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
 
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mLightRecordBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mLightRecordBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
-
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
         mDescriptorSets.push_back(descriptorSet);
     }
 
@@ -294,70 +282,61 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         DescriptorSetLayout descriptorSetLayout{};
 
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        bindings[0] = b0;
+        std::vector<VkDescriptorSetLayoutBinding> bindings{
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr }
+        };
 
         mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mCameraRecordBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mCameraRecordBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
 
         mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 3: MATERIALS AND TEXTURES
+    // TODO: separate these as they are not guarantted to be updated synchronously
     {
         DescriptorSetLayout descriptorSetLayout{};
 
-        // materials buffer
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        VkDescriptorSetLayoutBinding b1{
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = static_cast<uint32_t>(
-                mTextures.size()),  // TODO: this one SHOULD be a variable size descriptor
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            .pImmutableSamplers = nullptr
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            // materials
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr },
+            // textures
+            { .binding = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              .descriptorCount = static_cast<uint32_t>(mTextures.size()),
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr }
         };
-
-        bindings[0] = b0;
-        bindings[1] = b1;
 
         mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
         VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mMaterialRecordsBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mMaterialRecordsBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
         mContext.writeDescriptorSetImages(descriptorSet, 1, mTextures,
                                           mSampler);  // write all textures
 
@@ -368,48 +347,38 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         DescriptorSetLayout descriptorSetLayout{};
 
-        // acceleration structure
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            .pImmutableSamplers = nullptr
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            // acceleration structures
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr },
+            // result image
+            { .binding = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr },
+            // accumulation image
+            { .binding = 2,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr }
         };
-
-        // result image
-        VkDescriptorSetLayoutBinding b1{ .binding = 1,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        // accumulation image
-        VkDescriptorSetLayoutBinding b2{ .binding = 2,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        bindings[0] = b0;
-        bindings[1] = b1;
-        bindings[2] = b2;
 
         mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        mContext.allocateDesciptorSet(mContext.rtDescriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(mContext.rtDescriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, AccelerationStructure*> bindingASMap;
-        bindingASMap[0] = &mTlas;
+        std::vector<AccelerationStructure*> bindingAccelStructs = { &mTlas };
 
-        mContext.writeDescriptorSetAccelerationStructures(mContext.rtDescriptorSet, bindingASMap,
-                                                          bindings);
+        mContext.writeDescriptorSetAccelerationStructures(mContext.rtDescriptorSet,
+                                                          bindingAccelStructs, bindings);
 
         std::vector<Image> resultImages{ mContext.resultImage, mContext.accumulationImage };
         mContext.writeDescriptorSetImages(mContext.rtDescriptorSet, 1, resultImages, mSampler,

@@ -118,20 +118,23 @@ public:
     // descriptors
     void createDescriptorSetLayout(
         DescriptorSetLayout& descriptorSetLayout,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
-    void allocateDesciptorSet(VkDescriptorSet& descriptorSet,
-                              DescriptorSetLayout& descriptorSetLayout);
-    void writeDescriptorSetBuffers(
-        VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, Buffer*>& bindingBufferMap,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
-    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
-                                  const std::vector<Image>& images, VkSampler inSampler,
-                                  VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                  VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        const std::vector<VkDescriptorSetLayoutBinding>& bindings,
+        const std::vector<VkDescriptorBindingFlags>* pBindingFlags = nullptr,
+        VkDescriptorSetLayoutCreateFlags layoutCreateFlags = 0,
+        VkDescriptorPoolCreateFlags poolCreateFlags = 0) const;
+    void allocateDescriptorSet(VkDescriptorSet& descriptorSet,
+                               DescriptorSetLayout& descriptorSetLayout);
+    void writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
+                                   std::vector<Buffer*>& bindingBuffers,
+                                   std::vector<VkDescriptorSetLayoutBinding>& bindings);
+    void writeDescriptorSetImages(
+        const VkDescriptorSet& descriptorSet, uint32_t binding, const std::vector<Image>& images,
+        VkSampler inSampler, VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
     void writeDescriptorSetAccelerationStructures(
-        VkDescriptorSet& descriptorSet,
-        std::unordered_map<uint32_t, AccelerationStructure*>& bindingASMap,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+        const VkDescriptorSet& descriptorSet,
+        const std::vector<AccelerationStructure*>& bindingsAccelStructs,
+        const std::vector<VkDescriptorSetLayoutBinding>& bindings) const;
 
     // utility
     Frame& getCurrentFrame(uint32_t currentFrame);
@@ -153,8 +156,6 @@ public:
     PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR = nullptr;
 
 private:
-    static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
-
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
@@ -165,6 +166,8 @@ private:
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
     static void sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+    static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     template<typename T>
     inline T sLoadDeviceFunction(VkDevice device, VkInstance instance, const char* name)

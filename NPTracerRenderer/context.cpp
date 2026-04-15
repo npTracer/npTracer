@@ -209,8 +209,11 @@ void Context::createLogicalDeviceAndQueues()
     bool valid = asProbe.accelerationStructure && rtProbe.rayTracingPipeline
                  && bdaProbe.bufferDeviceAddress && descriptorBufferProbe.descriptorBuffer
                  && indexingProbe.shaderSampledImageArrayNonUniformIndexing
-                 && indexingProbe.runtimeDescriptorArray
-                 && indexingProbe.descriptorBindingPartiallyBound && vulkan13Probe.synchronization2
+                 && indexingProbe.descriptorBindingStorageBufferUpdateAfterBind
+                 && indexingProbe.descriptorBindingUpdateUnusedWhilePending
+                 && indexingProbe.descriptorBindingPartiallyBound
+                 && indexingProbe.descriptorBindingVariableDescriptorCount
+                 && indexingProbe.runtimeDescriptorArray && vulkan13Probe.synchronization2
                  && vulkan13Probe.dynamicRendering && vulkan11Probe.shaderDrawParameters
                  && features2Probe.features.shaderInt64
                  && features2Probe.features.samplerAnisotropy;
@@ -245,8 +248,11 @@ void Context::createLogicalDeviceAndQueues()
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
         .pNext = &descriptorBufferFeatures,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+        .descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
         .descriptorBindingPartiallyBound = VK_TRUE,
-        .runtimeDescriptorArray = VK_TRUE
+        .descriptorBindingVariableDescriptorCount = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE,
     };
 
     VkPhysicalDeviceVulkan13Features vulkan13Features{
@@ -1078,22 +1084,33 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &pBuildRangeInfo);
 }
 
-void Context::createDescriptorSetLayout(
-    DescriptorSetLayout& descriptorSetLayout,
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings)
+void Context::createDescriptorSetLayout(DescriptorSetLayout& descriptorSetLayout,
+                                        const std::vector<VkDescriptorSetLayoutBinding>& bindings,
+                                        const std::vector<VkDescriptorBindingFlags>* pBindingFlags,
+                                        VkDescriptorSetLayoutCreateFlags layoutCreateFlags,
+                                        VkDescriptorPoolCreateFlags poolCreateFlags) const
 {
-    std::vector<VkDescriptorSetLayoutBinding> bindingVec;
-    bindingVec.reserve(bindings.size());
+    const uint32_t kBindingsCount = bindings.size();
 
-    for (auto& binding : bindings)
-    {
-        bindingVec.push_back(binding.second);
-    }
+    // method-level static is necessary as 0 is 0 AND moreover we need the pointer address to exist in the scope of the function call
+    static std::vector<VkDescriptorBindingFlags> pFallbackBindingFlags;
+    if (pBindingFlags)  // if was passed in, check it
+        DEV_ASSERT(pBindingFlags->size() == kBindingsCount, "flags should match bindings in count");
+    else pFallbackBindingFlags.resize(kBindingsCount, 0);
+
+    // create info for bindless descriptor sets
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
+        .bindingCount = kBindingsCount,
+        .pBindingFlags = pBindingFlags ? pBindingFlags->data() : pFallbackBindingFlags.data(),
+    };
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(bindingVec.size()),
-        .pBindings = bindingVec.data()
+        .pNext = &bindingFlagsInfo,
+        .flags = layoutCreateFlags,
+        .bindingCount = kBindingsCount,
+        .pBindings = bindings.data()
     };
 
     VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout),
@@ -1103,31 +1120,29 @@ void Context::createDescriptorSetLayout(
     std::unordered_map<VkDescriptorType, uint32_t> countMap;
     for (auto& binding : bindings)
     {
-        countMap[binding.second.descriptorType] += binding.second.descriptorCount;
+        countMap[binding.descriptorType] += binding.descriptorCount;
     }
 
     std::vector<VkDescriptorPoolSize> poolSizes;
     for (auto& pair : countMap)
     {
-        VkDescriptorPoolSize poolSize{ .type = pair.first, .descriptorCount = pair.second };
-        poolSizes.push_back(poolSize);
+        poolSizes.push_back({ .type = pair.first, .descriptorCount = pair.second });
     }
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | poolCreateFlags,  // union
         .maxSets = 1,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data(),
-
     };
 
     VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool),
              "failed to create mesh descriptor pool\n");
 }
 
-void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
-                                   DescriptorSetLayout& descriptorSetLayout)
+void Context::allocateDescriptorSet(VkDescriptorSet& descriptorSet,
+                                    DescriptorSetLayout& descriptorSetLayout)
 {
     VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                                            .descriptorPool = descriptorSetLayout.pool,
@@ -1138,33 +1153,26 @@ void Context::allocateDesciptorSet(VkDescriptorSet& descriptorSet,
              "failed to allocate mesh descriptor set\n");
 }
 
-void Context::writeDescriptorSetBuffers(
-    VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, Buffer*>& bindingBufferMap,
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap)
+void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
+                                        std::vector<Buffer*>& bindingBuffers,
+                                        std::vector<VkDescriptorSetLayoutBinding>& bindings)
 {
-    std::unordered_map<uint32_t, VkDescriptorBufferInfo> bindingInfoMap;
-    for (auto& pair : bindingBufferMap)
+    std::vector<VkDescriptorBufferInfo> bindingInfos;
+    for (auto& buf : bindingBuffers)
     {
-        VkDescriptorBufferInfo bufferInfo{ .buffer = pair.second->buffer,
-                                           .offset = 0,
-                                           .range = VK_WHOLE_SIZE };
-
-        bindingInfoMap[pair.first] = bufferInfo;
+        bindingInfos.push_back({ .buffer = buf->buffer, .offset = 0, .range = VK_WHOLE_SIZE });
     }
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-    for (auto& pair : bindingInfoMap)
+    for (uint32_t i = 0; i < bindingInfos.size(); ++i)
     {
-        uint32_t binding = pair.first;
-
-        VkWriteDescriptorSet writeDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptorSet,
-            .dstBinding = binding,
-            .descriptorCount = bindingMap[binding].descriptorCount,
-            .descriptorType = bindingMap[binding].descriptorType,
-            .pBufferInfo = &bindingInfoMap[binding]
-        };
+        const VkDescriptorSetLayoutBinding& binding = bindings[i];
+        VkWriteDescriptorSet writeDescriptorSet{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                                 .dstSet = descriptorSet,
+                                                 .dstBinding = i,
+                                                 .descriptorCount = binding.descriptorCount,
+                                                 .descriptorType = binding.descriptorType,
+                                                 .pBufferInfo = &bindingInfos[i] };
 
         writeDescriptorSets.push_back(writeDescriptorSet);
     }
@@ -1173,9 +1181,10 @@ void Context::writeDescriptorSetBuffers(
                            writeDescriptorSets.data(), 0, nullptr);
 }
 
-void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
-                                       const std::vector<Image>& images, VkSampler inSampler,
-                                       VkDescriptorType type, VkImageLayout layout)
+void Context::writeDescriptorSetImages(const VkDescriptorSet& descriptorSet, const uint32_t binding,
+                                       const std::vector<Image>& images, const VkSampler inSampler,
+                                       const VkDescriptorType type,
+                                       const VkImageLayout layout) const
 {
     std::vector<VkDescriptorImageInfo> imageInfos;
     VkSampler s = (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ? inSampler : VK_NULL_HANDLE;
@@ -1184,7 +1193,6 @@ void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t 
         VkDescriptorImageInfo imageInfo{ .sampler = s,
                                          .imageView = image.view,
                                          .imageLayout = layout };
-
         imageInfos.push_back(imageInfo);
     }
 
@@ -1200,35 +1208,29 @@ void Context::writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t 
 }
 
 void Context::writeDescriptorSetAccelerationStructures(
-    VkDescriptorSet& descriptorSet,
-    std::unordered_map<uint32_t, AccelerationStructure*>& bindingASMap,
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap)
+    const VkDescriptorSet& descriptorSet,
+    const std::vector<AccelerationStructure*>& bindingsAccelStructs,
+    const std::vector<VkDescriptorSetLayoutBinding>& bindings) const
 {
-    std::unordered_map<uint32_t, VkWriteDescriptorSetAccelerationStructureKHR> bindingInfoMap;
-    for (auto& pair : bindingASMap)
+    std::vector<VkWriteDescriptorSetAccelerationStructureKHR> accelStructsInfo;
+    for (auto& pair : bindingsAccelStructs)
     {
-        VkWriteDescriptorSetAccelerationStructureKHR asInfo{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
-            .accelerationStructureCount = 1,
-            .pAccelerationStructures = &pair.second->accelerationStructure
-        };
-
-        bindingInfoMap[pair.first] = asInfo;
+        accelStructsInfo.push_back(
+            { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+              .accelerationStructureCount = 1,
+              .pAccelerationStructures = &pair->accelerationStructure });
     }
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-    for (auto& pair : bindingInfoMap)
+    for (uint32_t i = 0; i < accelStructsInfo.size(); ++i)
     {
-        uint32_t binding = pair.first;
-
-        VkWriteDescriptorSet writeDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .pNext = &pair.second,
-            .dstSet = descriptorSet,
-            .dstBinding = binding,
-            .descriptorCount = bindingMap[binding].descriptorCount,
-            .descriptorType = bindingMap[binding].descriptorType
-        };
+        const auto& binding = bindings[i];
+        VkWriteDescriptorSet writeDescriptorSet{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                                 .pNext = &accelStructsInfo[i],
+                                                 .dstSet = descriptorSet,
+                                                 .dstBinding = i,
+                                                 .descriptorCount = binding.descriptorCount,
+                                                 .descriptorType = binding.descriptorType };
 
         writeDescriptorSets.push_back(writeDescriptorSet);
     }
@@ -1299,48 +1301,6 @@ void Context::waitIdle()
     vkDeviceWaitIdle(device);
 }
 
-void Context::createDebugMessenger(bool enableDebug)
-{
-    if (!enableDebug)
-    {
-        return;
-    }
-
-    VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-    sPopulateDebugMessengerCreateInfo(createInfo);
-
-    // `vkCreateDebugUtilsMessengerEXT` extension relies on a valid instance to have been created
-    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-
-    DEV_ASSERT(fn, "debug layer function proc addr not found\n");
-
-    fn(instance, &createInfo, nullptr, &debugMessenger);
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL Context::sDebugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-{
-    DBG_PRINT("validation: %s\n", pCallbackData->pMessage);
-    return VK_FALSE;
-}
-
-void Context::sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
-{
-    createInfo = VkDebugUtilsMessengerCreateInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = sDebugCallback,
-        .pUserData = nullptr
-    };
-}
-
 void Context::destroyDebugMessenger()
 {
     if (debugMessenger == VK_NULL_HANDLE)
@@ -1407,6 +1367,48 @@ void Context::destroy()
         vkDestroyInstance(instance, nullptr);
         instance = VK_NULL_HANDLE;
     }
+}
+
+void Context::createDebugMessenger(bool enableDebug)
+{
+    if (!enableDebug)
+    {
+        return;
+    }
+
+    VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+    sPopulateDebugMessengerCreateInfo(createInfo);
+
+    // `vkCreateDebugUtilsMessengerEXT` extension relies on a valid instance to have been created
+    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
+        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+    DEV_ASSERT(fn, "debug layer function proc addr not found\n");
+
+    fn(instance, &createInfo, nullptr, &debugMessenger);
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL Context::sDebugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+{
+    DBG_PRINT("validation: %s\n", pCallbackData->pMessage);
+    return VK_FALSE;
+}
+
+void Context::sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
+{
+    createInfo = VkDebugUtilsMessengerCreateInfoEXT{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                           | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = sDebugCallback,
+        .pUserData = nullptr
+    };
 }
 
 void Context::sFramebufferResizeCallback(GLFWwindow* window, int width, int height)

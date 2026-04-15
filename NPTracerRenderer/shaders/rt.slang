@@ -1,5 +1,6 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
+[require(SPV_EXT_descriptor_indexing)]
 [require(spvShaderNonUniformEXT)]
 
 /*
@@ -367,7 +368,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
-        
+
         payload.style = 1;
     }
     

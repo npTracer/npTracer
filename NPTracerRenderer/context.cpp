@@ -684,7 +684,8 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
-void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height, VkFormat format)
+void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height,
+                                 VkFormat format)
 {
     Buffer stagingBuffer;
     VkDeviceSize size = width * height * 4;

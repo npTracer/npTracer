@@ -166,12 +166,11 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     }
     else
     {
-        // push back default material record   
+        // push back default material record
         MaterialRecord materialRecord{};
         materialRecord.diffuse = FLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
         materialRecords.push_back(materialRecord);
     }
-
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
     mContext.createDeviceLocalBuffer(mMaterialRecordsBuffer, materialRecords.data(),
@@ -185,16 +184,17 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         Image textureImage;
         Texture const* texture = mpScene->getPrimAtIndex<Texture>(i);
-        
+
         if (texture->unorm)
         {
-            mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height, VK_FORMAT_R8G8B8A8_UNORM);
+            mContext.createTextureImage(textureImage, texture->pixels, texture->width,
+                                        texture->height, VK_FORMAT_R8G8B8A8_UNORM);
         }
         else
         {
-            mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
+            mContext.createTextureImage(textureImage, texture->pixels, texture->width,
+                                        texture->height);
         }
-        
 
         mTextures.push_back(textureImage);
     }

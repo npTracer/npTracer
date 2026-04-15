@@ -130,6 +130,11 @@ void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMa
                 texture->width = static_cast<uint32_t>(width);
                 texture->height = static_cast<uint32_t>(height);
             }
+            
+            if (textureType == aiTextureType_NORMALS)
+            {
+                texture->unorm = true;
+            }
 
             textureIndexByKey[texKey] = texIdx;
         }

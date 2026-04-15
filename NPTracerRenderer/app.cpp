@@ -185,8 +185,16 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         Image textureImage;
         Texture const* texture = mpScene->getPrimAtIndex<Texture>(i);
-
-        mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
+        
+        if (texture->unorm)
+        {
+            mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height, VK_FORMAT_R8G8B8A8_UNORM);
+        }
+        else
+        {
+            mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
+        }
+        
 
         mTextures.push_back(textureImage);
     }

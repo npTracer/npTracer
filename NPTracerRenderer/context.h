@@ -84,7 +84,7 @@ public:
                      VmaAllocationCreateFlags allocationFlags,
                      VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT,
                      bool shouldCreateView = true) const;
-    void createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height);
+    void createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
     void createDepthImage(uint32_t width, uint32_t height);
     void createResultImages(uint32_t width, uint32_t height);
     void createTextureSampler(VkSampler& sampler);  // pass as reference as it is still `nullptr` here

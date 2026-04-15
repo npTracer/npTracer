@@ -684,7 +684,7 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
     vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
 }
 
-void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height)
+void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height, VkFormat format)
 {
     Buffer stagingBuffer;
     VkDeviceSize size = width * height * 4;
@@ -694,7 +694,7 @@ void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, ui
 
     memcpy(stagingBuffer.allocInfo.pMappedData, pixels, size);
 
-    createImage(handle, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, width, height,
+    createImage(handle, VK_IMAGE_TYPE_2D, format, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 
     VkCommandBuffer commandBuffer;
@@ -719,7 +719,7 @@ void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, ui
 
     handle.width = width;
     handle.height = height;
-    handle.format = VK_FORMAT_R8G8B8A8_SRGB;
+    handle.format = format;
 }
 
 void Context::createDepthImage(uint32_t width, uint32_t height)

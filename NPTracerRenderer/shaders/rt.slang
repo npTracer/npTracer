@@ -13,8 +13,8 @@ import utils;
 import stylizations;
 import interactions;
 
-static const uint32_t kSampleCount = 10;
-static const uint32_t kMaxBounces = 10;
+static const uint32_t kSampleCount = 5;
+static const uint32_t kMaxBounces = 5;
 
 [[vk::constant_id(0)]] const uint32_t kFlipUVY;
 
@@ -229,7 +229,13 @@ void rgenMain()
             path[pathLength].wo = wo;
             path[pathLength].weight = bs.weight; // (f * cos / pdf) for sampled next direction wi
             path[pathLength].validNext = bs.valid; // if valid continuation direction wi was sampled
-            
+
+            // if emissive light source was encountered stop tracing rays
+            if (payload.terminate == true)
+            {
+                path[pathLength].validNext = 0;
+            }         
+               
             pathLength++; // path length increases
             
             // if valid continuation direction wi was not sampled stop recording and break
@@ -269,8 +275,9 @@ void rgenMain()
             if (payload.style == 1)
             {
                 //L = stylizeGreyScale(L);
-                L = stylizeContour(L, payload.normal, wo);
+                //L = stylizeContour(L, payload.normal, wo);
                 //L = stylizeStripes(L, payload.hitPos);
+                //L = stylizeToon(L);
             }
             
             Lo = L; // update outgoing radiance from this point with (potentially) stylized radiance
@@ -318,6 +325,8 @@ void shadowmissMain(inout ShadowPayload payload)
 [shader("closesthit")]
 void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    payload.terminate = false;
+
     // instance data
     uint32_t instanceIdx = InstanceID();
     MeshRecord rec = meshRecords[instanceIdx];
@@ -347,8 +356,8 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
    
     float3 worldPos = mul(transform, pos).xyz;
     float3 worldNormal = normalize(mul((float3x3)transform, normal.xyz));
-    
     float3 N = normalize(worldNormal);
+    
     float3 baseColor = material.diffuse.rgb;
     
     if (material.diffuseTextureIndex != 0xFFFFFFFF)
@@ -378,9 +387,9 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
             T = computeTangent(v0, v1, v2, (float3x3)transform, N);
         }
         
-        float3 B = cross(N, T) * handedness;
-        
-        //N = normalize(T * texel.r + B * -texel.g + N * texel.b); // flip texel g due to opengl vs dx encoding
+        float3 B = normalize(cross(N, T)) * handedness;
+
+        N = normalize(T * texel.r + B * texel.g + N * texel.b);
     }
     
     float metallic = 0.0;
@@ -397,10 +406,16 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     payload.hit = true;
     payload.albedo = baseColor;
     payload.emission = material.emissive;
+    if (length(payload.emission) > 0.001)
+    {
+        payload.terminate = false; //true; keep this false for now but know that this is tunable
+    }
+    
     payload.normal = N;
     payload.hitPos = worldPos;
     payload.mr = float2(metallic, roughness);
     payload.specular = material.specular.w;
+
 }
 
 [shader("closesthit")]

@@ -70,6 +70,7 @@ struct Payload
     float3 hitPos;
     float4 emission;
     uint style;
+    uint terminate;
     
     float2 mr; // x: metallic, y: roughness
     float specular;

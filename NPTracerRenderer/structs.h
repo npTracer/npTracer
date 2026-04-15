@@ -404,7 +404,13 @@ struct TextureRecord
     uint32_t height;
 };
 
-using Texture = TextureRecord;
+struct Texture
+{
+    void* pixels;  // pixels should have 4 channels
+    uint32_t width;
+    uint32_t height;
+    bool unorm = false;
+};
 
 enum class StylizationFunction : uint8_t
 {

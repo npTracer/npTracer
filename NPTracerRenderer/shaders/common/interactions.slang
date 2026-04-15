@@ -73,13 +73,14 @@ BRDFSample sampleMicrofacetBRDF(float3 N, float3 wo, float3 albedo, float2 mr, f
     s.valid = 0;
     
     float metallic = saturate(mr.x);
-    float roughness = max(mr.y, 0.04);   
+    float roughness = max(mr.y, 0.04);
+    float spec = saturate(specular);  
     
     float NoV = saturate(dot(N, wo));
     if (NoV <= 0.0) return s;
     
-    float3 f0 = float3(0.16 * (specular * specular)); 
-    f0 = lerp(f0, albedo, metallic);
+    float3 f0 = float3(0.16 * (spec * spec)); 
+    f0 = lerp(f0, saturate(albedo), metallic);
     
     float diffuseLobe = (1.0 - metallic);
     float specularLobe = 1.0;

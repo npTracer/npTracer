@@ -13,12 +13,16 @@ float3 stylizeContour(float3 sample, float3 normal, float3 wo)
 {
     float NoV = dot(normal, wo);
     
-    if (abs(NoV) < 0.5)
+    if (abs(NoV) < 0.33)
     {
-        return float3(0.0);
+        return float3(0.01, 0.05, 0.2);
+    }
+    else if (abs(NoV) < 0.66)
+    {
+        return float3(0.05, 0.2, 0.6);
     }
     
-    return float3(1.0);
+    return float3(0.15, 0.5, 1.0);
 }
 
 float3 stylizeStripes(float3 sample, float3 position)
@@ -36,4 +40,14 @@ float3 stylizeStripes(float3 sample, float3 position)
     
     float3 patternShade = purpleShade * stripePat + yellowShade * (1 - stripePat);
     return patternShade;
+}
+
+float3 stylizeToon(float3 sample)
+{
+    float luminance = luminance(sample);
+    
+    float3 toonRamp = float3(0.55, 0.48, 0.67);
+    
+    float intensity = smoothstep(0.05, 0.10, luminance);
+    return toonRamp * intensity;
 }

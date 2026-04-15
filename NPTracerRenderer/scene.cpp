@@ -43,23 +43,19 @@ void Scene::guard()
 
 void Scene::finalize()
 {
-    // traverse meshes and check if they need to be 'linked' with their material
-    for (size_t i = 0; i < _meshes.size(); i++)
-    {
-        const auto& mesh = _meshes[i];
-        if (!mesh->bMaterialNeedsFinalization) continue;  // skip if doesn't need finalization
-
-        auto foundMat = std::ranges::find_if(_materials, [&mesh](const auto& mat)
-                                             { return mat->scenePath == mesh->_materialScenePath; });
-        if (foundMat == std::end(_materials)) continue;
-        mesh->materialIndex = std::distance(_materials.begin(), foundMat);
-        mesh->bMaterialNeedsFinalization = false;
-    }
+    constexpr char kDEFAULT_MAT_SCENE_PATH[] = "defaultMat";
 
     // TEMP: add a default light to the scene if none exist (when debugging)
     if (gDEBUG && _lights.empty())
     {
         auto* light = makePrim<Light>();  // NOTE: instantiated with default values
+    }
+
+    if (gDEBUG && _materials.empty())
+    {
+        auto* material = makePrim<Material>();
+        material->diffuse = FLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
+        material->scenePath = kDEFAULT_MAT_SCENE_PATH;
     }
 
     // TEMP: add a default mesh (single triangle) to the scene if none exist to prevent crashes
@@ -72,6 +68,20 @@ void Scene::finalize()
             { { -0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 }, { 0, 1 } },
         };
         mesh->indices = { 0, 1, 2 };
+        mesh->_materialScenePath = kDEFAULT_MAT_SCENE_PATH;
+    }
+
+    // traverse meshes and check if they need to be 'linked' with their material
+    for (size_t i = 0; i < _meshes.size(); i++)
+    {
+        const auto& mesh = _meshes[i];
+        if (!mesh->bMaterialNeedsFinalization) continue;  // skip if doesn't need finalization
+
+        auto foundMat = std::ranges::find_if(_materials, [&mesh](const auto& mat)
+                                             { return mat->scenePath == mesh->_materialScenePath; });
+        if (foundMat == std::end(_materials)) continue;
+        mesh->materialIndex = std::distance(_materials.begin(), foundMat);
+        mesh->bMaterialNeedsFinalization = false;
     }
 }
 

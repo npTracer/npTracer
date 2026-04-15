@@ -133,7 +133,7 @@ public:
         VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
     void writeDescriptorSetAccelerationStructures(
         const VkDescriptorSet& descriptorSet,
-        const std::vector<AccelerationStructure*>& bindingsAccelStructs,
+        const std::vector<AccelerationStructure*>& bindingAccelStructs,
         const std::vector<VkDescriptorSetLayoutBinding>& bindings) const;
 
     // utility

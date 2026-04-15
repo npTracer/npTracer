@@ -151,22 +151,12 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<MaterialRecord> materialRecords;
     materialRecords.reserve(materialCount);
 
-    if (materialCount > 0)
+    for (uint32_t i = 0; i < materialCount; i++)
     {
-        for (uint32_t i = 0; i < materialCount; i++)
-        {
-            // right now NPMaterial and record are identical so just use the same struct here (still
-            // looping for easy modification in the future)
-            Material const* material = mpScene->getPrimAtIndex<Material>(i);
-            materialRecords.push_back(material->toRecord());
-        }
-    }
-    else
-    {
-        // push back default material record
-        MaterialRecord materialRecord{};
-        materialRecord.diffuse = FLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
-        materialRecords.push_back(materialRecord);
+        // right now NPMaterial and record are identical so just use the same struct here (still
+        // looping for easy modification in the future)
+        Material const* material = mpScene->getPrimAtIndex<Material>(i);
+        materialRecords.push_back(material->toRecord());
     }
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
@@ -256,10 +246,8 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
               .pImmutableSamplers = nullptr }
         };
-        std::vector<VkDescriptorBindingFlags> bindingFlags = {
-            { VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
-              | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
-              | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+        const std::vector<VkDescriptorBindingFlags> bindingFlags = {
+            { VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
               | VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT }
         };
 
@@ -760,30 +748,32 @@ void App::executeDrawCallSwapchain()
 
     VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores
-        = &frame.donePresentingSemaphore;  // wait until image is no longer being presented
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores
-        = &mContext.doneRenderingSemaphores[imageIndex];  // signal when rendering finishes
+    VkSubmitInfo submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores
+        = &frame.donePresentingSemaphore,  // wait until image is no longer being presented
+        .pWaitDstStageMask = &waitDestinationStageMask,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &frame.commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores
+        = &mContext.doneRenderingSemaphores[imageIndex]  // signal when rendering finishes
+    };
 
     VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
              "vk queue submit failed");
 
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores
-        = &mContext.doneRenderingSemaphores[imageIndex];  // present after rendering finishes
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &mContext.swapchain;
-    presentInfo.pImageIndices = &imageIndex;
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores
+        = &mContext.doneRenderingSemaphores[imageIndex],  // present after rendering finishes
+        .swapchainCount = 1,
+        .pSwapchains = &mContext.swapchain,
+        .pImageIndices = &imageIndex,
+    };
 
     VkResult result = vkQueuePresentKHR(mContext.queues[QueueType::GRAPHICS].queue, &presentInfo);
     if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -825,10 +815,9 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, V
                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
-    VkImageCopy region{};
-    region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.extent = { extent.width, extent.height, 1 };
+    VkImageCopy region{ .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+                        .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+                        .extent = { extent.width, extent.height, 1 } };
 
     vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, colorAov,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);

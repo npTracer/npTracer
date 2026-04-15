@@ -1169,7 +1169,7 @@ void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
         const VkDescriptorSetLayoutBinding& binding = bindings[i];
         VkWriteDescriptorSet writeDescriptorSet{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                                  .dstSet = descriptorSet,
-                                                 .dstBinding = i,
+                                                 .dstBinding = binding.binding,
                                                  .descriptorCount = binding.descriptorCount,
                                                  .descriptorType = binding.descriptorType,
                                                  .pBufferInfo = &bindingInfos[i] };
@@ -1209,11 +1209,11 @@ void Context::writeDescriptorSetImages(const VkDescriptorSet& descriptorSet, con
 
 void Context::writeDescriptorSetAccelerationStructures(
     const VkDescriptorSet& descriptorSet,
-    const std::vector<AccelerationStructure*>& bindingsAccelStructs,
+    const std::vector<AccelerationStructure*>& bindingAccelStructs,
     const std::vector<VkDescriptorSetLayoutBinding>& bindings) const
 {
     std::vector<VkWriteDescriptorSetAccelerationStructureKHR> accelStructsInfo;
-    for (auto& pair : bindingsAccelStructs)
+    for (auto& pair : bindingAccelStructs)
     {
         accelStructsInfo.push_back(
             { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,

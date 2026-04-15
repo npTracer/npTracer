@@ -104,7 +104,7 @@ struct Buffer
     VmaAllocation allocation = VK_NULL_HANDLE;
     VmaAllocationInfo allocInfo{};
 
-    void destroy(VmaAllocator allocator)
+    void destroy(VmaAllocator allocator) const
     {
         if (buffer != VK_NULL_HANDLE)
         {
@@ -216,7 +216,7 @@ struct Frame
     VkFence doneExecutingFence;
     VkCommandBuffer commandBuffer;
 
-    void destroy(VkDevice device, VmaAllocator allocator)
+    void destroy(VkDevice device, VmaAllocator allocator) const
     {
         vkDestroyFence(device, doneExecutingFence, nullptr);
         vkDestroySemaphore(device, donePresentingSemaphore, nullptr);
@@ -235,7 +235,7 @@ struct DescriptorSetLayout
     VkDescriptorSetLayout layout;
     VkDescriptorPool pool;
 
-    void destroy(VkDevice device)
+    void destroy(VkDevice device) const
     {
         if (pool != VK_NULL_HANDLE)
         {
@@ -268,7 +268,7 @@ struct Queue
         return index.has_value();
     }
 
-    void destroy(VkDevice device)
+    void destroy(VkDevice device) const
     {
         if (commandPool != VK_NULL_HANDLE)
         {
@@ -291,7 +291,7 @@ struct ShaderBindingTable
     VkStridedDeviceAddressRegionKHR hit{};
     VkStridedDeviceAddressRegionKHR callable{};
 
-    void destroy(VmaAllocator allocator)
+    void destroy(VmaAllocator allocator) const
     {
         buffer.destroy(allocator);
     }
@@ -304,7 +304,7 @@ struct AccelerationStructure
     Buffer scratchBuffer;
     VkDeviceAddress deviceAddress;
 
-    void destroyBuffers(VkDevice device, VmaAllocator allocator)
+    void destroyBuffers(VmaAllocator allocator) const
     {
         // VkDestroyAccelerationStructure requires context so destroy it outside of struct
 

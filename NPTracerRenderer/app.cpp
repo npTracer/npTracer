@@ -35,7 +35,7 @@ void App::create(const RendererConstants& rendererConstants)
     mContext.createSyncAndFrameObjects(numRenderingSemaphores);
 
     // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
-    mContext.createTextureSampler(mSampler);
+    mContext.createTextureSampler(&mSampler);
     createSpecializationConstants();
 
     mContext.waitIdle();
@@ -174,12 +174,12 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
         if (texture->unorm)
         {
-            mContext.createTextureImage(textureImage, texture->pixels, texture->width,
+            mContext.createTextureImage(&textureImage, texture->pixels, texture->width,
                                         texture->height, VK_FORMAT_R8G8B8A8_UNORM);
         }
         else
         {
-            mContext.createTextureImage(textureImage, texture->pixels, texture->width,
+            mContext.createTextureImage(&textureImage, texture->pixels, texture->width,
                                         texture->height);
         }
 
@@ -194,7 +194,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 0: Mesh Records
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // mesh record buffer
@@ -220,12 +220,12 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR }
         };
 
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
         std::vector<Buffer*> bindingBuffers = { &mMeshRecordBuffer, &mVertexBuffer, &mIndexBuffer,
                                                 &mMeshTransformsBuffer };
@@ -237,7 +237,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 1 : LIGHTS
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             { .binding = 0,
@@ -251,14 +251,14 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               | VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT }
         };
 
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings, &bindingFlags,
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings, &bindingFlags,
                                            VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
                                            VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
         std::vector<Buffer*> bindingBuffers = { &mLightRecordBuffer };
 
@@ -268,7 +268,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 2: CAMERA
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings{
             { .binding = 0,
@@ -279,12 +279,12 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               .pImmutableSamplers = nullptr }
         };
 
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
         // create descriptor set
         std::vector<Buffer*> bindingBuffers = { &mCameraRecordBuffer };
@@ -297,7 +297,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     // SET 3: MATERIALS AND TEXTURES
     // TODO: separate these as they are not guarantted to be updated synchronously
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // materials
@@ -314,12 +314,12 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               .pImmutableSamplers = nullptr }
         };
 
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDescriptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
         // create descriptor set
         std::vector<Buffer*> bindingBuffers = { &mMaterialRecordsBuffer };
@@ -333,7 +333,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 4: RT
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // acceleration structures
@@ -356,11 +356,11 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               .pImmutableSamplers = nullptr }
         };
 
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        mContext.allocateDescriptorSet(mContext.rtDescriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(&mContext.rtDescriptorSet, descriptorSetLayout);
 
         // create descriptor set
         std::vector<AccelerationStructure*> bindingAccelStructs = { &mTlas };
@@ -628,19 +628,19 @@ void App::createRTPipeline()
     vkDestroyShaderModule(mContext.device, shadowMissModule, nullptr);
 }
 
-void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                       std::vector<FLOAT4x4>& transforms,
+void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
+                                       const std::vector<FLOAT4x4>& transforms,
                                        VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
 {
-    VkCommandBuffer commandBuffer{};
-    mContext.createCommandBuffer(commandBuffer, QueueType::GRAPHICS);
-    mContext.beginCommandBuffer(commandBuffer);
+    VkCommandBuffer commandBuffer;
+    mContext.createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    mContext.sBeginCommandBuffer(commandBuffer);
 
     for (auto& mesh : meshes)
     {
-        AccelerationStructure blas{};
+        AccelerationStructure blas;
 
-        mContext.createBottomLevelAccelerationStructure(commandBuffer, blas, vertexAddress,
+        mContext.createBottomLevelAccelerationStructure(&blas, commandBuffer, vertexAddress,
                                                         indexAddress, mesh.vertexOffset,
                                                         mesh.vertexCount, mesh.indexOffset,
                                                         mesh.indexCount);
@@ -648,46 +648,47 @@ void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
     }
 
     // barrier
-    VkMemoryBarrier2 barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
-    barrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR
-                           | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
-    barrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR
-                            | VK_ACCESS_2_SHADER_READ_BIT;
+    VkMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+        .srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+        .dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR
+                        | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR
+                         | VK_ACCESS_2_SHADER_READ_BIT
+    };
 
-    VkDependencyInfo depInfo{};
-    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    depInfo.memoryBarrierCount = 1;
-    depInfo.pMemoryBarriers = &barrier;
+    const VkDependencyInfo depInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                    .memoryBarrierCount = 1,
+                                    .pMemoryBarriers = &barrier };
 
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
     for (auto& blas : mBlasses)
     {
-        VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{};
-        deviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        deviceAddressInfo.accelerationStructure = blas.accelerationStructure;
+        VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+            .accelerationStructure = blas.accelerationStructure
+        };
 
         blas.deviceAddress = mContext.vkGetAccelerationStructureDeviceAddressKHR(mContext.device,
                                                                                  &deviceAddressInfo);
     }
 
     // top level
-    Buffer instanceBufferHandle{};
-    mContext.createTopLevelAccelerationStructure(commandBuffer, mTlas, instanceBufferHandle,
+    Buffer instanceBufferHandle;
+    mContext.createTopLevelAccelerationStructure(&mTlas, &instanceBufferHandle, commandBuffer,
                                                  transforms, mBlasses);
 
     // barrier
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
-    mContext.endCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    mContext.submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
 
     instanceBufferHandle.destroy(mContext.allocator);
 }
 
-void App::executeDrawCall(RendererAovs& aovs)
+void App::executeDrawCall(const RendererAovs& aovs)
 {
     DEV_ASSERT(aovs.color, "aovs not created properly");
     Image* colorAov = aovs.color;
@@ -706,10 +707,9 @@ void App::executeDrawCall(RendererAovs& aovs)
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
+    VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers = &frame.commandBuffer };
 
     VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
@@ -788,11 +788,11 @@ void App::executeDrawCallSwapchain()
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
-void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
-                             VkImageLayout dstImageLayout)
+void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage colorAov,
+                             const VkExtent2D& extent, VkImageLayout dstImageLayout)
 {
     vkResetCommandBuffer(commandBuffer, 0);
-    mContext.beginCommandBuffer(commandBuffer);
+    mContext.sBeginCommandBuffer(commandBuffer);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mRtPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
@@ -809,11 +809,11 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, V
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
                                extent.width, extent.height, 1);
 
-    mContext.transitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    mContext.sTransitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkImageCopy region{ .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
                         .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
@@ -822,10 +822,10 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, V
     vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, colorAov,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.transitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   dstImageLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+    mContext.sTransitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                    dstImageLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
     vkEndCommandBuffer(commandBuffer);
 }
@@ -904,14 +904,14 @@ void App::destroy()
             mContext.vkDestroyAccelerationStructureKHR(mContext.device, blas.accelerationStructure,
                                                        nullptr);
         }
-        blas.destroyBuffers(mContext.device, mContext.allocator);
+        blas.destroyBuffers(mContext.allocator);
     }
 
     if (mTlas.accelerationStructure != VK_NULL_HANDLE)
     {
         mContext.vkDestroyAccelerationStructureKHR(mContext.device, mTlas.accelerationStructure,
                                                    nullptr);
-        mTlas.destroyBuffers(mContext.device, mContext.allocator);
+        mTlas.destroyBuffers(mContext.allocator);
     }
 
     // PIPELINES
@@ -935,7 +935,7 @@ void App::destroy()
     }
 }
 
-void App::loadSceneFromPath(const char* path)
+void App::loadSceneFromPath(const char* path) const
 {
     mpScene->loadSceneFromPath(path);
 }

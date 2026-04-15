@@ -119,13 +119,14 @@ void Context::createLogicalDeviceAndQueues()
         const auto& family = properties[i];
 
         if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT
-            && !queues.count(QueueType::GRAPHICS))  // do not overwrite with a later match
+            && !queues.contains(QueueType::GRAPHICS))  // do not overwrite with a later match
         {
             queues[QueueType::GRAPHICS].index = i;  // operator[] will insert if does not exist
         }
         if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
-            if (!queues.count(QueueType::TRANSFER) || !(family.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+            if (!queues.contains(QueueType::TRANSFER)
+                || !(family.queueFlags & VK_QUEUE_GRAPHICS_BIT))
             {  // allow overwrite if this is a dedicated transfer queue
                 queues[QueueType::TRANSFER].index = i;
             }
@@ -348,14 +349,15 @@ void Context::createSwapchain(GLFWwindow* window)
                && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
     };
 
-    auto formatIt = std::find_if(availableFormats.begin(), availableFormats.end(), is_format);
+    auto formatIt = std::ranges::find_if(availableFormats.begin(), availableFormats.end(),
+                                         is_format);
 
     VkSurfaceFormatKHR format = formatIt != availableFormats.end() ? *formatIt
                                                                    : availableFormats[0];
 
     // present selection
-    auto presentIt = std::find(presentModes.begin(), presentModes.end(),
-                               VK_PRESENT_MODE_MAILBOX_KHR);
+    auto presentIt = std::ranges::find(presentModes.begin(), presentModes.end(),
+                                       VK_PRESENT_MODE_MAILBOX_KHR);
 
     VkPresentModeKHR presentMode = presentIt != presentModes.end() ? *presentIt
                                                                    : VK_PRESENT_MODE_FIFO_KHR;
@@ -508,11 +510,11 @@ void Context::createSyncAndFrameObjects(size_t numRenderingSemaphores)
 
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
-        createCommandBuffer(frame.commandBuffer, QueueType::GRAPHICS);
+        createCommandBuffer(&frame.commandBuffer, QueueType::GRAPHICS);
     }
 
     // create transfer command buffer as well
-    createCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
+    createCommandBuffer(&transferCommandBuffer, QueueType::TRANSFER);
 }
 
 void Context::createSurface(GLFWwindow* window)
@@ -522,18 +524,18 @@ void Context::createSurface(GLFWwindow* window)
 }
 
 // COMMAND BUFFERS
-void Context::createCommandBuffer(VkCommandBuffer& commandBuffer, QueueType queueFamily)
+void Context::createCommandBuffer(VkCommandBuffer* pOutCommandBuffer, QueueType queueFamily)
 {
     VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                                            .commandPool = queues[queueFamily].commandPool,
                                            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                                            .commandBufferCount = 1 };
 
-    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer),
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, pOutCommandBuffer),
              "failed to allocate command buffer\n");
 }
 
-void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
+void Context::sBeginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags)
 {
     VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                         .flags = flags,
@@ -543,9 +545,9 @@ void Context::beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferU
              "failed to begin recording command buffer\n");
 }
 
-void Context::endCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily,
-                               VkPipelineStageFlags waitDstFlags, VkFence fence,
-                               VkSemaphore waitSemaphores, VkSemaphore signalSemaphores)
+void Context::submitCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily,
+                                  VkPipelineStageFlags waitDstFlags, VkFence fence,
+                                  VkSemaphore waitSemaphores, VkSemaphore signalSemaphores)
 {
     vkEndCommandBuffer(commandBuffer);
 
@@ -624,18 +626,18 @@ bool Context::createDeviceLocalBuffer(Buffer& handle, const void* data, VkDevice
     return true;
 }
 
-void Context::copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size)
+void Context::copyBuffer(const Buffer& src, const Buffer& dst, VkDeviceSize size)
 {
     vkResetCommandBuffer(transferCommandBuffer, 0);
-    beginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    sBeginCommandBuffer(transferCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     VkBufferCopy bufferCopy{ .srcOffset = 0, .dstOffset = 0, .size = size };
     vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
 
-    endCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
+    submitCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
 }
 
-VkDeviceAddress Context::getBufferDeviceAddress(Buffer& buffer)
+VkDeviceAddress Context::getBufferDeviceAddress(const Buffer& buffer) const
 {
     VkBufferDeviceAddressInfo addressInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
                                            .buffer = buffer.buffer };
@@ -644,7 +646,7 @@ VkDeviceAddress Context::getBufferDeviceAddress(Buffer& buffer)
 }
 
 // IMAGES
-void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,
+void Context::createImage(Image* pOutHandle, VkImageType type, VkFormat format, uint32_t width,
                           uint32_t height, VkImageUsageFlags usage,
                           VmaAllocationCreateFlags allocationFlags, VkImageAspectFlags aspect,
                           bool shouldCreateView) const
@@ -663,13 +665,13 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
     VmaAllocationCreateInfo allocCreateInfo{ .flags = allocationFlags,
                                              .usage = VMA_MEMORY_USAGE_AUTO };
 
-    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &handle.image,
-                            &handle.allocation, &handle.allocInfo),
+    VK_CHECK(vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, &pOutHandle->image,
+                            &pOutHandle->allocation, &pOutHandle->allocInfo),
              "failed to create image!\n");
 
-    handle.width = width;
-    handle.height = height;
-    handle.format = format;
+    pOutHandle->width = width;
+    pOutHandle->height = height;
+    pOutHandle->format = format;
 
     if (!shouldCreateView)
     {
@@ -678,20 +680,20 @@ void Context::createImage(Image& handle, VkImageType type, VkFormat format, uint
 
     // create view
     VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                                    .image = handle.image,
+                                    .image = pOutHandle->image,
                                     .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                    .format = handle.format,
+                                    .format = pOutHandle->format,
                                     .subresourceRange = { .aspectMask = aspect,
                                                           .baseMipLevel = 0,
                                                           .levelCount = 1,
                                                           .baseArrayLayer = 0,
                                                           .layerCount = 1 } };
 
-    vkCreateImageView(device, &viewInfo, nullptr, &handle.view);
+    vkCreateImageView(device, &viewInfo, nullptr, &pOutHandle->view);
 }
 
-void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height,
-                                 VkFormat format)
+void Context::createTextureImage(Image* pOutHandle, const void* pPixels, uint32_t width,
+                                 uint32_t height, VkFormat format)
 {
     Buffer stagingBuffer;
     VkDeviceSize size = width * height * 4;
@@ -699,34 +701,36 @@ void Context::createTextureImage(Image& handle, void* pixels, uint32_t width, ui
                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
                      | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    memcpy(stagingBuffer.allocInfo.pMappedData, pixels, size);
+    memcpy(stagingBuffer.allocInfo.pMappedData, pPixels, size);
 
-    createImage(handle, VK_IMAGE_TYPE_2D, format, width, height,
+    createImage(pOutHandle, VK_IMAGE_TYPE_2D, format, width, height,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(commandBuffer, QueueType::GRAPHICS);
-    beginCommandBuffer(commandBuffer);
+    createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    sBeginCommandBuffer(commandBuffer);
 
-    handle.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                            VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+    pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                 VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 
-    copyBufferToImage(commandBuffer, stagingBuffer, handle, width, height);
+    sCopyBufferToImage(pOutHandle, stagingBuffer, commandBuffer, width, height);
 
-    handle.transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                            VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                            VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+    pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                 VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
 
-    endCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
 
     vkQueueWaitIdle(queues[QueueType::GRAPHICS].queue);
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 
-    handle.width = width;
-    handle.height = height;
-    handle.format = format;
+    pOutHandle->width = width;
+    pOutHandle->height = height;
+    pOutHandle->format = format;
 }
 
 void Context::createDepthImage(uint32_t width, uint32_t height)
@@ -749,23 +753,23 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
 
     DEV_ASSERT(depthFormat != VK_FORMAT_UNDEFINED, "failed to create depth image!\n");
 
-    createImage(depthImage, VK_IMAGE_TYPE_2D, depthFormat, width, height,
+    createImage(&depthImage, VK_IMAGE_TYPE_2D, depthFormat, width, height,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0, VK_IMAGE_ASPECT_DEPTH_BIT);
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(commandBuffer, QueueType::GRAPHICS);
-    beginCommandBuffer(commandBuffer);
-    transitionImageLayout(commandBuffer, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-                          VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                          VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
-                              | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                          VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
-                              | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                          VK_IMAGE_ASPECT_DEPTH_BIT);
+    createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    sBeginCommandBuffer(commandBuffer);
+    sTransitionImageLayout(commandBuffer, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                           VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                           VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                           VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                           VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
+                               | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                           VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
+                               | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                           VK_IMAGE_ASPECT_DEPTH_BIT);
 
-    endCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
 }
 
 void Context::createResultImages(uint32_t width, uint32_t height)
@@ -773,29 +777,29 @@ void Context::createResultImages(uint32_t width, uint32_t height)
     std::vector<Image*> handles{ &resultImage, &accumulationImage };
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(commandBuffer, QueueType::GRAPHICS);
-    beginCommandBuffer(commandBuffer);
+    createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    sBeginCommandBuffer(commandBuffer);
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); i++)
     {
         // result image
-        createImage(*handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
+        createImage(handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                         | VK_IMAGE_USAGE_STORAGE_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);
 
-        transitionImageLayout(commandBuffer, handles[i]->image, VK_IMAGE_LAYOUT_UNDEFINED,
-                              VK_IMAGE_LAYOUT_GENERAL, 0, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                              VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                              VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                              VK_IMAGE_ASPECT_COLOR_BIT);
+        sTransitionImageLayout(commandBuffer, handles[i]->image, VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_GENERAL, 0, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                               VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
-    endCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
     vkQueueWaitIdle(queues[QueueType::GRAPHICS].queue);
 }
 
-void Context::createTextureSampler(VkSampler& sampler)
+void Context::createTextureSampler(VkSampler* pOutSampler) const
 {
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
@@ -814,11 +818,11 @@ void Context::createTextureSampler(VkSampler& sampler)
                                      .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
                                      .unnormalizedCoordinates = VK_FALSE };
 
-    vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
+    vkCreateSampler(device, &samplerInfo, nullptr, pOutSampler);
 }
 
-void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst,
-                                uint32_t width, uint32_t height)
+void Context::sCopyBufferToImage(Image* pOutDst, const Buffer& src, VkCommandBuffer commandBuffer,
+                                 uint32_t width, uint32_t height)
 {
     VkBufferImageCopy region{ .bufferOffset = 0,
                               .bufferRowLength = 0,
@@ -830,15 +834,16 @@ void Context::copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Imag
                               .imageOffset = { 0, 0, 0 },
                               .imageExtent = { width, height, 1 } };
 
-    vkCmdCopyBufferToImage(commandBuffer, src.buffer, dst.image,
+    vkCmdCopyBufferToImage(commandBuffer, src.buffer, pOutDst->image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    dst.width = width;
-    dst.height = height;
+    pOutDst->width = width;
+    pOutDst->height = height;
 }
 
-void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, Image& src, Buffer& dst,
-                                uint32_t width, uint32_t height, VkImageAspectFlags aspectFlags)
+void Context::sCopyImageToBuffer(const Buffer* pOutDstHandle, const Image& src,
+                                 VkCommandBuffer commandBuffer, uint32_t width, uint32_t height,
+                                 VkImageAspectFlags aspectFlags)
 {
     VkBufferImageCopy region{ .bufferOffset = 0,
                               .bufferRowLength = 0,
@@ -850,15 +855,15 @@ void Context::copyImageToBuffer(VkCommandBuffer commandBuffer, Image& src, Buffe
                               .imageExtent = { width, height, 1 } };
 
     vkCmdCopyImageToBuffer(commandBuffer, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           dst.buffer, 1, &region);
+                           pOutDstHandle->buffer, 1, &region);
 }
 
-void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                    VkImageLayout oldLayout, VkImageLayout newLayout,
-                                    VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
-                                    VkPipelineStageFlags2 srcStageMask,
-                                    VkPipelineStageFlags2 dstStageMask,
-                                    VkImageAspectFlags aspectFlags)
+void Context::sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
+                                     VkImageLayout oldLayout, VkImageLayout newLayout,
+                                     VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
+                                     VkPipelineStageFlags2 srcStageMask,
+                                     VkPipelineStageFlags2 dstStageMask,
+                                     VkImageAspectFlags aspectFlags)
 {
     VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                    .srcStageMask = srcStageMask,
@@ -884,12 +889,12 @@ void Context::transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image
     vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
-void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
-                                                     AccelerationStructure& handle,
+void Context::createBottomLevelAccelerationStructure(AccelerationStructure* pOutHandle,
+                                                     VkCommandBuffer commandBuffer,
                                                      VkDeviceAddress vertexAddress,
                                                      VkDeviceAddress indexAddress,
                                                      uint32_t firstVertex, uint32_t vertexCount,
-                                                     uint32_t firstIndex, uint32_t indexCount)
+                                                     uint32_t firstIndex, uint32_t indexCount) const
 {
     DEV_ASSERT(indexCount != 0 && (indexCount % 3) == 0,
                "BLAS build requires a non-zero triangle index count.\n");
@@ -940,27 +945,27 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
     // allocate scratch buffer
     VkDeviceSize scratchSize = sizeInfo.buildScratchSize + scratchAlignment - 1;
 
-    createBuffer(handle.scratchBuffer, scratchSize,
+    createBuffer(pOutHandle->scratchBuffer, scratchSize,
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
-    VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(handle.scratchBuffer);
+    VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(pOutHandle->scratchBuffer);
     VkDeviceAddress scratchAddress = alignUpVk(rawScratchAddress, scratchAlignment);
 
     // allocate blas storage buffer
-    createBuffer(handle.handleBuffer, sizeInfo.accelerationStructureSize,
+    createBuffer(pOutHandle->handleBuffer, sizeInfo.accelerationStructureSize,
                  VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
                      | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                  0);
 
     VkAccelerationStructureCreateInfoKHR createInfo{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .buffer = handle.handleBuffer.buffer,
+        .buffer = pOutHandle->handleBuffer.buffer,
         .offset = 0,
         .size = sizeInfo.accelerationStructureSize,
         .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR
     };
 
     VK_CHECK(vkCreateAccelerationStructureKHR(device, &createInfo, nullptr,
-                                              &handle.accelerationStructure),
+                                              &pOutHandle->accelerationStructure),
              "failed to create acceleration structure!\n");
 
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
@@ -968,7 +973,7 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
         .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
         .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
         .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
-        .dstAccelerationStructure = handle.accelerationStructure,
+        .dstAccelerationStructure = pOutHandle->accelerationStructure,
         .geometryCount = 1,
         .pGeometries = &accelerationStructureGeometry,
         .scratchData = { .deviceAddress = scratchAddress }
@@ -980,11 +985,11 @@ void Context::createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuf
     vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &pBuildRangeInfo);
 }
 
-void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
-                                                  AccelerationStructure& handle,
-                                                  Buffer& instanceBufferHandle,
-                                                  std::vector<FLOAT4x4>& transforms,
-                                                  std::vector<AccelerationStructure>& blasses)
+void Context::createTopLevelAccelerationStructure(AccelerationStructure* pOutAccelStructHandle,
+                                                  Buffer* pOutInstanceBufferHandle,
+                                                  VkCommandBuffer commandBuffer,
+                                                  const std::vector<FLOAT4x4>& transforms,
+                                                  const std::vector<AccelerationStructure>& blasses)
 {
     std::vector<VkAccelerationStructureInstanceKHR> instances;
     instances.reserve(transforms.size());
@@ -1005,12 +1010,13 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     const uint32_t instanceCount = static_cast<uint32_t>(instances.size());
     VkDeviceSize instanceBufferSize = sizeof(VkAccelerationStructureInstanceKHR) * instanceCount;
 
-    DEV_ASSERT(createDeviceLocalBuffer(instanceBufferHandle, instances.data(), instanceBufferSize,
-                                       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-                                           | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
-               "failed to create device local memory buffer!\n");
+    DEV_ASSERT(
+        createDeviceLocalBuffer(*pOutInstanceBufferHandle, instances.data(), instanceBufferSize,
+                                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+                                    | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
+        "failed to create device local memory buffer!\n");
 
-    VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(instanceBufferHandle);
+    VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(*pOutInstanceBufferHandle);
 
     VkAccelerationStructureGeometryDataKHR geometry{
         .instances = { .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
@@ -1041,26 +1047,27 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
                                             &geometryInfo, &instanceCount, &sizeInfo);
 
-    createBuffer(handle.handleBuffer, sizeInfo.accelerationStructureSize,
+    createBuffer(pOutAccelStructHandle->handleBuffer, sizeInfo.accelerationStructureSize,
                  VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
                      | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                  0);
 
     VkAccelerationStructureCreateInfoKHR createInfo{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .buffer = handle.handleBuffer.buffer,
+        .buffer = pOutAccelStructHandle->handleBuffer.buffer,
         .size = sizeInfo.accelerationStructureSize,
         .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR
     };
 
-    vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &handle.accelerationStructure);
+    vkCreateAccelerationStructureKHR(device, &createInfo, nullptr,
+                                     &pOutAccelStructHandle->accelerationStructure);
 
     // allocate scratch buffer
     VkDeviceSize scratchSize = sizeInfo.buildScratchSize + scratchAlignment - 1;
 
-    createBuffer(handle.scratchBuffer, scratchSize,
+    createBuffer(pOutAccelStructHandle->scratchBuffer, scratchSize,
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 0);
-    VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(handle.scratchBuffer);
+    VkDeviceAddress rawScratchAddress = getBufferDeviceAddress(pOutAccelStructHandle->scratchBuffer);
     VkDeviceAddress scratchAddress = alignUpVk(rawScratchAddress, scratchAlignment);
 
     VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{ .primitiveCount = instanceCount,
@@ -1073,7 +1080,7 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
         .type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
         .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
         .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
-        .dstAccelerationStructure = handle.accelerationStructure,
+        .dstAccelerationStructure = pOutAccelStructHandle->accelerationStructure,
         .geometryCount = 1,
         .pGeometries = &accelerationStructureGeometry,
         .scratchData = { .deviceAddress = scratchAddress }
@@ -1084,7 +1091,7 @@ void Context::createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer
     vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &pBuildRangeInfo);
 }
 
-void Context::createDescriptorSetLayout(DescriptorSetLayout& descriptorSetLayout,
+void Context::createDescriptorSetLayout(DescriptorSetLayout* pOutDescriptorSetLayout,
                                         const std::vector<VkDescriptorSetLayoutBinding>& bindings,
                                         const std::vector<VkDescriptorBindingFlags>* pBindingFlags,
                                         VkDescriptorSetLayoutCreateFlags layoutCreateFlags,
@@ -1113,7 +1120,8 @@ void Context::createDescriptorSetLayout(DescriptorSetLayout& descriptorSetLayout
         .pBindings = bindings.data()
     };
 
-    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout.layout),
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr,
+                                         &pOutDescriptorSetLayout->layout),
              "failed to create mesh descriptor set layout\n");
 
     // get binding types and number
@@ -1137,25 +1145,26 @@ void Context::createDescriptorSetLayout(DescriptorSetLayout& descriptorSetLayout
         .pPoolSizes = poolSizes.data(),
     };
 
-    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSetLayout.pool),
+    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
+                                    &pOutDescriptorSetLayout->pool),
              "failed to create mesh descriptor pool\n");
 }
 
-void Context::allocateDescriptorSet(VkDescriptorSet& descriptorSet,
-                                    DescriptorSetLayout& descriptorSetLayout)
+void Context::allocateDescriptorSet(VkDescriptorSet* pOutDescriptorSet,
+                                    DescriptorSetLayout& descriptorSetLayout) const
 {
     VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                                            .descriptorPool = descriptorSetLayout.pool,
                                            .descriptorSetCount = 1,
                                            .pSetLayouts = &descriptorSetLayout.layout };
 
-    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet),
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, pOutDescriptorSet),
              "failed to allocate mesh descriptor set\n");
 }
 
-void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
-                                        std::vector<Buffer*>& bindingBuffers,
-                                        std::vector<VkDescriptorSetLayoutBinding>& bindings)
+void Context::writeDescriptorSetBuffers(
+    const VkDescriptorSet& descriptorSet, const std::vector<Buffer*>& bindingBuffers,
+    const std::vector<VkDescriptorSetLayoutBinding>& bindings) const
 {
     std::vector<VkDescriptorBufferInfo> bindingInfos;
     for (auto& buf : bindingBuffers)
@@ -1181,10 +1190,9 @@ void Context::writeDescriptorSetBuffers(VkDescriptorSet& descriptorSet,
                            writeDescriptorSets.data(), 0, nullptr);
 }
 
-void Context::writeDescriptorSetImages(const VkDescriptorSet& descriptorSet, const uint32_t binding,
-                                       const std::vector<Image>& images, const VkSampler inSampler,
-                                       const VkDescriptorType type,
-                                       const VkImageLayout layout) const
+void Context::writeDescriptorSetImages(const VkDescriptorSet& descriptorSet, uint32_t binding,
+                                       const std::vector<Image>& images, VkSampler inSampler,
+                                       VkDescriptorType type, VkImageLayout layout) const
 {
     std::vector<VkDescriptorImageInfo> imageInfos;
     VkSampler s = (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ? inSampler : VK_NULL_HANDLE;
@@ -1296,7 +1304,7 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
     return sm;
 }
 
-void Context::waitIdle()
+void Context::waitIdle() const
 {
     vkDeviceWaitIdle(device);
 }
@@ -1307,13 +1315,10 @@ void Context::destroyDebugMessenger()
     {
         return;
     }
-    auto fn = (PFN_vkDestroyDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    const auto fn = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+        vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
 
-    if (fn)
-    {
-        fn(instance, debugMessenger, nullptr);
-    }
+    if (fn) fn(instance, debugMessenger, nullptr);
 
     debugMessenger = VK_NULL_HANDLE;
 }
@@ -1338,9 +1343,9 @@ void Context::destroy()
         freeCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
     }
 
-    for (auto& queue : queues)
+    for (auto& val : queues | std::views::values)
     {
-        queue.second.destroy(device);
+        val.destroy(device);
     }
 
     if (allocator != VK_NULL_HANDLE)
@@ -1380,8 +1385,8 @@ void Context::createDebugMessenger(bool enableDebug)
     sPopulateDebugMessengerCreateInfo(createInfo);
 
     // `vkCreateDebugUtilsMessengerEXT` extension relies on a valid instance to have been created
-    auto fn = (PFN_vkCreateDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    auto fn = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+        vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
 
     DEV_ASSERT(fn, "debug layer function proc addr not found\n");
 

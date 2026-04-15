@@ -25,10 +25,10 @@ public:
     void create(const RendererConstants& rendererConstants);
     void destroy();
 
-    void loadSceneFromPath(const char* path);
+    void loadSceneFromPath(const char* path) const;
 
     void createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef = std::nullopt);
-    void executeDrawCall(RendererAovs& aovs);
+    void executeDrawCall(const RendererAovs& aovs);
 
     void render();
 
@@ -52,7 +52,7 @@ private:
 
     std::vector<DescriptorSetLayout> mDescriptorSetLayouts;
     std::vector<VkDescriptorSet> mDescriptorSets;
-    VkSampler mSampler = VK_NULL_HANDLE;
+    VkSampler mSampler{};
 
     uint32_t mCurrentFrameInFlight = 0u;
     uint32_t mNumLights = 0;
@@ -80,13 +80,13 @@ private:
 
     // resource creation
     void createRTPipeline();
-    void createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                      std::vector<FLOAT4x4>& transforms,
+    void createAccelerationStructures(const std::vector<MeshRecord>& meshes,
+                                      const std::vector<FLOAT4x4>& transforms,
                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
-                            VkImageLayout dstImageLayout);
+    void populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage colorAov,
+                            const VkExtent2D& extent, VkImageLayout dstImageLayout);
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

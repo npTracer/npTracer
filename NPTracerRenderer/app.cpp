@@ -173,15 +173,11 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
         Texture const* texture = mpScene->getPrimAtIndex<Texture>(i);
 
         if (texture->unorm)
-        {
             mContext.createTextureImage(&textureImage, texture->pixels, texture->width,
                                         texture->height, VK_FORMAT_R8G8B8A8_UNORM);
-        }
         else
-        {
             mContext.createTextureImage(&textureImage, texture->pixels, texture->width,
                                         texture->height);
-        }
 
         mTextures.push_back(textureImage);
     }
@@ -664,6 +660,18 @@ void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
 
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
+    // submit blas work before tlas queries device address
+    VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = 0 };
+
+    VkFence fence;
+    vkCreateFence(mContext.device, &fenceInfo, nullptr, &fence);
+    mContext.submitCommandBuffer(commandBuffer, QueueType::GRAPHICS, 0, fence);
+
+    vkWaitForFences(mContext.device, 1, &fence, VK_TRUE, UINT64_MAX);
+
+    vkResetCommandBuffer(commandBuffer, 0);
+    mContext.sBeginCommandBuffer(commandBuffer);
+
     for (auto& blas : mBlasses)
     {
         VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{
@@ -699,7 +707,6 @@ void App::executeDrawCall(const RendererAovs& aovs)
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
     VkExtent2D extent = { colorAov->width, colorAov->height };
     populateDrawCallRT(frame.commandBuffer, colorAov->image, extent,
                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -739,14 +746,13 @@ void App::executeDrawCallSwapchain()
         return;
     }
 
-    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
     populateDrawCallRT(frame.commandBuffer, mContext.swapchainImages[imageIndex],
                        mContext.swapchainParams.extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
 
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
     VkSubmitInfo submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -764,6 +770,8 @@ void App::executeDrawCallSwapchain()
     VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
              "vk queue submit failed");
+
+    mContext.waitIdle();
 
     VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -789,7 +797,7 @@ void App::executeDrawCallSwapchain()
 }
 
 void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage colorAov,
-                             const VkExtent2D& extent, VkImageLayout dstImageLayout)
+                             const VkExtent2D& extent, VkImageLayout dstImageLayout) const
 {
     vkResetCommandBuffer(commandBuffer, 0);
     mContext.sBeginCommandBuffer(commandBuffer);

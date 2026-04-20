@@ -68,6 +68,19 @@ void Context::createInstance(bool enableDebug)
 
         sPopulateDebugMessengerCreateInfo(debugCreateInfo);
         createInfo.pNext = &debugCreateInfo;
+
+        /* enable specific validation features */
+        VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
+            VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+            VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+            VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+        };
+        VkValidationFeaturesEXT validationFeatures = {
+            .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+            .enabledValidationFeatureCount = std::size(enabledValidationFeatures),
+            .pEnabledValidationFeatures = enabledValidationFeatures
+        };
+        debugCreateInfo.pNext = &validationFeatures;
     }
     else
     {
@@ -397,7 +410,8 @@ void Context::createSwapchain(GLFWwindow* window)
         .imageColorSpace = format.colorSpace,
         .imageExtent = extent,
         .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                      | VK_IMAGE_USAGE_STORAGE_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .preTransform = surfaceCapabilities.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,

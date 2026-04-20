@@ -22,10 +22,10 @@ AssimpScene::~AssimpScene()
 
 void AssimpScene::loadSceneFromPath(const char* path)
 {
+    static Assimp::Importer importer;
     const aiScene* scene;
     try
     {
-        Assimp::Importer importer;
         // NOTE: assimp is right-handed (+Y=up, -Z=forward) by default, which is what we want. so just flip UVs to match Vulkan UV conventions
         scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GlobalScale
                                             | aiProcess_GenSmoothNormals | aiProcess_FlipUVs

@@ -817,11 +817,12 @@ void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage color
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
                                extent.width, extent.height, 1);
 
-    mContext.sTransitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_UNDEFINED,
-                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+    mContext.sTransitionImageLayout(commandBuffer, colorAov,
+                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     VkImageCopy region{ .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
                         .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
@@ -830,10 +831,11 @@ void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage color
     vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, colorAov,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.sTransitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                    dstImageLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+    mContext.sTransitionImageLayout(commandBuffer, colorAov,
                                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, dstImageLayout);
 
     vkEndCommandBuffer(commandBuffer);
 }

@@ -96,10 +96,11 @@ public:
                                    VkCommandBuffer commandBuffer, uint32_t width, uint32_t height,
                                    VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     static void sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                       VkImageLayout oldLayout, VkImageLayout newLayout,
-                                       VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                                        VkPipelineStageFlags2 srcStageMask,
+                                       VkAccessFlags2 srcAccessMask,
                                        VkPipelineStageFlags2 dstStageMask,
+                                       VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
+                                       VkImageLayout newLayout,
                                        VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     // acceleration structures

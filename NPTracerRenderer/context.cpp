@@ -410,8 +410,7 @@ void Context::createSwapchain(GLFWwindow* window)
         .imageColorSpace = format.colorSpace,
         .imageExtent = extent,
         .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
-                      | VK_IMAGE_USAGE_STORAGE_BIT,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .preTransform = surfaceCapabilities.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -773,14 +772,14 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
     VkCommandBuffer commandBuffer;
     createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
-    sTransitionImageLayout(commandBuffer, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                           VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-                           VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+    sTransitionImageLayout(commandBuffer, depthImage.image,
+                           VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
+                               | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                            VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                            VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
                                | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                           VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
-                               | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                           VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                           VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
                            VK_IMAGE_ASPECT_DEPTH_BIT);
 
     submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
@@ -802,11 +801,11 @@ void Context::createResultImages(uint32_t width, uint32_t height)
                         | VK_IMAGE_USAGE_STORAGE_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);
 
-        sTransitionImageLayout(commandBuffer, handles[i]->image, VK_IMAGE_LAYOUT_UNDEFINED,
-                               VK_IMAGE_LAYOUT_GENERAL, 0, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+        sTransitionImageLayout(commandBuffer, handles[i]->image,
+                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0,
                                VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                               VK_IMAGE_ASPECT_COLOR_BIT);
+                               VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
@@ -873,11 +872,11 @@ void Context::sCopyImageToBuffer(const Buffer* pOutDstHandle, const Image& src,
 }
 
 void Context::sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                     VkImageLayout oldLayout, VkImageLayout newLayout,
-                                     VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
                                      VkPipelineStageFlags2 srcStageMask,
+                                     VkAccessFlags2 srcAccessMask,
                                      VkPipelineStageFlags2 dstStageMask,
-                                     VkImageAspectFlags aspectFlags)
+                                     VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
+                                     VkImageLayout newLayout, VkImageAspectFlags aspectFlags)
 {
     VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                    .srcStageMask = srcStageMask,

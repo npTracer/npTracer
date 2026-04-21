@@ -62,12 +62,13 @@ public:
     void cleanupSwapchain();
 
     // command buffers
-    void createCommandBuffer(VkCommandBuffer& commandBuffer, QueueType queueFamily);
-    void beginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags flags = 0);
-    void endCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily,
-                          VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE,
-                          VkSemaphore waitSemaphores = VK_NULL_HANDLE,
-                          VkSemaphore signalSemaphores = VK_NULL_HANDLE);
+    void createCommandBuffer(VkCommandBuffer* pOutCommandBuffer, QueueType queueFamily);
+    static void sBeginCommandBuffer(VkCommandBuffer commandBuffer,
+                                    VkCommandBufferUsageFlags flags = 0);
+    void submitCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily,
+                             VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE,
+                             VkSemaphore waitSemaphores = VK_NULL_HANDLE,
+                             VkSemaphore signalSemaphores = VK_NULL_HANDLE);
     void freeCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily);
 
     // buffers
@@ -75,69 +76,74 @@ public:
                       VmaAllocationCreateFlags allocationFlags) const;
     bool createDeviceLocalBuffer(Buffer& handle, const void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
-    void copyBuffer(Buffer& src, Buffer& dst, VkDeviceSize size);
-    VkDeviceAddress getBufferDeviceAddress(Buffer& buffer);
+    void copyBuffer(const Buffer& src, const Buffer& dst, VkDeviceSize size);
+    VkDeviceAddress getBufferDeviceAddress(const Buffer& buffer) const;
 
     // images
-    void createImage(Image& handle, VkImageType type, VkFormat format, uint32_t width,
+    void createImage(Image* pOutHandle, VkImageType type, VkFormat format, uint32_t width,
                      uint32_t height, VkImageUsageFlags usage,
                      VmaAllocationCreateFlags allocationFlags,
                      VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT,
                      bool shouldCreateView = true) const;
-    void createTextureImage(Image& handle, void* pixels, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+    void createTextureImage(Image* pOutHandle, const void* pPixels, uint32_t width, uint32_t height,
+                            VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
     void createDepthImage(uint32_t width, uint32_t height);
     void createResultImages(uint32_t width, uint32_t height);
-    void createTextureSampler(VkSampler& sampler);  // pass as reference as it is still `nullptr` here
-    void copyBufferToImage(VkCommandBuffer commandBuffer, Buffer& src, Image& dst, uint32_t width,
-                           uint32_t height);
-    void copyImageToBuffer(VkCommandBuffer commandBuffer, Image& src, Buffer& dst, uint32_t width,
-                           uint32_t height,
-                           VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
-    void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                               VkImageLayout oldLayout, VkImageLayout newLayout,
-                               VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
-                               VkPipelineStageFlags2 srcStageMask,
-                               VkPipelineStageFlags2 dstStageMask,
-                               VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
+    void createTextureSampler(VkSampler* pOutSampler) const;
+    static void sCopyBufferToImage(Image* pOutDst, const Buffer& src, VkCommandBuffer commandBuffer,
+                                   uint32_t width, uint32_t height);
+    static void sCopyImageToBuffer(const Buffer* pOutDstHandle, const Image& src,
+                                   VkCommandBuffer commandBuffer, uint32_t width, uint32_t height,
+                                   VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
+    static void sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
+                                       VkPipelineStageFlags2 srcStageMask,
+                                       VkAccessFlags2 srcAccessMask,
+                                       VkPipelineStageFlags2 dstStageMask,
+                                       VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
+                                       VkImageLayout newLayout,
+                                       VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     // acceleration structures
-    void createBottomLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
-                                                AccelerationStructure& handle,
+    void createBottomLevelAccelerationStructure(AccelerationStructure* pOutHandle,
+                                                VkCommandBuffer commandBuffer,
                                                 VkDeviceAddress vertexAddress,
                                                 VkDeviceAddress indexAddress, uint32_t firstVertex,
                                                 uint32_t vertexCount, uint32_t firstIndex,
-                                                uint32_t indexCount);
+                                                uint32_t indexCount) const;
 
-    void createTopLevelAccelerationStructure(VkCommandBuffer& commandBuffer,
-                                             AccelerationStructure& handle,
-                                             Buffer& instanceBufferHandle,
-                                             std::vector<FLOAT4x4>& transforms,
-                                             std::vector<AccelerationStructure>& blasses);
+    void createTopLevelAccelerationStructure(AccelerationStructure* pOutAccelStructHandle,
+                                             Buffer* pOutInstanceBufferHandle,
+                                             VkCommandBuffer commandBuffer,
+                                             const std::vector<FLOAT4x4>& transforms,
+                                             const std::vector<AccelerationStructure>& blasses);
 
     // descriptors
     void createDescriptorSetLayout(
-        DescriptorSetLayout& descriptorSetLayout,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindings);
-    void allocateDesciptorSet(VkDescriptorSet& descriptorSet,
-                              DescriptorSetLayout& descriptorSetLayout);
-    void writeDescriptorSetBuffers(
-        VkDescriptorSet& descriptorSet, std::unordered_map<uint32_t, Buffer*>& bindingBufferMap,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
-    void writeDescriptorSetImages(VkDescriptorSet& descriptorSet, uint32_t binding,
-                                  const std::vector<Image>& images, VkSampler inSampler,
-                                  VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                  VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        DescriptorSetLayout* pOutDescriptorSetLayout,
+        const std::vector<VkDescriptorSetLayoutBinding>& bindings,
+        const std::vector<VkDescriptorBindingFlags>* pBindingFlags = nullptr,
+        VkDescriptorSetLayoutCreateFlags layoutCreateFlags = 0,
+        VkDescriptorPoolCreateFlags poolCreateFlags = 0) const;
+    void allocateDescriptorSet(VkDescriptorSet* pOutDescriptorSet,
+                               DescriptorSetLayout& descriptorSetLayout) const;
+    void writeDescriptorSetBuffers(const VkDescriptorSet& descriptorSet,
+                                   const std::vector<Buffer*>& bindingBuffers,
+                                   const std::vector<VkDescriptorSetLayoutBinding>& bindings) const;
+    void writeDescriptorSetImages(
+        const VkDescriptorSet& descriptorSet, uint32_t binding, const std::vector<Image>& images,
+        VkSampler inSampler, VkDescriptorType type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
     void writeDescriptorSetAccelerationStructures(
-        VkDescriptorSet& descriptorSet,
-        std::unordered_map<uint32_t, AccelerationStructure*>& bindingASMap,
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>& bindingMap);
+        const VkDescriptorSet& descriptorSet,
+        const std::vector<AccelerationStructure*>& bindingAccelStructs,
+        const std::vector<VkDescriptorSetLayoutBinding>& bindings) const;
 
     // utility
     Frame& getCurrentFrame(uint32_t currentFrame);
     void loadRayTracingFunctionPointers();
 
     VkShaderModule createShaderModule(const std::vector<char>& code) const;
-    void waitIdle();
+    void waitIdle() const;
     void destroyDebugMessenger();
     void destroy();
 
@@ -152,8 +158,6 @@ public:
     PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR = nullptr;
 
 private:
-    static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
-
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
@@ -164,6 +168,8 @@ private:
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
     static void sPopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+    static void sFramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     template<typename T>
     inline T sLoadDeviceFunction(VkDevice device, VkInstance instance, const char* name)

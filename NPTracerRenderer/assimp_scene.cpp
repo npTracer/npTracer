@@ -22,7 +22,7 @@ AssimpScene::~AssimpScene()
 
 void AssimpScene::loadSceneFromPath(const char* path)
 {
-    Assimp::Importer importer;
+    static Assimp::Importer importer;
     const aiScene* scene;
     try
     {
@@ -73,10 +73,11 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
     }
 }
 
-void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMat, aiTextureType textureType, uint32_t& targetIndex)
+void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMat,
+                                    aiTextureType textureType, uint32_t& targetIndex)
 {
     aiString aiStr;
-    
+
     if (aiMat->GetTexture(textureType, 0, &aiStr) == AI_SUCCESS)
     {
         std::string texKey = std::string(aiStr.C_Str());
@@ -92,9 +93,7 @@ void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMa
             uint32_t texIdx = static_cast<uint32_t>(_textures.size() - 1);
             targetIndex = texIdx;
 
-            const aiTexture* embedded = scene->GetEmbeddedTexture(aiStr.C_Str());
-
-            if (embedded)
+            if (const aiTexture* embedded = scene->GetEmbeddedTexture(aiStr.C_Str()))
             {
                 if (embedded->mHeight == 0)
                 {
@@ -130,7 +129,7 @@ void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMa
                 texture->width = static_cast<uint32_t>(width);
                 texture->height = static_cast<uint32_t>(height);
             }
-            
+
             if (textureType == aiTextureType_NORMALS)
             {
                 texture->unorm = true;
@@ -158,10 +157,10 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
                                    ? FLOAT4(inAiMesh->mNormals[j].x, inAiMesh->mNormals[j].y,
                                             inAiMesh->mNormals[j].z, 1.0f)
                                    : FLOAT4(0, 0, 0, 0),
-                    .tangent = inAiMesh->HasTangentsAndBitangents()
-                                  ? FLOAT4(inAiMesh->mTangents[j].x, inAiMesh->mTangents[j].y,
-                                           inAiMesh->mTangents[j].z, inAiMesh->mTangents[j][3])
-                                  : FLOAT4(0, 0, 0, 0),
+                     .tangent = inAiMesh->HasTangentsAndBitangents()
+                                    ? FLOAT4(inAiMesh->mTangents[j].x, inAiMesh->mTangents[j].y,
+                                             inAiMesh->mTangents[j].z, inAiMesh->mTangents[j][3])
+                                    : FLOAT4(0, 0, 0, 0),
                      .color = inAiMesh->HasVertexColors(0)
                                   ? FLOAT4(inAiMesh->mColors[0][j].r, inAiMesh->mColors[0][j].g,
                                            inAiMesh->mColors[0][j].b, 1.0f)
@@ -213,14 +212,14 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     if (aiMat->Get(AI_MATKEY_COLOR_EMISSIVE, color) == AI_SUCCESS)
     {
         mat->emission = FLOAT4(color.r, color.g, color.b, 1.0f);
-        
+
         float intensity;
         if (aiMat->Get(AI_MATKEY_EMISSIVE_INTENSITY, intensity) == AI_SUCCESS)
         {
-            mat->emission.w = intensity; 
+            mat->emission.w = intensity;
         }
     }
-    
+
     ai_real factor = 0.0f;
     if (aiMat->Get(AI_MATKEY_METALLIC_FACTOR, factor) == AI_SUCCESS)
     {
@@ -230,7 +229,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     {
         mat->metallic.y = factor;
     }
-    
+
     aiString aiStr;
     if (aiMat->Get(AI_MATKEY_NAME, aiStr) == AI_SUCCESS)
     {
@@ -238,10 +237,10 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     }
 
     // texturing
-    loadAndSetTexture(scene, aiMat, aiTextureType_BASE_COLOR, mat->diffuseTextureIndex); // diffuse
-    loadAndSetTexture(scene, aiMat, aiTextureType_NORMALS, mat->normalTextureIndex); // normals
-    loadAndSetTexture(scene, aiMat, aiTextureType_METALNESS, mat->metallicTextureIndex); // metallic
-    
+    loadAndSetTexture(scene, aiMat, aiTextureType_BASE_COLOR, mat->diffuseTextureIndex);  // diffuse
+    loadAndSetTexture(scene, aiMat, aiTextureType_NORMALS, mat->normalTextureIndex);  // normals
+    loadAndSetTexture(scene, aiMat, aiTextureType_METALNESS, mat->metallicTextureIndex);  // metallic
+
     mesh->materialIndex = static_cast<uint32_t>(_materials.size() - 1);
 }
 
@@ -264,14 +263,14 @@ void AssimpScene::processAiLight(const aiLight* inAiLight)
     {
         light->transform = FLOAT4x4(1.0);
     }
-    
+
     FLOAT3 raw = FLOAT3(inAiLight->mColorDiffuse.r, inAiLight->mColorDiffuse.g,
-                                inAiLight->mColorDiffuse.b);
-    
+                        inAiLight->mColorDiffuse.b);
+
     // Assimp will encode intensity into color
     float intensityScale = 0.01f;
-    float luminanceMag = (0.2126f*raw.r + 0.7152f*raw.g + 0.0722f*raw.b);
-    
+    float luminanceMag = (0.2126f * raw.r + 0.7152f * raw.g + 0.0722f * raw.b);
+
     light->intensity = luminanceMag * intensityScale;
     light->color = FLOAT4(raw / glm::max(luminanceMag, 1e-5f), 1.0f);
 }

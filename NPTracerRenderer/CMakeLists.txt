@@ -41,7 +41,6 @@ set(LIB_HEADERS
 )
 
 set(CURR_SHADER_SPECS
-    "${SHADER_SOURCE_DIR}/core.slang|vert|frag"
     "${SHADER_SOURCE_DIR}/rt.slang|rgen|miss|shadowmiss|hit|shadowhit"
 )
 

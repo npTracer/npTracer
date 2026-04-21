@@ -4,7 +4,7 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;
+constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;  // only needs visibility in this translation unit
 
 // for ease-of-use
 #define USE_SWAPCHAIN mRendererConstants.executionMode == eExecutionMode::SWAPCHAIN
@@ -35,7 +35,7 @@ void App::create(const RendererConstants& rendererConstants)
     mContext.createSyncAndFrameObjects(numRenderingSemaphores);
 
     // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
-    mContext.createTextureSampler(mSampler);
+    mContext.createTextureSampler(&mSampler);
     createSpecializationConstants();
 
     mContext.waitIdle();
@@ -125,16 +125,13 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<LightRecord> lightRecords;
     lightRecords.reserve(lightCount);
 
-    if (lightCount > 0)
+    for (uint32_t i = 0; i < lightCount; i++)
     {
-        for (uint32_t i = 0; i < lightCount; i++)
-        {
-            Light const* light = mpScene->getPrimAtIndex<Light>(i);
-            LightRecord lightRecord = light->toRecord();
-            lightRecords.push_back(lightRecord);
-        }
+        Light const* light = mpScene->getPrimAtIndex<Light>(i);
+        LightRecord lightRecord = light->toRecord();
+        lightRecords.push_back(lightRecord);
     }
-    else DEV_ASSERT(false, "No lights were found in scene.");
+
     VkDeviceSize lightRecordBufferSize = sizeof(lightRecords[0]) * lightRecords.size();
 
     mContext.createDeviceLocalBuffer(mLightRecordBuffer, lightRecords.data(), lightRecordBufferSize,
@@ -154,24 +151,13 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<MaterialRecord> materialRecords;
     materialRecords.reserve(materialCount);
 
-    if (materialCount > 0)
+    for (uint32_t i = 0; i < materialCount; i++)
     {
-        for (uint32_t i = 0; i < materialCount; i++)
-        {
-            // right now NPMaterial and record are identical so just use the same struct here (still
-            // looping for easy modification in the future)
-            Material const* material = mpScene->getPrimAtIndex<Material>(i);
-            materialRecords.push_back(material->toRecord());
-        }
+        // right now NPMaterial and record are identical so just use the same struct here (still
+        // looping for easy modification in the future)
+        Material const* material = mpScene->getPrimAtIndex<Material>(i);
+        materialRecords.push_back(material->toRecord());
     }
-    else
-    {
-        // push back default material record   
-        MaterialRecord materialRecord{};
-        materialRecord.diffuse = FLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
-        materialRecords.push_back(materialRecord);
-    }
-
 
     VkDeviceSize materialRecordBufferSize = sizeof(materialRecords[0]) * materialRecords.size();
     mContext.createDeviceLocalBuffer(mMaterialRecordsBuffer, materialRecords.data(),
@@ -185,16 +171,13 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     {
         Image textureImage;
         Texture const* texture = mpScene->getPrimAtIndex<Texture>(i);
-        
+
         if (texture->unorm)
-        {
-            mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height, VK_FORMAT_R8G8B8A8_UNORM);
-        }
+            mContext.createTextureImage(&textureImage, texture->pixels, texture->width,
+                                        texture->height, VK_FORMAT_R8G8B8A8_UNORM);
         else
-        {
-            mContext.createTextureImage(textureImage, texture->pixels, texture->width, texture->height);
-        }
-        
+            mContext.createTextureImage(&textureImage, texture->pixels, texture->width,
+                                        texture->height);
 
         mTextures.push_back(textureImage);
     }
@@ -207,160 +190,137 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 0: Mesh Records
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            // mesh record buffer
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR },
+            // vertex ssbo
+            { .binding = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR },
+            // index ssbo
+            { .binding = 2,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR },
+            // transform
+            { .binding = 3,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR }
+        };
 
-        // mesh record buffer
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        // vertex ssbo
-        VkDescriptorSetLayoutBinding b1{ .binding = 1,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        // index ssbo
-        VkDescriptorSetLayoutBinding b2{ .binding = 2,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        // transform
-        VkDescriptorSetLayoutBinding b3{ .binding = 3,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR };
-
-        bindings[0] = b0;
-        bindings[1] = b1;
-        bindings[2] = b2;
-        bindings[3] = b3;
-
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mMeshRecordBuffer;
-        bindingBufferMap[1] = &mVertexBuffer;
-        bindingBufferMap[2] = &mIndexBuffer;
-        bindingBufferMap[3] = &mMeshTransformsBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mMeshRecordBuffer, &mVertexBuffer, &mIndexBuffer,
+                                                &mMeshTransformsBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
 
         mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 1 : LIGHTS
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+              .pImmutableSamplers = nullptr }
+        };
+        const std::vector<VkDescriptorBindingFlags> bindingFlags = {
+            { VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+              | VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT }
+        };
 
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        bindings[0] = b0;
-
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings, &bindingFlags,
+                                           VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+                                           VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mLightRecordBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mLightRecordBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
-
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
         mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 2: CAMERA
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                       | VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
+        std::vector<VkDescriptorSetLayoutBinding> bindings{
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr }
+        };
 
-        bindings[0] = b0;
-
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mCameraRecordBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mCameraRecordBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
 
         mDescriptorSets.push_back(descriptorSet);
     }
 
     // SET 3: MATERIALS AND TEXTURES
+    // TODO: separate these as they are not guarantted to be updated synchronously
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
-        // materials buffer
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{ .binding = 0,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        VkDescriptorSetLayoutBinding b1{
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = static_cast<uint32_t>(
-                mTextures.size()),  // TODO: this one SHOULD be a variable size descriptor
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            .pImmutableSamplers = nullptr
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            // materials
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr },
+            // textures
+            { .binding = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              .descriptorCount = static_cast<uint32_t>(mTextures.size()),
+              .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr }
         };
 
-        bindings[0] = b0;
-        bindings[1] = b1;
-
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        VkDescriptorSet descriptorSet{};
-        mContext.allocateDesciptorSet(descriptorSet, descriptorSetLayout);
+        VkDescriptorSet descriptorSet;
+        mContext.allocateDescriptorSet(&descriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, Buffer*> bindingBufferMap;
-        bindingBufferMap[0] = &mMaterialRecordsBuffer;
+        std::vector<Buffer*> bindingBuffers = { &mMaterialRecordsBuffer };
 
-        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBufferMap, bindings);
+        mContext.writeDescriptorSetBuffers(descriptorSet, bindingBuffers, bindings);
         mContext.writeDescriptorSetImages(descriptorSet, 1, mTextures,
                                           mSampler);  // write all textures
 
@@ -369,50 +329,40 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 4: RT
     {
-        DescriptorSetLayout descriptorSetLayout{};
+        DescriptorSetLayout descriptorSetLayout;
 
-        // acceleration structure
-        std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding b0{
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            .pImmutableSamplers = nullptr
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            // acceleration structures
+            { .binding = 0,
+              .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr },
+            // result image
+            { .binding = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr },
+            // accumulation image
+            { .binding = 2,
+              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+              .descriptorCount = 1,
+              .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+              .pImmutableSamplers = nullptr }
         };
 
-        // result image
-        VkDescriptorSetLayoutBinding b1{ .binding = 1,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        // accumulation image
-        VkDescriptorSetLayoutBinding b2{ .binding = 2,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                         .descriptorCount = 1,
-                                         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                                                       | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                                         .pImmutableSamplers = nullptr };
-
-        bindings[0] = b0;
-        bindings[1] = b1;
-        bindings[2] = b2;
-
-        mContext.createDescriptorSetLayout(descriptorSetLayout, bindings);
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
 
         // allocate descriptors
-        mContext.allocateDesciptorSet(mContext.rtDescriptorSet, descriptorSetLayout);
+        mContext.allocateDescriptorSet(&mContext.rtDescriptorSet, descriptorSetLayout);
 
         // create descriptor set
-        std::unordered_map<uint32_t, AccelerationStructure*> bindingASMap;
-        bindingASMap[0] = &mTlas;
+        std::vector<AccelerationStructure*> bindingAccelStructs = { &mTlas };
 
-        mContext.writeDescriptorSetAccelerationStructures(mContext.rtDescriptorSet, bindingASMap,
-                                                          bindings);
+        mContext.writeDescriptorSetAccelerationStructures(mContext.rtDescriptorSet,
+                                                          bindingAccelStructs, bindings);
 
         std::vector<Image> resultImages{ mContext.resultImage, mContext.accumulationImage };
         mContext.writeDescriptorSetImages(mContext.rtDescriptorSet, 1, resultImages, mSampler,
@@ -423,164 +373,6 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     }
 
     createRTPipeline();
-}
-
-void App::createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format)
-{
-    // shader creation
-    VkShaderModule coreVertModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_VERT));
-    VkShaderModule coreFragModule = mContext.createShaderModule(readFile(NPTRACER_SHADER_CORE_FRAG));
-
-    VkPipelineShaderStageCreateInfo vInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = coreVertModule,
-        .pName = "vertMain"
-    };
-
-    VkPipelineShaderStageCreateInfo fInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = coreFragModule,
-        .pName = "fragMain"
-    };
-
-    VkPipelineShaderStageCreateInfo shaderStages[] = { vInfo, fInfo };
-
-    // viewport
-    std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT,
-                                                  VK_DYNAMIC_STATE_SCISSOR };
-
-    VkPipelineDynamicStateCreateInfo dynamicInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
-        .pDynamicStates = dynamicStates.data()
-    };
-
-    VkPipelineVertexInputStateCreateInfo vertexInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = nullptr,
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = nullptr
-    };
-
-    VkPipelineInputAssemblyStateCreateInfo inputInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-    };
-
-    VkViewport viewport{ 0.0f, 0.0f, 0, 0, 0.0f, 1.0f };
-    viewport.width = width;
-    viewport.height = height;
-
-    VkExtent2D extent{ .width = width, .height = height };
-    VkRect2D rect{ VkOffset2D{ 0, 0 }, extent };
-
-    VkPipelineViewportStateCreateInfo viewportState{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .pViewports = nullptr,
-        .scissorCount = 1,
-        .pScissors = nullptr
-    };
-
-    // rasterizer
-    VkPipelineRasterizationStateCreateInfo rasterInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .depthBiasSlopeFactor = 1.0f,
-        .lineWidth = 1.0f
-    };
-
-    VkPipelineMultisampleStateCreateInfo multisampling{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable = VK_FALSE
-    };
-
-    // color blending
-    VkPipelineColorBlendAttachmentState blendInfo{ .blendEnable = VK_FALSE,
-                                                   .colorWriteMask = VK_COLOR_COMPONENT_R_BIT
-                                                                     | VK_COLOR_COMPONENT_G_BIT
-                                                                     | VK_COLOR_COMPONENT_B_BIT
-                                                                     | VK_COLOR_COMPONENT_A_BIT };
-
-    VkPipelineColorBlendStateCreateInfo blendStateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments = &blendInfo
-    };
-
-    // depth testing
-    VkPipelineDepthStencilStateCreateInfo depthInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE
-    };
-
-    // pipeline layout
-    std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
-    vkDescriptorSetLayouts.reserve(mDescriptorSetLayouts.size());
-    for (auto& descriptorSetLayout : mDescriptorSetLayouts)
-    {
-        vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
-    }
-
-    VkPushConstantRange pushConstantRange{ .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
-                                           .offset = 0,
-                                           .size = static_cast<uint32_t>(kPushConstantCount)
-                                                   * sizeof(uint32_t) };
-
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = static_cast<uint32_t>(mDescriptorSetLayouts.size()),
-        .pSetLayouts = vkDescriptorSetLayouts.data(),
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstantRange
-    };
-
-    vkCreatePipelineLayout(mContext.device, &pipelineLayoutInfo, nullptr, &mRasterPipeline.layout);
-
-    VkPipelineRenderingCreateInfo renderingInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &format,
-        .depthAttachmentFormat = mContext.depthFormat
-    };
-
-    VkGraphicsPipelineCreateInfo pipelineInfo{
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = &renderingInfo,
-        .stageCount = 2,
-        .pStages = shaderStages,
-        .pVertexInputState = &vertexInfo,
-        .pInputAssemblyState = &inputInfo,
-        .pViewportState = &viewportState,
-        .pRasterizationState = &rasterInfo,
-        .pMultisampleState = &multisampling,
-        .pDepthStencilState = &depthInfo,
-        .pColorBlendState = &blendStateInfo,
-        .pDynamicState = &dynamicInfo,
-        .layout = mRasterPipeline.layout,
-        .renderPass = nullptr
-    };
-
-    VK_CHECK(vkCreateGraphicsPipelines(mContext.device, nullptr, 1, &pipelineInfo, nullptr,
-                                       &mRasterPipeline.pipeline),
-             "failed to create graphics pipeline");
-
-    vkDestroyShaderModule(mContext.device, coreVertModule, nullptr);
-    vkDestroyShaderModule(mContext.device, coreFragModule, nullptr);
 }
 
 void App::createRTPipeline()
@@ -832,19 +624,19 @@ void App::createRTPipeline()
     vkDestroyShaderModule(mContext.device, shadowMissModule, nullptr);
 }
 
-void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                       std::vector<FLOAT4x4>& transforms,
+void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
+                                       const std::vector<FLOAT4x4>& transforms,
                                        VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
 {
-    VkCommandBuffer commandBuffer{};
-    mContext.createCommandBuffer(commandBuffer, QueueType::GRAPHICS);
-    mContext.beginCommandBuffer(commandBuffer);
+    VkCommandBuffer commandBuffer;
+    mContext.createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    mContext.sBeginCommandBuffer(commandBuffer);
 
     for (auto& mesh : meshes)
     {
-        AccelerationStructure blas{};
+        AccelerationStructure blas;
 
-        mContext.createBottomLevelAccelerationStructure(commandBuffer, blas, vertexAddress,
+        mContext.createBottomLevelAccelerationStructure(&blas, commandBuffer, vertexAddress,
                                                         indexAddress, mesh.vertexOffset,
                                                         mesh.vertexCount, mesh.indexOffset,
                                                         mesh.indexCount);
@@ -852,46 +644,59 @@ void App::createAccelerationStructures(std::vector<MeshRecord>& meshes,
     }
 
     // barrier
-    VkMemoryBarrier2 barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
-    barrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR
-                           | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
-    barrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR
-                            | VK_ACCESS_2_SHADER_READ_BIT;
+    VkMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+        .srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+        .dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR
+                        | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+        .dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR
+                         | VK_ACCESS_2_SHADER_READ_BIT
+    };
 
-    VkDependencyInfo depInfo{};
-    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    depInfo.memoryBarrierCount = 1;
-    depInfo.pMemoryBarriers = &barrier;
+    const VkDependencyInfo depInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                    .memoryBarrierCount = 1,
+                                    .pMemoryBarriers = &barrier };
 
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
+    // submit blas work before tlas queries device address
+    VkFenceCreateInfo fenceInfo{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = 0 };
+
+    VkFence fence;
+    vkCreateFence(mContext.device, &fenceInfo, nullptr, &fence);
+    mContext.submitCommandBuffer(commandBuffer, QueueType::GRAPHICS, 0, fence);
+
+    vkWaitForFences(mContext.device, 1, &fence, VK_TRUE, UINT64_MAX);
+
+    vkResetCommandBuffer(commandBuffer, 0);
+    mContext.sBeginCommandBuffer(commandBuffer);
+
     for (auto& blas : mBlasses)
     {
-        VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{};
-        deviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        deviceAddressInfo.accelerationStructure = blas.accelerationStructure;
+        VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{
+            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+            .accelerationStructure = blas.accelerationStructure
+        };
 
         blas.deviceAddress = mContext.vkGetAccelerationStructureDeviceAddressKHR(mContext.device,
                                                                                  &deviceAddressInfo);
     }
 
     // top level
-    Buffer instanceBufferHandle{};
-    mContext.createTopLevelAccelerationStructure(commandBuffer, mTlas, instanceBufferHandle,
+    Buffer instanceBufferHandle;
+    mContext.createTopLevelAccelerationStructure(&mTlas, &instanceBufferHandle, commandBuffer,
                                                  transforms, mBlasses);
 
     // barrier
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
-    mContext.endCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    mContext.submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
 
     instanceBufferHandle.destroy(mContext.allocator);
 }
 
-void App::executeDrawCall(RendererAovs& aovs)
+void App::executeDrawCall(const RendererAovs& aovs)
 {
     DEV_ASSERT(aovs.color, "aovs not created properly");
     Image* colorAov = aovs.color;
@@ -902,7 +707,6 @@ void App::executeDrawCall(RendererAovs& aovs)
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
     VkExtent2D extent = { colorAov->width, colorAov->height };
     populateDrawCallRT(frame.commandBuffer, colorAov->image, extent,
                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -910,10 +714,9 @@ void App::executeDrawCall(RendererAovs& aovs)
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
+    VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers = &frame.commandBuffer };
 
     VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
@@ -943,39 +746,42 @@ void App::executeDrawCallSwapchain()
         return;
     }
 
-    // populateDrawCallRaster(frame.commandBuffer, imageIndex); // TODO: make raster vs rt a render setting
     populateDrawCallRT(frame.commandBuffer, mContext.swapchainImages[imageIndex],
                        mContext.swapchainParams.extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
 
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores
-        = &frame.donePresentingSemaphore;  // wait until image is no longer being presented
-    submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &frame.commandBuffer;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores
-        = &mContext.doneRenderingSemaphores[imageIndex];  // signal when rendering finishes
+    VkSubmitInfo submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores
+        = &frame.donePresentingSemaphore,  // wait until image is no longer being presented
+        .pWaitDstStageMask = &waitDestinationStageMask,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &frame.commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores
+        = &mContext.doneRenderingSemaphores[imageIndex]  // signal when rendering finishes
+    };
 
     VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
              "vk queue submit failed");
 
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores
-        = &mContext.doneRenderingSemaphores[imageIndex];  // present after rendering finishes
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &mContext.swapchain;
-    presentInfo.pImageIndices = &imageIndex;
+    mContext.waitIdle();
+
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores
+        = &mContext.doneRenderingSemaphores[imageIndex],  // present after rendering finishes
+        .swapchainCount = 1,
+        .pSwapchains = &mContext.swapchain,
+        .pImageIndices = &imageIndex,
+    };
 
     VkResult result = vkQueuePresentKHR(mContext.queues[QueueType::GRAPHICS].queue, &presentInfo);
     if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -990,107 +796,11 @@ void App::executeDrawCallSwapchain()
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
-void App::populateDrawCallRaster(Frame& frame, uint32_t imageIndex)
-{
-    vkResetCommandBuffer(frame.commandBuffer, 0);
-    mContext.beginCommandBuffer(frame.commandBuffer);
-
-    mContext.transitionImageLayout(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-    VkClearValue clearColor{ { { 0.0f, 0.0f, 0.0f, 1.0f } } };
-    VkClearValue clearDepth{ { 1.0f, 0 } };
-
-    VkRenderingAttachmentInfo colorAttachmentInfo{};
-    colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachmentInfo.imageView = mContext.swapchainImageViews[imageIndex];
-    colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentInfo.clearValue = clearColor;
-
-    VkRenderingAttachmentInfo depthAttachmentInfo{};
-    depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depthAttachmentInfo.imageView = mContext.depthImage.view;
-    depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachmentInfo.clearValue = clearDepth;
-
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-
-    renderingInfo.renderArea.offset.x = 0;
-    renderingInfo.renderArea.offset.y = 0;
-    renderingInfo.renderArea.extent = mContext.swapchainParams.extent;
-
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &colorAttachmentInfo;
-    renderingInfo.pDepthAttachment = &depthAttachmentInfo;
-
-    // record commands
-    vkCmdBeginRendering(frame.commandBuffer, &renderingInfo);
-    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      mRasterPipeline.pipeline);
-
-    VkViewport viewport{ 0.0f,
-                         0.0f,
-                         static_cast<float>(mContext.swapchainParams.extent.width),
-                         static_cast<float>(mContext.swapchainParams.extent.height),
-                         0.0f,
-                         1.0f };
-
-    VkRect2D scissor{ { 0, 0 }, mContext.swapchainParams.extent };
-
-    vkCmdSetViewport(frame.commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
-
-    VkDeviceSize offset = 0;
-    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            mRasterPipeline.layout, 0,
-                            static_cast<uint32_t>(mDescriptorSets.size()), mDescriptorSets.data(),
-                            0, nullptr);
-
-    for (size_t i = 0; i < mIndexCounts.size(); i++)
-    {
-        std::array<uint32_t, kPushConstantCount> pushConstants{ static_cast<uint32_t>(i),
-                                                                mNumLights, mContext.frameIndex };
-        vkCmdPushConstants(frame.commandBuffer, mRasterPipeline.layout,
-                           VK_SHADER_STAGE_ALL_GRAPHICS, 0,
-                           sizeof(uint32_t) * static_cast<uint32_t>(kPushConstantCount),
-                           pushConstants.data());
-        vkCmdDraw(frame.commandBuffer, mIndexCounts[i], 1, 0, static_cast<uint32_t>(i));
-    }
-
-    vkCmdEndRendering(frame.commandBuffer);
-
-    mContext.transitionImageLayout(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
-
-    // signal that fence is ready to be associated with a new queue submission
-    vkResetFences(mContext.device, 1, &frame.doneExecutingFence);
-
-    VkPipelineStageFlags waitDestinationStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-    mContext.endCommandBuffer(frame.commandBuffer, QueueType::GRAPHICS, waitDestinationStageMask,
-                              frame.doneExecutingFence, frame.donePresentingSemaphore,
-                              mContext.doneRenderingSemaphores[imageIndex]);
-}
-
-void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
-                             VkImageLayout dstImageLayout)
+void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage colorAov,
+                             const VkExtent2D& extent, VkImageLayout dstImageLayout) const
 {
     vkResetCommandBuffer(commandBuffer, 0);
-    mContext.beginCommandBuffer(commandBuffer);
+    mContext.sBeginCommandBuffer(commandBuffer);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mRtPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
@@ -1107,24 +817,25 @@ void App::populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, V
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
                                extent.width, extent.height, 1);
 
-    mContext.transitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                                   VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+    mContext.sTransitionImageLayout(commandBuffer, colorAov,
+                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    VkImageCopy region{};
-    region.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.extent = { extent.width, extent.height, 1 };
+    VkImageCopy region{ .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+                        .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+                        .extent = { extent.width, extent.height, 1 } };
 
     vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, colorAov,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.transitionImageLayout(commandBuffer, colorAov, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   dstImageLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                   VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+    mContext.sTransitionImageLayout(commandBuffer, colorAov,
+                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, dstImageLayout);
 
     vkEndCommandBuffer(commandBuffer);
 }
@@ -1203,14 +914,14 @@ void App::destroy()
             mContext.vkDestroyAccelerationStructureKHR(mContext.device, blas.accelerationStructure,
                                                        nullptr);
         }
-        blas.destroyBuffers(mContext.device, mContext.allocator);
+        blas.destroyBuffers(mContext.allocator);
     }
 
     if (mTlas.accelerationStructure != VK_NULL_HANDLE)
     {
         mContext.vkDestroyAccelerationStructureKHR(mContext.device, mTlas.accelerationStructure,
                                                    nullptr);
-        mTlas.destroyBuffers(mContext.device, mContext.allocator);
+        mTlas.destroyBuffers(mContext.allocator);
     }
 
     // PIPELINES
@@ -1234,7 +945,7 @@ void App::destroy()
     }
 }
 
-void App::loadSceneFromPath(const char* path)
+void App::loadSceneFromPath(const char* path) const
 {
     mpScene->loadSceneFromPath(path);
 }

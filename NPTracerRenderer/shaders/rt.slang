@@ -1,5 +1,6 @@
 [require(spirv_1_5)]
 [require(SPV_EXT_physical_storage_buffer)]
+[require(SPV_EXT_descriptor_indexing)]
 [require(spvShaderNonUniformEXT)]
 
 /*
@@ -12,6 +13,8 @@ import structs;
 import utils;
 import stylizations;
 import interactions;
+
+static const uint32_t UINT32_MAX = 0xFFFFFFFF;
 
 static const uint32_t kSampleCount = 5;
 static const uint32_t kMaxBounces = 5;
@@ -58,7 +61,7 @@ RWTexture2D<float4> accumulationImage;
 float3 generateCameraRayDir(float2 uv)
 {
     // map vulkan top-left UV origin convention to NDC space (-1, -1)
-    float clipX = uv.x * 2.0 - 1.0; // i.e. 0 to -1, 1 to 1
+    float clipX = uv.x * 2.0 - 1.0; // i.e. 0 to 1, -1 to 1
     float clipY = uv.y * -2.0 + 1.0; // i.e. 0 to 1, 1 to -1
     float4 target = mul(camera.invProj, float4(clipX, clipY, 1.0, 1.0)); // in homogeneous view space
     target /= target.w;
@@ -360,16 +363,16 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     
     float3 baseColor = material.diffuse.rgb;
     
-    if (material.diffuseTextureIndex != 0xFFFFFFFF)
+    if (material.diffuseTextureIndex != UINT32_MAX)
     {
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
-        
+
         payload.style = 1;
     }
     
-    if (material.normalTextureIndex != 0xFFFFFFFF)
+    if (material.normalTextureIndex != UINT32_MAX)
     {
         Sampler2D texture = textures[material.normalTextureIndex];
         float3 texel = texture.SampleLevel(uv, 0.0).rgb;

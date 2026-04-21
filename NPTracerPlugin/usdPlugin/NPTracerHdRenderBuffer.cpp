@@ -58,12 +58,12 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     PREPARE_UNIQUE_PTR(_pImage, np::Image,
                        [this]() { _pImage->destroy(_pCtx->device, _pCtx->allocator); });
-    _pCtx->createImage(*_pImage, VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
+    _pCtx->createImage(_pImage.get(), VK_IMAGE_TYPE_2D, vkFormat, dimensions[0], dimensions[1],
                        _aovTokens.imageUsage, 0, _aovTokens.imageAspect, true);
 
     VkCommandBuffer commandBuffer;
-    _pCtx->createCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
-    _pCtx->beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    _pCtx->createCommandBuffer(&commandBuffer, np::QueueType::GRAPHICS);
+    _pCtx->sBeginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     // transition into transfer src optimal for renderer
     // TEMP: set all access and stage for ease-of-use
@@ -73,7 +73,7 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
 
-    _pCtx->endCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
+    _pCtx->submitCommandBuffer(commandBuffer, np::QueueType::GRAPHICS);
 
     // TEMP: cannot submit depth work to `TRANSFER` family
     vkQueueWaitIdle(_pCtx->queues[np::QueueType::GRAPHICS].queue);
@@ -140,14 +140,14 @@ void* NPTracerHdRenderBuffer::Map()
 
     if (_transferCmdBuffer != VK_NULL_HANDLE) vkResetCommandBuffer(_transferCmdBuffer, 0);
 
-    _pCtx->createCommandBuffer(_transferCmdBuffer, np::QueueType::GRAPHICS);
-    _pCtx->beginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    _pCtx->createCommandBuffer(&_transferCmdBuffer, np::QueueType::GRAPHICS);
+    _pCtx->sBeginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    _pCtx->copyImageToBuffer(_transferCmdBuffer, *_pImage, *_pStagingBuffer,
-                             static_cast<uint32_t>(_dimensions[0]),
-                             static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
+    _pCtx->sCopyImageToBuffer(_pStagingBuffer.get(), *_pImage, _transferCmdBuffer,
+                              static_cast<uint32_t>(_dimensions[0]),
+                              static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
 
-    _pCtx->endCommandBuffer(_transferCmdBuffer, np::QueueType::GRAPHICS);
+    _pCtx->submitCommandBuffer(_transferCmdBuffer, np::QueueType::GRAPHICS);
     vkQueueWaitIdle(_pCtx->queues[np::QueueType::GRAPHICS].queue);
 
     return _pStagingBuffer->allocInfo.pMappedData;  // zero-copy op

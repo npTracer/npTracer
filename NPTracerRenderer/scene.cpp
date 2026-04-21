@@ -43,6 +43,38 @@ void Scene::guard()
 
 void Scene::finalize()
 {
+    if constexpr (gDEBUG)
+    {
+        constexpr char kDEFAULT_MAT_SCENE_PATH[] = "defaultMat";
+
+        // TEMP: add a default light to the scene if none exist to prevent crashes
+        if (_lights.empty())
+        {
+            makePrim<Light>();  // NOTE: instantiated with default values
+        }
+
+        // TEMP: add a default material to the scene if none exist to prevent crashes
+        if (_materials.empty())
+        {
+            auto* material = makePrim<Material>();
+            material->diffuse = FLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
+            material->scenePath = kDEFAULT_MAT_SCENE_PATH;
+        }
+
+        // TEMP: add a default mesh (single triangle) to the scene if none exist to prevent crashes
+        if (_meshes.empty())
+        {
+            auto* mesh = makePrim<Mesh>();
+            mesh->vertices = {
+                { { 0.0f, -0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 1, 0, 0, 1 }, { 0, 0 } },
+                { { 0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 0, 1, 0, 1 }, { 1, 0 } },
+                { { -0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 }, { 0, 1 } },
+            };
+            mesh->indices = { 0, 1, 2 };
+            mesh->_materialScenePath = kDEFAULT_MAT_SCENE_PATH;
+        }
+    }
+
     // traverse meshes and check if they need to be 'linked' with their material
     for (size_t i = 0; i < _meshes.size(); i++)
     {
@@ -54,24 +86,6 @@ void Scene::finalize()
         if (foundMat == std::end(_materials)) continue;
         mesh->materialIndex = std::distance(_materials.begin(), foundMat);
         mesh->bMaterialNeedsFinalization = false;
-    }
-
-    // TEMP: add a default light to the scene if none exist (when debugging)
-    if (gDEBUG && _lights.empty())
-    {
-        auto* light = makePrim<Light>();  // NOTE: instantiated with default values
-    }
-
-    // TEMP: add a default mesh (single triangle) to the scene if none exist to prevent crashes
-    if (gDEBUG && _meshes.empty())
-    {
-        auto* mesh = makePrim<Mesh>();
-        mesh->vertices = {
-            { { 0.0f, -0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 1, 0, 0, 1 }, { 0, 0 } },
-            { { 0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 0, 1, 0, 1 }, { 1, 0 } },
-            { { -0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 }, { 0, 1 } },
-        };
-        mesh->indices = { 0, 1, 2 };
     }
 }
 

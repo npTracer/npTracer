@@ -1,5 +1,10 @@
 # NPTracer - **_Non-Photorealistic Pathtracing_** in Houdini
 
+![Sponza scene with contour stylization](docs/assets/3.png)
+![Dragon with greyscale stylization](docs/assets/2.png)
+
+---
+
 ![sponza in houdini](docs/assets/sponza_in_houdini.png)
 
 ## Build Instructions
@@ -62,3 +67,4 @@ cmake -B path/to/project/build/directory -S path/to/project/source/directory/con
 This variable will be cached in CMake so it does not have to be set on every build. It _does_ have to be set again after an action such as deleting your build folder.
 
 ![sponza in usdview](docs/assets/sponza_in_usdview.png)
+![dragon](docs/assets/1.png)

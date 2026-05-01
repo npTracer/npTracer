@@ -7,8 +7,7 @@
     do                                                                                             \
     {                                                                                              \
         if (_ptr == nullptr) { _ptr = std::make_unique<_ptrType>(); }                              \
-        else                                                                                       \
-        {                                                                                          \
+        else {                                                                                     \
             _destroyer();                                                                          \
             _ptr.reset();                                                                          \
             _ptr = std::make_unique<_ptrType>();                                                   \
@@ -54,15 +53,14 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     VkCommandBuffer commandBuffer;
     _pCtx->createCommandBuffer(&commandBuffer, np::eQueueType::GRAPHICS);
-    _pCtx->sBeginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    np::Context::sBeginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     // transition into transfer src optimal for renderer
     // TEMP: set all access and stage for ease-of-use
     _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0,
                               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT
                                   | VK_ACCESS_2_SHADER_WRITE_BIT,
-                              VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                              VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
+                              VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     _pCtx->submitCommandBuffer(commandBuffer, np::eQueueType::GRAPHICS);
 
@@ -118,11 +116,12 @@ void* NPTracerHdRenderBuffer::Map()
     if (_transferCmdBuffer != VK_NULL_HANDLE) vkResetCommandBuffer(_transferCmdBuffer, 0);
 
     _pCtx->createCommandBuffer(&_transferCmdBuffer, np::eQueueType::GRAPHICS);
-    _pCtx->sBeginCommandBuffer(_transferCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    np::Context::sBeginCommandBuffer(_transferCmdBuffer,
+                                     VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    _pCtx->sCopyImageToBuffer(_pStagingBuffer.get(), *_pImage, _transferCmdBuffer,
-                              static_cast<uint32_t>(_dimensions[0]),
-                              static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
+    np::Context::sCopyImageToBuffer(_pStagingBuffer.get(), *_pImage, _transferCmdBuffer,
+                                    static_cast<uint32_t>(_dimensions[0]),
+                                    static_cast<uint32_t>(_dimensions[1]), _aovTokens.imageAspect);
 
     _pCtx->submitCommandBuffer(_transferCmdBuffer, np::eQueueType::GRAPHICS);
     vkQueueWaitIdle(_pCtx->queues[np::eQueueType::GRAPHICS].queue);

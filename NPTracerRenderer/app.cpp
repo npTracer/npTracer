@@ -55,8 +55,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
             mContext.createResultImages(mContext.swapchainParams.extent.width,
                                         mContext.swapchainParams.extent.height);
         }
-        else
-        {
+        else {
             RendererTargets& targets = targetsRef.value();
             mContext.createResultImages(targets.color->width, targets.color->height);
         }
@@ -180,7 +179,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
 
     // SET 0: Mesh Records
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // mesh record buffer
@@ -223,7 +222,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
 
     // SET 1 : LIGHTS
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             { .binding = 0,
@@ -254,7 +253,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
 
     // SET 2: CAMERA
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings{
             { .binding = 0,
@@ -281,9 +280,9 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
     }
 
     // SET 3: MATERIALS AND TEXTURES
-    // TODO: separate these as they are not guarantted to be updated synchronously
+    // TODO: separate these as they are not guaranteed to be updated synchronously
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // materials
@@ -319,7 +318,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
 
     // SET 4: RT
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // acceleration structures
@@ -616,7 +615,7 @@ void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
 {
     VkCommandBuffer commandBuffer;
     mContext.createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
-    mContext.sBeginCommandBuffer(commandBuffer);
+    Context::sBeginCommandBuffer(commandBuffer);
 
     for (auto& mesh : meshes)
     {
@@ -654,9 +653,10 @@ void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
     mContext.submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS, 0, fence);
 
     vkWaitForFences(mContext.device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkDestroyFence(mContext.device, fence, nullptr);
 
     vkResetCommandBuffer(commandBuffer, 0);
-    mContext.sBeginCommandBuffer(commandBuffer);
+    Context::sBeginCommandBuffer(commandBuffer);
 
     for (auto& blas : mBlasses)
     {
@@ -694,8 +694,8 @@ void App::executeDrawCall(const RendererTargets& targets)
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
     VkExtent2D extent = { color->width, color->height };
-    populateDrawCallRT(frame.commandBuffer, color->image, extent,
-                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    populateDrawCallRT(frame.commandBuffer, color->image, extent, VK_PIPELINE_STAGE_2_COPY_BIT,
+                       VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -733,7 +733,8 @@ void App::executeDrawCallSwapchain()
     }
 
     populateDrawCallRT(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                       mContext.swapchainParams.extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+                       mContext.swapchainParams.extent, VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE,
+                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -782,11 +783,12 @@ void App::executeDrawCallSwapchain()
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
-void App::populateDrawCallRT(const VkCommandBuffer commandBuffer, VkImage color,
-                             const VkExtent2D& extent, VkImageLayout dstImageLayout) const
+void App::populateDrawCallRT(VkCommandBuffer commandBuffer, VkImage color, const VkExtent2D& extent,
+                             VkPipelineStageFlags2 dstImagePipelineStageMask,
+                             VkAccessFlags2 dstImageAccessMask, VkImageLayout dstImageLayout) const
 {
     vkResetCommandBuffer(commandBuffer, 0);
-    mContext.sBeginCommandBuffer(commandBuffer);
+    Context::sBeginCommandBuffer(commandBuffer);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mRtPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
@@ -802,7 +804,7 @@ void App::populateDrawCallRT(const VkCommandBuffer commandBuffer, VkImage color,
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
                                extent.width, extent.height, 1);
 
-    mContext.sTransitionImageLayout(commandBuffer, color, VK_PIPELINE_STAGE_2_NONE, 0,
+    Context::sTransitionImageLayout(commandBuffer, color, VK_PIPELINE_STAGE_2_NONE, 0,
                                     VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
                                     VK_IMAGE_LAYOUT_UNDEFINED,
                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -814,9 +816,10 @@ void App::populateDrawCallRT(const VkCommandBuffer commandBuffer, VkImage color,
     vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, color,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.sTransitionImageLayout(commandBuffer, color, VK_PIPELINE_STAGE_2_COPY_BIT,
-                                    VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, 0,
-                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, dstImageLayout);
+    Context::sTransitionImageLayout(commandBuffer, color, VK_PIPELINE_STAGE_2_COPY_BIT,
+                                    VK_ACCESS_2_TRANSFER_WRITE_BIT, dstImagePipelineStageMask,
+                                    dstImageAccessMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                    dstImageLayout);
 
     vkEndCommandBuffer(commandBuffer);
 }

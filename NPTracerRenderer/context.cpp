@@ -139,8 +139,7 @@ void Context::createLogicalDeviceAndQueues()
     for (auto it = queues.begin(); it != queues.end();)
     {
         if (!it->second) it = queues.erase(it);  // should not occur, but for completion's sake
-        else
-        {
+        else {
             queueFamilyIndicesSet.insert(it->second.index.value());
             ++it;
         }
@@ -371,8 +370,7 @@ void Context::createSwapchain(GLFWwindow* window)
     {
         extent = surfaceCapabilities.currentExtent;
     }
-    else
-    {
+    else {
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
 
@@ -832,14 +830,14 @@ void Context::sCopyImageToBuffer(const Buffer* pOutDstHandle, const Image& src,
 void Context::sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                      VkPipelineStageFlags2 srcStageMask,
                                      VkAccessFlags2 srcAccessMask,
-                                     VkPipelineStageFlags2 dstStageMask,
+                                     VkPipelineStageFlags2 dstPipelineStageMask,
                                      VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
                                      VkImageLayout newLayout, VkImageAspectFlags aspectFlags)
 {
     VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                    .srcStageMask = srcStageMask,
                                    .srcAccessMask = srcAccessMask,
-                                   .dstStageMask = dstStageMask,
+                                   .dstStageMask = dstPipelineStageMask,
                                    .dstAccessMask = dstAccessMask,
                                    .oldLayout = oldLayout,
                                    .newLayout = newLayout,

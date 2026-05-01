@@ -97,7 +97,7 @@ public:
     static void sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                        VkPipelineStageFlags2 srcStageMask,
                                        VkAccessFlags2 srcAccessMask,
-                                       VkPipelineStageFlags2 dstStageMask,
+                                       VkPipelineStageFlags2 dstPipelineStageMask,
                                        VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
                                        VkImageLayout newLayout,
                                        VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);

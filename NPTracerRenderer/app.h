@@ -78,7 +78,8 @@ private:
 
     // render commands recording
     void populateDrawCallRT(VkCommandBuffer commandBuffer, VkImage color, const VkExtent2D& extent,
-                            VkImageLayout dstImageLayout) const;
+                            VkPipelineStageFlags2 dstImagePipelineStageMask,
+                            VkAccessFlags2 dstImageAccessMask, VkImageLayout dstImageLayout) const;
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

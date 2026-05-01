@@ -21,9 +21,7 @@ public:
     virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
 
     inline virtual eSceneType getSceneType()
-    {
-        return eSceneType::DEFAULT;
-    }
+    { return eSceneType::DEFAULT; }
 
     template<ScenePrim T>
     T* makePrim();
@@ -38,9 +36,7 @@ public:
     T* getPrimAtIndex(size_t idx);
 
     inline Camera* getCamera()
-    {
-        return &_camera;
-    }
+    { return &_camera; }
 
     void guard();
     void finalize();

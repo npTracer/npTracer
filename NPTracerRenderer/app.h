@@ -11,14 +11,10 @@ class App
 {
 public:
     Context* getContext()
-    {
-        return &mContext;
-    }
+    { return &mContext; }
 
     Scene* getScene() const
-    {
-        return mpScene.get();
-    }
+    { return mpScene.get(); }
 
     // public interface
 
@@ -56,7 +52,6 @@ private:
 
     uint32_t mCurrentFrameInFlight = 0u;
     uint32_t mNumLights = 0;
-    std::vector<uint32_t> mIndexCounts;
 
     // SET 0: MESHES
     Buffer mMeshRecordBuffer;

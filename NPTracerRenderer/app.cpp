@@ -84,12 +84,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());
         for (uint32_t idx : mesh->indices)
-        {
             globalIndices.push_back(idx + meshRecord.vertexOffset);
-        }
-
-        // temp
-        mIndexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
 
         // transforms
         globalTransforms.push_back(mesh->transform);
@@ -381,9 +376,7 @@ void App::createRTPipeline()
     std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
     vkDescriptorSetLayouts.reserve(mDescriptorSetLayouts.size());
     for (auto& descriptorSetLayout : mDescriptorSetLayouts)
-    {
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
-    }
 
     VkPushConstantRange pushConstantRange{
         .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
@@ -851,58 +844,33 @@ void App::destroy()
     mContext.waitIdle();
 
     for (auto& descriptorSetLayout : mDescriptorSetLayouts)
-    {
         descriptorSetLayout.destroy(mContext.device);
-    }
 
-    if (mSampler != VK_NULL_HANDLE)
-    {
-        vkDestroySampler(mContext.device, mSampler, nullptr);
-    }
+    if (mSampler != VK_NULL_HANDLE) vkDestroySampler(mContext.device, mSampler, nullptr);
 
     // SET 0 : MESHES
-    if (mMeshRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mMeshRecordBuffer.destroy(mContext.allocator);
-    }
+    if (mMeshRecordBuffer.buffer != VK_NULL_HANDLE) mMeshRecordBuffer.destroy(mContext.allocator);
 
-    if (mVertexBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mVertexBuffer.destroy(mContext.allocator);
-    }
+    if (mVertexBuffer.buffer != VK_NULL_HANDLE) mVertexBuffer.destroy(mContext.allocator);
 
-    if (mIndexBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mIndexBuffer.destroy(mContext.allocator);
-    }
+    if (mIndexBuffer.buffer != VK_NULL_HANDLE) mIndexBuffer.destroy(mContext.allocator);
 
     if (mMeshTransformsBuffer.buffer != VK_NULL_HANDLE)
-    {
         mMeshTransformsBuffer.destroy(mContext.allocator);
-    }
 
     // SET 1: LIGHTS
-    if (mLightRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mLightRecordBuffer.destroy(mContext.allocator);
-    }
+    if (mLightRecordBuffer.buffer != VK_NULL_HANDLE) mLightRecordBuffer.destroy(mContext.allocator);
 
     // SET 2: CAMERA
     if (mCameraRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
         mCameraRecordBuffer.destroy(mContext.allocator);
-    }
 
     // SET 3: MATERIAL AND TEXTURES
     if (mMaterialRecordsBuffer.buffer != VK_NULL_HANDLE)
-    {
         mMaterialRecordsBuffer.destroy(mContext.allocator);
-    }
 
     for (auto& texture : mTextures)
-    {
         texture.destroy(mContext.device, mContext.allocator);
-    }
 
     // SET 4: RT
     mSbt.destroy(mContext.allocator);
@@ -925,15 +893,9 @@ void App::destroy()
     }
 
     // PIPELINES
-    if (mRasterPipeline.pipeline != VK_NULL_HANDLE)
-    {
-        mRasterPipeline.destroy(mContext.device);
-    }
+    if (mRasterPipeline.pipeline != VK_NULL_HANDLE) mRasterPipeline.destroy(mContext.device);
 
-    if (mRtPipeline.pipeline != VK_NULL_HANDLE)
-    {
-        mRtPipeline.destroy(mContext.device);
-    }
+    if (mRtPipeline.pipeline != VK_NULL_HANDLE) mRtPipeline.destroy(mContext.device);
 
     mContext.destroy();
 
@@ -946,9 +908,7 @@ void App::destroy()
 }
 
 void App::loadSceneFromPath(const char* path) const
-{
-    mpScene->loadSceneFromPath(path);
-}
+{ mpScene->loadSceneFromPath(path); }
 
 void App::render()
 {

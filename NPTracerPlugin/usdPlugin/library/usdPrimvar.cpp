@@ -12,19 +12,13 @@ extern const std::array<TfToken, 3> gUVTokensArray = {
 };
 
 bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == HdTokens->points || desc.role == HdPrimvarRoleTokens->point;
-}
+{ return desc.name == HdTokens->points || desc.role == HdPrimvarRoleTokens->point; }
 
 bool IsNormalPrimvarDesc(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == HdTokens->normals || desc.role == HdPrimvarRoleTokens->normal;
-}
+{ return desc.name == HdTokens->normals || desc.role == HdPrimvarRoleTokens->normal; }
 
 bool IsColorPrimvarDesc(const HdPrimvarDescriptor& desc)
-{
-    return desc.name == HdTokens->displayColor || desc.role == HdPrimvarRoleTokens->color;
-}
+{ return desc.name == HdTokens->displayColor || desc.role == HdPrimvarRoleTokens->color; }
 
 bool IsUVPrimvarDesc(const HdPrimvarDescriptor& desc)
 {
@@ -33,19 +27,13 @@ bool IsUVPrimvarDesc(const HdPrimvarDescriptor& desc)
 }
 
 bool IsPositionPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
-{
-    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points);
-}
+{ return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points); }
 
 bool IsNormalPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
-{
-    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points);
-}
+{ return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points); }
 
 bool IsColorPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
-{
-    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals);
-}
+{ return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals); }
 
 bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
 {
@@ -99,9 +87,7 @@ void ProcessPrimvarsUniform(const HdMeshUtil& meshUtil, const VtU32Array& indice
     }
 
     for (PrimvarPayloadBase* payload : pPayloads)
-    {
         payload->Cooldown();  // we are done!
-    }
 }
 
 void ProcessPrimvarsFaceVarying(const HdMeshUtil& meshUtil, const VtU32Array& indices,
@@ -146,15 +132,11 @@ void ProcessPrimvarsVertex(const HdMeshUtil& meshUtil, const VtU32Array& indices
     {
         const uint32_t idx = indices[i];
         for (PrimvarPayloadBase* payload : pPayloads)
-        {
             payload->UnsafeWrite(idx, i);
-        }
     }
 
     for (PrimvarPayloadBase* payload : pPayloads)
-    {
         payload->Cooldown();  // we are done!
-    }
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

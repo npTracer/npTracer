@@ -32,14 +32,10 @@ Scene::Scene()
 }
 
 void Scene::loadSceneFromPath(const char* path)
-{
-    DEV_ASSERT(false, "not implemented");
-}
+{ DEV_ASSERT(false, "not implemented"); }
 
 void Scene::guard()
-{
-    std::lock_guard<std::mutex> lock(_readWriteMutex);
-}
+{ std::lock_guard<std::mutex> lock(_readWriteMutex); }
 
 void Scene::finalize()
 {
@@ -48,10 +44,7 @@ void Scene::finalize()
         constexpr char kDEFAULT_MAT_SCENE_PATH[] = "defaultMat";
 
         // TEMP: add a default light to the scene if none exist to prevent crashes
-        if (_lights.empty())
-        {
-            makePrim<Light>();  // NOTE: instantiated with default values
-        }
+        if (_lights.empty()) makePrim<Light>();  // NOTE: instantiated with default values
 
         // TEMP: add a default material to the scene if none exist to prevent crashes
         if (_materials.empty())

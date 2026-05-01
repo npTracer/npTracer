@@ -47,10 +47,7 @@ inline T* Scene::getPrimAtIndex(size_t idx)
     guard();
 
     std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
-    if (idx < 0 || idx >= primVector.size())
-    {
-        return nullptr;
-    }
+    if (idx < 0 || idx >= primVector.size()) return nullptr;
     return primVector[idx].get();
 }
 

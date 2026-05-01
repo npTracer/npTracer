@@ -31,10 +31,7 @@ void Context::createInstance(bool enableDebug)
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
     extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);  // required for swapchain extension
 
-    if (enableDebug)
-    {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
+    if (enableDebug) extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     // layers
     std::vector<const char*> layers;
@@ -473,25 +470,14 @@ void Context::recreateSwapchain(GLFWwindow* window)
 void Context::cleanupSwapchain()
 {
     for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
-    {
         vkDestroyImageView(device, swapchainImageViews[i], nullptr);
-    }
     swapchainImageViews.clear();
 
-    if (depthImage.image != VK_NULL_HANDLE)
-    {
-        depthImage.destroy(device, allocator);
-    }
+    if (depthImage.image != VK_NULL_HANDLE) depthImage.destroy(device, allocator);
 
-    if (resultImage.image != VK_NULL_HANDLE)
-    {
-        resultImage.destroy(device, allocator);
-    }
+    if (resultImage.image != VK_NULL_HANDLE) resultImage.destroy(device, allocator);
 
-    if (accumulationImage.image != VK_NULL_HANDLE)
-    {
-        accumulationImage.destroy(device, allocator);
-    }
+    if (accumulationImage.image != VK_NULL_HANDLE) accumulationImage.destroy(device, allocator);
 
     if (swapchain != VK_NULL_HANDLE)
     {
@@ -686,10 +672,7 @@ void Context::createImage(Image* pOutHandle, VkImageType type, VkFormat format, 
     pOutHandle->height = height;
     pOutHandle->format = format;
 
-    if (!shouldCreateView)
-    {
-        return;  // good to return early here
-    }
+    if (!shouldCreateView) return;  // good to return early here
 
     // create view
     VkImageViewCreateInfo viewInfo{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -1140,15 +1123,11 @@ void Context::createDescriptorSetLayout(DescriptorSetLayout* pOutDescriptorSetLa
     // get binding types and number
     std::unordered_map<VkDescriptorType, uint32_t> countMap;
     for (auto& binding : bindings)
-    {
         countMap[binding.descriptorType] += binding.descriptorCount;
-    }
 
     std::vector<VkDescriptorPoolSize> poolSizes;
     for (auto& pair : countMap)
-    {
         poolSizes.push_back({ .type = pair.first, .descriptorCount = pair.second });
-    }
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -1181,9 +1160,7 @@ void Context::writeDescriptorSetBuffers(
 {
     std::vector<VkDescriptorBufferInfo> bindingInfos;
     for (auto& buf : bindingBuffers)
-    {
         bindingInfos.push_back({ .buffer = buf->buffer, .offset = 0, .range = VK_WHOLE_SIZE });
-    }
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
     for (uint32_t i = 0; i < bindingInfos.size(); ++i)
@@ -1262,9 +1239,7 @@ void Context::writeDescriptorSetAccelerationStructures(
 
 // UTILITY
 Frame& Context::getCurrentFrame(uint32_t currentFrame)
-{
-    return frames[currentFrame];
-}
+{ return frames[currentFrame]; }
 
 void Context::loadRayTracingFunctionPointers()
 {
@@ -1318,16 +1293,11 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 }
 
 void Context::waitIdle() const
-{
-    vkDeviceWaitIdle(device);
-}
+{ vkDeviceWaitIdle(device); }
 
 void Context::destroyDebugMessenger()
 {
-    if (debugMessenger == VK_NULL_HANDLE)
-    {
-        return;
-    }
+    if (debugMessenger == VK_NULL_HANDLE) return;
     const auto fn = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
         vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
 
@@ -1341,25 +1311,17 @@ void Context::destroy()
     cleanupSwapchain();
 
     for (int i = 0; i < kFramesInFlight; i++)
-    {
         frames[i].destroy(device, allocator);
-    }
 
     for (auto& sem : doneRenderingSemaphores)
-    {
         vkDestroySemaphore(device, sem, nullptr);
-    }
     doneRenderingSemaphores.clear();
 
     if (transferCommandBuffer != VK_NULL_HANDLE)
-    {
         freeCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
-    }
 
     for (auto& val : queues | std::views::values)
-    {
         val.destroy(device);
-    }
 
     if (allocator != VK_NULL_HANDLE)
     {
@@ -1367,10 +1329,7 @@ void Context::destroy()
         allocator = VK_NULL_HANDLE;
     }
 
-    if (device != VK_NULL_HANDLE)
-    {
-        vkDestroyDevice(device, nullptr);
-    }
+    if (device != VK_NULL_HANDLE) vkDestroyDevice(device, nullptr);
 
     if (surface != VK_NULL_HANDLE)
     {
@@ -1389,10 +1348,7 @@ void Context::destroy()
 
 void Context::createDebugMessenger(bool enableDebug)
 {
-    if (!enableDebug)
-    {
-        return;
-    }
+    if (!enableDebug) return;
 
     VkDebugUtilsMessengerCreateInfoEXT createInfo{};
     sPopulateDebugMessengerCreateInfo(createInfo);

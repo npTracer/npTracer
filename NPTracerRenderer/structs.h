@@ -106,10 +106,7 @@ struct Buffer
 
     void destroy(VmaAllocator allocator) const
     {
-        if (buffer != VK_NULL_HANDLE)
-        {
-            vmaDestroyBuffer(allocator, buffer, allocation);
-        }
+        if (buffer != VK_NULL_HANDLE) vmaDestroyBuffer(allocator, buffer, allocation);
     }
 
     static std::vector<VkBuffer> extractVkBuffers(const std::vector<Buffer>& buffers)
@@ -117,9 +114,7 @@ struct Buffer
         std::vector<VkBuffer> vkBuffers;
         vkBuffers.reserve(buffers.size());
         for (const auto& buffer : buffers)
-        {
             vkBuffers.push_back(buffer.buffer);
-        }
 
         return vkBuffers;
     }
@@ -237,15 +232,9 @@ struct DescriptorSetLayout
 
     void destroy(VkDevice device) const
     {
-        if (pool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(device, pool, nullptr);
-        }
+        if (pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, pool, nullptr);
 
-        if (layout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
-        }
+        if (layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, layout, nullptr);
     }
 };
 
@@ -264,16 +253,11 @@ struct Queue
     VkCommandPool commandPool;
 
     explicit operator bool() const
-    {
-        return index.has_value();
-    }
+    { return index.has_value(); }
 
     void destroy(VkDevice device) const
     {
-        if (commandPool != VK_NULL_HANDLE)
-        {
-            vkDestroyCommandPool(device, commandPool, nullptr);
-        }
+        if (commandPool != VK_NULL_HANDLE) vkDestroyCommandPool(device, commandPool, nullptr);
     }
 };
 
@@ -292,9 +276,7 @@ struct ShaderBindingTable
     VkStridedDeviceAddressRegionKHR callable{};
 
     void destroy(VmaAllocator allocator) const
-    {
-        buffer.destroy(allocator);
-    }
+    { buffer.destroy(allocator); }
 };
 
 struct AccelerationStructure
@@ -367,9 +349,7 @@ struct Light : LightRecord
     ScenePath scenePath;
 
     LightRecord toRecord() const
-    {
-        return LightRecord(*this);
-    }
+    { return LightRecord(*this); }
 };
 
 // materials
@@ -391,9 +371,7 @@ struct Material : MaterialRecord
     ScenePath scenePath;
 
     MaterialRecord toRecord() const
-    {
-        return MaterialRecord(*this);
-    }
+    { return MaterialRecord(*this); }
 };
 
 // textures

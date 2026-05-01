@@ -42,17 +42,10 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
         TF_DEV_AXIOM(buffer->IsConverged() && !buffer->IsMapped());
 
         if (binding.aovName == HdAovTokens->color)
-        {
             payload.color = buffer->RequestImageForWrite(true);
-        }
         else if (binding.aovName == HdAovTokens->depth)
-        {
             payload.depth = buffer->RequestImageForWrite(true);
-        }
-        else
-        {
-            continue;  // skip pushing onto buffer vector
-        }
+        else continue;  // skip pushing onto buffer vector
 
         aovsRequestedForWrite.push_back(buffer);
     }
@@ -73,9 +66,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     app->executeDrawCall(payload);
 
     for (NPTracerHdRenderBuffer* buffer : aovsRequestedForWrite)
-    {
         buffer->EndWrite();  // mark all requested buffers
-    }
 
     this->SetConverged(true);
 
@@ -83,14 +74,10 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 }
 
 bool NPTracerHdRenderPass::IsConverged() const
-{
-    return _bConverged.load();
-}
+{ return _bConverged.load(); }
 
 void NPTracerHdRenderPass::SetConverged(bool converged)
-{
-    _bConverged.store(converged);
-}
+{ _bConverged.store(converged); }
 
 void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
                                               np::CameraRecord* outCam)

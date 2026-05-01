@@ -55,7 +55,8 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
             mContext.createResultImages(mContext.swapchainParams.extent.width,
                                         mContext.swapchainParams.extent.height);
         }
-        else {
+        else
+        {
             RendererTargets& targets = targetsRef.value();
             mContext.createResultImages(targets.color->width, targets.color->height);
         }

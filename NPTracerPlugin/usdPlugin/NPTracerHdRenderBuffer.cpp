@@ -7,7 +7,8 @@
     do                                                                                             \
     {                                                                                              \
         if (_ptr == nullptr) { _ptr = std::make_unique<_ptrType>(); }                              \
-        else {                                                                                     \
+        else                                                                                       \
+        {                                                                                          \
             _destroyer();                                                                          \
             _ptr.reset();                                                                          \
             _ptr = std::make_unique<_ptrType>();                                                   \

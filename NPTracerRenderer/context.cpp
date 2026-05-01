@@ -139,7 +139,8 @@ void Context::createLogicalDeviceAndQueues()
     for (auto it = queues.begin(); it != queues.end();)
     {
         if (!it->second) it = queues.erase(it);  // should not occur, but for completion's sake
-        else {
+        else
+        {
             queueFamilyIndicesSet.insert(it->second.index.value());
             ++it;
         }
@@ -370,7 +371,8 @@ void Context::createSwapchain(GLFWwindow* window)
     {
         extent = surfaceCapabilities.currentExtent;
     }
-    else {
+    else
+    {
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
 

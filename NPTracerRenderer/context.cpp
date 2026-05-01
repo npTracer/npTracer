@@ -23,7 +23,7 @@ void Context::createWindow(GLFWwindow*& window, uint32_t width, uint32_t height)
 }
 
 // VULKAN
-void Context::createInstance(bool enableDebug)
+void Context::createInstance()
 {
     // glfw extensions
     uint32_t glfwExtensionCount = 0;
@@ -31,15 +31,7 @@ void Context::createInstance(bool enableDebug)
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
     extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);  // required for swapchain extension
 
-    if (enableDebug) extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-
-    // layers
-    std::vector<const char*> layers;
-    if (enableDebug)
-    {
-        const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
-        layers.assign(validationLayers.begin(), validationLayers.end());
-    }
+    if constexpr (gDEBUG) extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     // TODO poll if layers/extensions are supported
 
@@ -55,42 +47,42 @@ void Context::createInstance(bool enableDebug)
                                          extensions.size()),
                                      .ppEnabledExtensionNames = extensions.data() };
 
-    // declare `debugCreateInfo` outside of if statement so it stays alive until `vkCreateInstance`
+    // layers
+    constexpr std::array validationLayers = { "VK_LAYER_KHRONOS_validation" };
+
+    constexpr std::array enabledValidationFeatures = {
+        VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+        VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+    };
+    constexpr std::array disabledValidationFeatures = {
+        VK_VALIDATION_FEATURE_DISABLE_CORE_CHECKS_EXT
+    };
+
+    // declare outside of if statement so it stays alive until `vkCreateInstance`
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
-    if (enableDebug)
+    VkValidationFeaturesEXT validationFeatures;
+    if constexpr (gDEBUG)
     {  // create a separate debug messenger for instance creation, as debug messenger creation depends on instance creation
-
-        createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
-        createInfo.ppEnabledLayerNames = layers.data();
-
         sPopulateDebugMessengerCreateInfo(debugCreateInfo);
-        createInfo.pNext = &debugCreateInfo;
 
-        /* enable specific validation features */
-        VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
-            VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-            VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
-            VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
-        };
-        VkValidationFeaturesEXT validationFeatures = {
-            .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-            .enabledValidationFeatureCount = std::size(enabledValidationFeatures),
-            .pEnabledValidationFeatures = enabledValidationFeatures
-        };
+        validationFeatures = { .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+                               .enabledValidationFeatureCount = static_cast<uint32_t>(
+                                   enabledValidationFeatures.size()),
+                               .pEnabledValidationFeatures = enabledValidationFeatures.data(),
+                               .disabledValidationFeatureCount = 0,
+                               .pDisabledValidationFeatures = nullptr };
         debugCreateInfo.pNext = &validationFeatures;
-    }
-    else
-    {
-        createInfo.enabledLayerCount = 0;
-        createInfo.pNext = nullptr;
+
+        createInfo.pNext = &debugCreateInfo;
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
     }
 
     VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance), "instance creation failed\n");
 
-    if (enableDebug)
-    {  // create debug messenger after instance creation
-        createDebugMessenger(enableDebug);
-    }
+    // create debug messenger after instance creation
+    if constexpr (gDEBUG) createDebugMessenger();
 }
 
 void Context::createPhysicalDevice()
@@ -124,21 +116,21 @@ void Context::createLogicalDeviceAndQueues()
     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &propertyCount, properties.data());
 
     // queue selection
-    for (uint32_t i = 0; i < properties.size(); i++)
+    for (uint32_t i = 0; i < properties.size(); ++i)
     {
         const auto& family = properties[i];
 
         if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT
-            && !queues.contains(QueueType::GRAPHICS))  // do not overwrite with a later match
+            && !queues.contains(eQueueType::GRAPHICS))  // do not overwrite with a later match
         {
-            queues[QueueType::GRAPHICS].index = i;  // operator[] will insert if does not exist
+            queues[eQueueType::GRAPHICS].index = i;  // operator[] will insert if does not exist
         }
         if (family.queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
-            if (!queues.contains(QueueType::TRANSFER)
+            if (!queues.contains(eQueueType::TRANSFER)
                 || !(family.queueFlags & VK_QUEUE_GRAPHICS_BIT))
             {  // allow overwrite if this is a dedicated transfer queue
-                queues[QueueType::TRANSFER].index = i;
+                queues[eQueueType::TRANSFER].index = i;
             }
         }
     }
@@ -154,7 +146,7 @@ void Context::createLogicalDeviceAndQueues()
         }
     }
     queueFamilyIndices.clear();
-    queueFamilyIndices.reserve(static_cast<size_t>(QueueType::_COUNT));  // reserve upfront
+    queueFamilyIndices.reserve(static_cast<size_t>(eQueueType::COUNT_));  // reserve upfront
     queueFamilyIndices.assign(queueFamilyIndicesSet.begin(), queueFamilyIndicesSet.end());
 
     constexpr float kQueuePriority = 1.0f;
@@ -442,7 +434,7 @@ void Context::createSwapchain(GLFWwindow* window)
         imageViewCreateInfo.image = image;
         VkImageView view;
         vkCreateImageView(device, &imageViewCreateInfo, nullptr, &view);
-        swapchainImageViews.emplace_back(view);
+        swapchainImageViews.push_back(view);
     }
 }
 
@@ -469,7 +461,7 @@ void Context::recreateSwapchain(GLFWwindow* window)
 
 void Context::cleanupSwapchain()
 {
-    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); i++)
+    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); ++i)
         vkDestroyImageView(device, swapchainImageViews[i], nullptr);
     swapchainImageViews.clear();
 
@@ -494,7 +486,7 @@ void Context::createSyncAndFrameObjects(size_t numRenderingSemaphores)
                                  .flags = VK_FENCE_CREATE_SIGNALED_BIT };
 
     doneRenderingSemaphores.reserve(numRenderingSemaphores);
-    for (int i = 0; i < numRenderingSemaphores; i++)
+    for (int i = 0; i < numRenderingSemaphores; ++i)
     {
         VkSemaphore doneRenderingSemaphore;
         vkCreateSemaphore(device, &semInfo, nullptr, &doneRenderingSemaphore);
@@ -503,17 +495,17 @@ void Context::createSyncAndFrameObjects(size_t numRenderingSemaphores)
 
     frames.reserve(kFramesInFlight);
 
-    for (int i = 0; i < kFramesInFlight; i++)
+    for (int i = 0; i < kFramesInFlight; ++i)
     {
         Frame& frame = frames[i];
 
         vkCreateSemaphore(device, &semInfo, nullptr, &frame.donePresentingSemaphore);
         vkCreateFence(device, &fenceInfo, nullptr, &frame.doneExecutingFence);
-        createCommandBuffer(&frame.commandBuffer, QueueType::GRAPHICS);
+        createCommandBuffer(&frame.commandBuffer, eQueueType::GRAPHICS);
     }
 
     // create transfer command buffer as well
-    createCommandBuffer(&transferCommandBuffer, QueueType::TRANSFER);
+    createCommandBuffer(&transferCommandBuffer, eQueueType::TRANSFER);
 }
 
 void Context::createSurface(GLFWwindow* window)
@@ -523,7 +515,7 @@ void Context::createSurface(GLFWwindow* window)
 }
 
 // COMMAND BUFFERS
-void Context::createCommandBuffer(VkCommandBuffer* pOutCommandBuffer, QueueType queueFamily)
+void Context::createCommandBuffer(VkCommandBuffer* pOutCommandBuffer, eQueueType queueFamily)
 {
     VkCommandBufferAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                                            .commandPool = queues[queueFamily].commandPool,
@@ -544,7 +536,7 @@ void Context::sBeginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBuffer
              "failed to begin recording command buffer\n");
 }
 
-void Context::submitCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily,
+void Context::submitCommandBuffer(VkCommandBuffer commandBuffer, eQueueType queueFamily,
                                   VkPipelineStageFlags waitDstFlags, VkFence fence,
                                   VkSemaphore waitSemaphores, VkSemaphore signalSemaphores)
 {
@@ -563,7 +555,7 @@ void Context::submitCommandBuffer(VkCommandBuffer commandBuffer, QueueType queue
              "failed to submit command buffer\n");
 }
 
-void Context::freeCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily)
+void Context::freeCommandBuffer(VkCommandBuffer commandBuffer, eQueueType queueFamily)
 {
     if (commandBuffer == VK_NULL_HANDLE) return;
 
@@ -571,7 +563,7 @@ void Context::freeCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFa
 }
 
 // BUFFERS
-bool Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
+void Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                            VmaAllocationCreateFlags allocationFlags) const
 {
     VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -585,44 +577,27 @@ bool Context::createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags
                                                       | allocationFlags,
                                              .usage = VMA_MEMORY_USAGE_AUTO };
 
-    if (vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
-                        &handle.allocation, &handle.allocInfo)
-        != VK_SUCCESS)
-    {
-        DBG_PRINT("failed to create device local buffer!\n");
-        return false;
-    }
-
-    return true;
+    VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &handle.buffer,
+                             &handle.allocation, &handle.allocInfo),
+             "failed to create device local buffer!\n");
 }
 
-bool Context::createDeviceLocalBuffer(Buffer& handle, const void* data, VkDeviceSize size,
+void Context::createDeviceLocalBuffer(Buffer& handle, const void* data, VkDeviceSize size,
                                       VkBufferUsageFlags usage)
 {
     Buffer stagingBuffer;
-    if (!createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                          | VMA_ALLOCATION_CREATE_MAPPED_BIT))
-    {
-        DBG_PRINT("failed to create staging buffer for device local buffer!\n");
-        return false;
-    }
+    createBuffer(stagingBuffer, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                     | VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     memcpy(stagingBuffer.allocInfo.pMappedData, data, size);
 
-    if (!createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0))
-    {
-        DBG_PRINT("failed to create device local buffer!\n");
-        vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
-        return false;
-    }
+    createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
 
     copyBuffer(stagingBuffer, handle, size);
 
-    vkQueueWaitIdle(queues[QueueType::TRANSFER].queue);
+    vkQueueWaitIdle(queues[eQueueType::TRANSFER].queue);
     stagingBuffer.destroy(allocator);
-
-    return true;
 }
 
 void Context::copyBuffer(const Buffer& src, const Buffer& dst, VkDeviceSize size)
@@ -633,7 +608,7 @@ void Context::copyBuffer(const Buffer& src, const Buffer& dst, VkDeviceSize size
     VkBufferCopy bufferCopy{ .srcOffset = 0, .dstOffset = 0, .size = size };
     vkCmdCopyBuffer(transferCommandBuffer, src.buffer, dst.buffer, 1, &bufferCopy);
 
-    submitCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
+    submitCommandBuffer(transferCommandBuffer, eQueueType::TRANSFER);
 }
 
 VkDeviceAddress Context::getBufferDeviceAddress(const Buffer& buffer) const
@@ -703,7 +678,7 @@ void Context::createTextureImage(Image* pOutHandle, const void* pPixels, uint32_
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 0);
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
 
     pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
@@ -719,9 +694,9 @@ void Context::createTextureImage(Image* pOutHandle, const void* pPixels, uint32_
                                  VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
 
-    submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS);
 
-    vkQueueWaitIdle(queues[QueueType::GRAPHICS].queue);
+    vkQueueWaitIdle(queues[eQueueType::GRAPHICS].queue);
     vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 
     pOutHandle->width = width;
@@ -753,7 +728,7 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 0, VK_IMAGE_ASPECT_DEPTH_BIT);
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
     sTransitionImageLayout(commandBuffer, depthImage.image,
                            VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT
@@ -765,7 +740,7 @@ void Context::createDepthImage(uint32_t width, uint32_t height)
                            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
                            VK_IMAGE_ASPECT_DEPTH_BIT);
 
-    submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS);
 }
 
 void Context::createResultImages(uint32_t width, uint32_t height)
@@ -773,10 +748,10 @@ void Context::createResultImages(uint32_t width, uint32_t height)
     std::vector<Image*> handles{ &resultImage, &accumulationImage };
 
     VkCommandBuffer commandBuffer;
-    createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
+    createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
 
-    for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); i++)
+    for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); ++i)
     {
         // result image
         createImage(handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
@@ -791,8 +766,8 @@ void Context::createResultImages(uint32_t width, uint32_t height)
                                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
-    submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
-    vkQueueWaitIdle(queues[QueueType::GRAPHICS].queue);
+    submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS);
+    vkQueueWaitIdle(queues[eQueueType::GRAPHICS].queue);
 }
 
 void Context::createTextureSampler(VkSampler* pOutSampler) const
@@ -989,9 +964,9 @@ void Context::createTopLevelAccelerationStructure(AccelerationStructure* pOutAcc
 {
     std::vector<VkAccelerationStructureInstanceKHR> instances;
     instances.reserve(transforms.size());
-    for (uint32_t i = 0; i < static_cast<uint32_t>(transforms.size()); i++)
+    for (size_t i = 0; i < transforms.size(); ++i)
     {
-        VkAccelerationStructureInstanceKHR instance{
+        VkAccelerationStructureInstanceKHR accelStructInstance{
             .transform = toVkTransform(transforms[i]),
             .instanceCustomIndex = static_cast<uint32_t>(i),
             .mask = 0xFF,
@@ -1000,17 +975,15 @@ void Context::createTopLevelAccelerationStructure(AccelerationStructure* pOutAcc
             .accelerationStructureReference = blasses[i].deviceAddress
         };
 
-        instances.push_back(instance);
+        instances.push_back(accelStructInstance);
     }
 
     const uint32_t instanceCount = static_cast<uint32_t>(instances.size());
     VkDeviceSize instanceBufferSize = sizeof(VkAccelerationStructureInstanceKHR) * instanceCount;
 
-    DEV_ASSERT(
-        createDeviceLocalBuffer(*pOutInstanceBufferHandle, instances.data(), instanceBufferSize,
-                                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-                                    | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
-        "failed to create device local memory buffer!\n");
+    createDeviceLocalBuffer(*pOutInstanceBufferHandle, instances.data(), instanceBufferSize,
+                            VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+                                | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
     VkDeviceAddress instanceBufferAddress = getBufferDeviceAddress(*pOutInstanceBufferHandle);
 
@@ -1087,11 +1060,12 @@ void Context::createTopLevelAccelerationStructure(AccelerationStructure* pOutAcc
     vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &pBuildRangeInfo);
 }
 
-void Context::createDescriptorSetLayout(DescriptorSetLayout* pOutDescriptorSetLayout,
-                                        const std::vector<VkDescriptorSetLayoutBinding>& bindings,
-                                        const std::vector<VkDescriptorBindingFlags>* pBindingFlags,
-                                        VkDescriptorSetLayoutCreateFlags layoutCreateFlags,
-                                        VkDescriptorPoolCreateFlags poolCreateFlags) const
+void Context::createDescriptorSetLayout(
+    DescriptorSetLayout* pOutDescriptorSetLayout,
+    const std::vector<VkDescriptorSetLayoutBinding>& bindings,
+    std::optional<std::span<const VkDescriptorBindingFlags>> pBindingFlags,
+    VkDescriptorSetLayoutCreateFlags layoutCreateFlags,
+    VkDescriptorPoolCreateFlags poolCreateFlags) const
 {
     const uint32_t kBindingsCount = bindings.size();
 
@@ -1105,7 +1079,8 @@ void Context::createDescriptorSetLayout(DescriptorSetLayout* pOutDescriptorSetLa
     VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
         .bindingCount = kBindingsCount,
-        .pBindingFlags = pBindingFlags ? pBindingFlags->data() : pFallbackBindingFlags.data(),
+        .pBindingFlags = pBindingFlags.has_value() ? pBindingFlags.value().data()
+                                                   : pFallbackBindingFlags.data(),
     };
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{
@@ -1185,6 +1160,7 @@ void Context::writeDescriptorSetImages(const VkDescriptorSet& descriptorSet, uin
                                        VkDescriptorType type, VkImageLayout layout) const
 {
     std::vector<VkDescriptorImageInfo> imageInfos;
+    imageInfos.reserve(images.size());
     VkSampler s = (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) ? inSampler : VK_NULL_HANDLE;
     for (auto& image : images)
     {
@@ -1211,6 +1187,7 @@ void Context::writeDescriptorSetAccelerationStructures(
     const std::vector<VkDescriptorSetLayoutBinding>& bindings) const
 {
     std::vector<VkWriteDescriptorSetAccelerationStructureKHR> accelStructsInfo;
+    accelStructsInfo.reserve(bindingAccelStructs.size());
     for (auto& pair : bindingAccelStructs)
     {
         accelStructsInfo.push_back(
@@ -1310,7 +1287,7 @@ void Context::destroy()
 {
     cleanupSwapchain();
 
-    for (int i = 0; i < kFramesInFlight; i++)
+    for (int i = 0; i < kFramesInFlight; ++i)
         frames[i].destroy(device, allocator);
 
     for (auto& sem : doneRenderingSemaphores)
@@ -1318,7 +1295,7 @@ void Context::destroy()
     doneRenderingSemaphores.clear();
 
     if (transferCommandBuffer != VK_NULL_HANDLE)
-        freeCommandBuffer(transferCommandBuffer, QueueType::TRANSFER);
+        freeCommandBuffer(transferCommandBuffer, eQueueType::TRANSFER);
 
     for (auto& val : queues | std::views::values)
         val.destroy(device);
@@ -1346,10 +1323,8 @@ void Context::destroy()
     }
 }
 
-void Context::createDebugMessenger(bool enableDebug)
+void Context::createDebugMessenger()
 {
-    if (!enableDebug) return;
-
     VkDebugUtilsMessengerCreateInfoEXT createInfo{};
     sPopulateDebugMessengerCreateInfo(createInfo);
 

@@ -236,9 +236,8 @@ void rgenMain()
             // if emissive light source was encountered stop tracing rays
             if (payload.terminate == true)
             {
-                path[pathLength].validNext = 0;
-            }         
-               
+                path[pathLength].validNext = false;
+            }
             pathLength++; // path length increases
             
             // if valid continuation direction wi was not sampled stop recording and break

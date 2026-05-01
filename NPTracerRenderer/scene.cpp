@@ -64,18 +64,17 @@ void Scene::finalize()
                 { { -0.5f, 0.5f, 0.0f, 1 }, { 0, 0, 1, 0 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 }, { 0, 1 } },
             };
             mesh->indices = { 0, 1, 2 };
-            mesh->_materialScenePath = kDEFAULT_MAT_SCENE_PATH;
+            mesh->materialScenePath = kDEFAULT_MAT_SCENE_PATH;
         }
     }
 
     // traverse meshes and check if they need to be 'linked' with their material
-    for (size_t i = 0; i < _meshes.size(); i++)
+    for (const auto& mesh : _meshes)
     {
-        const auto& mesh = _meshes[i];
         if (!mesh->bMaterialNeedsFinalization) continue;  // skip if doesn't need finalization
 
         auto foundMat = std::ranges::find_if(_materials, [&mesh](const auto& mat)
-                                             { return mat->scenePath == mesh->_materialScenePath; });
+                                             { return mat->scenePath == mesh->materialScenePath; });
         if (foundMat == std::end(_materials)) continue;
         mesh->materialIndex = std::distance(_materials.begin(), foundMat);
         mesh->bMaterialNeedsFinalization = false;
@@ -92,7 +91,7 @@ void Scene::reportState() const
     DBG_PRINT("Num Materials: %llu\n", _materials.size());
     DBG_PRINT("Num Textures: %llu\n", _textures.size());
 
-    if constexpr (false) return;  // toggle on for verbose debugging
+    if constexpr (true) return;  // toggle `false` for verbose debugging
 
     // meshes
     for (const auto& mesh : _meshes)

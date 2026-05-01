@@ -29,7 +29,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     HdRenderPassAovBindingVector aovBindings = renderPassState->GetAovBindings();
     TF_DEV_AXIOM(!aovBindings.empty());
 
-    np::RendererAovs payload;
+    np::RendererTargets payload;
 
     std::vector<NPTracerHdRenderBuffer*> aovsRequestedForWrite;
     aovsRequestedForWrite.reserve(aovBindings.size());

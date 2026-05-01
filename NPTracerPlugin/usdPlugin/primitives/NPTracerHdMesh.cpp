@@ -46,10 +46,10 @@ void NPTracerHdMesh::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
     // check if material exists / needs to be updated in scene
     if (*dirtyBits & HdChangeTracker::DirtyMaterialId)
     {
-        np::ScenePath currMaterialScenePath = delegate->GetMaterialId(id).GetString();
-        if (!currMaterialScenePath.empty() && (currMaterialScenePath != _pMesh->_materialScenePath))
+        np::SCENE_PATH currMaterialScenePath = delegate->GetMaterialId(id).GetString();
+        if (!currMaterialScenePath.empty() && (currMaterialScenePath != _pMesh->materialScenePath))
         {
-            _pMesh->_materialScenePath = currMaterialScenePath;
+            _pMesh->materialScenePath = currMaterialScenePath;
             _pMesh->bMaterialNeedsFinalization = true;
         }
     }

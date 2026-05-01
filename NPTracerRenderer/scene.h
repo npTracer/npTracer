@@ -30,12 +30,12 @@ public:
     bool deletePrim(T* primToDelete);
 
     template<ScenePrim T>
-    size_t getPrimCount() const;
+    [[nodiscard]] size_t getPrimCount() const;
 
     template<ScenePrim T>
     T* getPrimAtIndex(size_t idx);
 
-    inline Camera* getCamera()
+    inline CAMERA* getCamera()
     { return &_camera; }
 
     void guard();
@@ -52,7 +52,7 @@ protected:
 
     std::vector<UPTR<Texture>> _textures;
 
-    Camera _camera;
+    CAMERA _camera;
 
     RenderSettings _settings;
 

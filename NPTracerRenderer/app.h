@@ -11,14 +11,10 @@ class App
 {
 public:
     Context* getContext()
-    {
-        return &mContext;
-    }
+    { return &mContext; }
 
     Scene* getScene() const
-    {
-        return mpScene.get();
-    }
+    { return mpScene.get(); }
 
     // public interface
 
@@ -27,15 +23,12 @@ public:
 
     void loadSceneFromPath(const char* path) const;
 
-    void createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef = std::nullopt);
-    void executeDrawCall(const RendererAovs& aovs);
+    void createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targetsRef = std::nullopt);
+    void executeDrawCall(const RendererTargets& targets);
 
     void render();
 
 private:
-    // since this is a runtime constant, we will statically declare it here and update whenever needed
-    static constexpr size_t kPushConstantCount = 3;
-
     Context mContext{};
     GLFWwindow* mpWindow = nullptr;
 
@@ -56,7 +49,6 @@ private:
 
     uint32_t mCurrentFrameInFlight = 0u;
     uint32_t mNumLights = 0;
-    std::vector<uint32_t> mIndexCounts;
 
     // SET 0: MESHES
     Buffer mMeshRecordBuffer;
@@ -85,8 +77,9 @@ private:
                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage colorAov,
-                            const VkExtent2D& extent, VkImageLayout dstImageLayout) const;
+    void populateDrawCallRT(VkCommandBuffer commandBuffer, VkImage color, const VkExtent2D& extent,
+                            VkPipelineStageFlags2 dstImagePipelineStageMask,
+                            VkAccessFlags2 dstImageAccessMask, VkImageLayout dstImageLayout) const;
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

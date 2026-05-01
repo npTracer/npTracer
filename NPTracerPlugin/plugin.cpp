@@ -26,9 +26,7 @@ static void check_houdini_version()
 }
 
 extern "C" SYS_VISIBILITY_EXPORT void HoudiniDSOInit(UT_DSOInfo&)
-{
-    check_houdini_version();
-}
+{ check_houdini_version(); }
 
 extern "C" SYS_VISIBILITY_EXPORT void newLopOperator(OP_OperatorTable* table)
 {

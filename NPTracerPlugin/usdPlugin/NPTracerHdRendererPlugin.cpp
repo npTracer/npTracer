@@ -8,9 +8,7 @@
 PXR_NAMESPACE_OPEN_SCOPE
 
 TF_REGISTRY_FUNCTION(TfType)
-{
-    HdRendererPluginRegistry::Define<NPTracerHdRendererPlugin>();
-}
+{ HdRendererPluginRegistry::Define<NPTracerHdRendererPlugin>(); }
 
 HdRenderDelegate* NPTracerHdRendererPlugin::CreateRenderDelegate()
 {
@@ -29,8 +27,6 @@ void NPTracerHdRendererPlugin::DeleteRenderDelegate(HdRenderDelegate* delegate)
 }
 
 bool NPTracerHdRendererPlugin::IsSupported(bool gpuEnabled) const
-{
-    return true;
-}
+{ return true; }
 
 PXR_NAMESPACE_CLOSE_SCOPE

@@ -67,14 +67,10 @@ static std::vector<char> readFile(const std::string& filename)
 }
 
 static uint32_t alignUp(uint32_t value, uint32_t alignment)
-{
-    return (value + alignment - 1) & ~(alignment - 1);
-}
+{ return (value + alignment - 1) & ~(alignment - 1); }
 
 static VkDeviceSize alignUpVk(VkDeviceSize value, VkDeviceSize alignment)
-{
-    return (value + alignment - 1) & ~(alignment - 1);
-}
+{ return (value + alignment - 1) & ~(alignment - 1); }
 
 static VkTransformMatrixKHR toVkTransform(const FLOAT4x4& m)
 {

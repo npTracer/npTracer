@@ -4,7 +4,7 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 2u;  // only needs visibility in this translation unit
+constexpr uint32_t kDEFAULT_FRAMES_IN_FLIGHT = 2u;  // only needs visibility in this translation unit
 
 // for ease-of-use
 #define USE_SWAPCHAIN mRendererConstants.executionMode == eExecutionMode::SWAPCHAIN
@@ -21,9 +21,9 @@ void App::create(const RendererConstants& rendererConstants)
     }
 
     // create vulkan basics
-    mContext.setFramesInFlight(DEFAULT_FRAMES_IN_FLIGHT);
-    if (USE_SWAPCHAIN) mContext.createWindow(mpWindow, DEFAULT_WIDTH, DEFAULT_HEIGHT);
-    mContext.createInstance(gDEBUG);
+    mContext.setFramesInFlight(kDEFAULT_FRAMES_IN_FLIGHT);
+    if (USE_SWAPCHAIN) mContext.createWindow(mpWindow, kDEFAULT_WIDTH, kDEFAULT_HEIGHT);
+    mContext.createInstance();
     if (USE_SWAPCHAIN) mContext.createSurface(mpWindow);
     mContext.createPhysicalDevice();
     mContext.createLogicalDeviceAndQueues();
@@ -34,7 +34,7 @@ void App::create(const RendererConstants& rendererConstants)
     size_t numRenderingSemaphores = USE_SWAPCHAIN ? mContext.swapchainImages.size() : 0;
     mContext.createSyncAndFrameObjects(numRenderingSemaphores);
 
-    // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth aov target
+    // mContext.createDepthImage(kWIDTH, kHEIGHT);  // TODO: pass actual depth target
     mContext.createTextureSampler(&mSampler);
     createSpecializationConstants();
 
@@ -42,12 +42,12 @@ void App::create(const RendererConstants& rendererConstants)
 }
 
 // RESOURCE CREATION
-void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef)
+void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targetsRef)
 {
     mpScene->finalize();  // finalize state of scene before resource creation
     if (gDEBUG) mpScene->reportState();
 
-    {  // this block is so very very TEMP oh god
+    {  // this block is so very, very TEMP oh god
         // recreate result images
         // in the future, this should be down before the call by the `App` 'owner'
         if (USE_SWAPCHAIN)
@@ -57,8 +57,8 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
         }
         else
         {
-            RendererAovs& aovs = aovsRef.value();
-            mContext.createResultImages(aovs.color->width, aovs.color->height);
+            RendererTargets& targets = targetsRef.value();
+            mContext.createResultImages(targets.color->width, targets.color->height);
         }
     }
 
@@ -70,9 +70,9 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<Vertex> globalVertices;
     std::vector<uint32_t> globalIndices;
     std::vector<FLOAT4x4> globalTransforms;
-    for (size_t i = 0; i < meshCount; i++)
+    for (size_t i = 0; i < meshCount; ++i)
     {
-        Mesh const* mesh = mpScene->getPrimAtIndex<Mesh>(i);
+        const Mesh* mesh = mpScene->getPrimAtIndex<Mesh>(i);
 
         MeshRecord meshRecord{ .vertexOffset = static_cast<uint32_t>(globalVertices.size()),
                                .indexOffset = static_cast<uint32_t>(globalIndices.size()),
@@ -84,12 +84,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());
         for (uint32_t idx : mesh->indices)
-        {
             globalIndices.push_back(idx + meshRecord.vertexOffset);
-        }
-
-        // temp
-        mIndexCounts.push_back(static_cast<uint32_t>(mesh->indices.size()));
 
         // transforms
         globalTransforms.push_back(mesh->transform);
@@ -98,11 +93,9 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     }
 
     VkDeviceSize meshRecordSize = sizeof(meshRecords[0]) * meshRecords.size();
-    bool meshRecordBufferCreated
-        = mContext.createDeviceLocalBuffer(mMeshRecordBuffer, meshRecords.data(), meshRecordSize,
-                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-    DEV_ASSERT(meshRecordBufferCreated, "mesh record buffer could not be created.\n");
+    mContext.createDeviceLocalBuffer(mMeshRecordBuffer, meshRecords.data(), meshRecordSize,
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
     VkDeviceSize vertexBufferSize = sizeof(globalVertices[0]) * globalVertices.size();
     VkDeviceSize indexBufferSize = sizeof(globalIndices[0]) * globalIndices.size();
@@ -125,7 +118,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<LightRecord> lightRecords;
     lightRecords.reserve(lightCount);
 
-    for (uint32_t i = 0; i < lightCount; i++)
+    for (uint32_t i = 0; i < lightCount; ++i)
     {
         Light const* light = mpScene->getPrimAtIndex<Light>(i);
         LightRecord lightRecord = light->toRecord();
@@ -139,11 +132,8 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // CAMERA
     VkDeviceSize cameraSize = sizeof(CameraRecord);
-    bool cameraRecordBufferCreated
-        = mContext.createDeviceLocalBuffer(mCameraRecordBuffer, mpScene->getCamera(), cameraSize,
-                                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    DEV_ASSERT(cameraRecordBufferCreated, "camera record buffer could not be created.\n");
+    mContext.createDeviceLocalBuffer(mCameraRecordBuffer, mpScene->getCamera(), cameraSize,
+                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     // MATERIALS
 
@@ -151,7 +141,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     std::vector<MaterialRecord> materialRecords;
     materialRecords.reserve(materialCount);
 
-    for (uint32_t i = 0; i < materialCount; i++)
+    for (uint32_t i = 0; i < materialCount; ++i)
     {
         // right now NPMaterial and record are identical so just use the same struct here (still
         // looping for easy modification in the future)
@@ -167,7 +157,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     size_t textureCount = mpScene->getPrimCount<Texture>();
 
     mTextures.reserve(textureCount);
-    for (size_t i = 0; i < textureCount; i++)
+    for (size_t i = 0; i < textureCount; ++i)
     {
         Image textureImage;
         Texture const* texture = mpScene->getPrimAtIndex<Texture>(i);
@@ -190,7 +180,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 0: Mesh Records
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // mesh record buffer
@@ -233,7 +223,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 1 : LIGHTS
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             { .binding = 0,
@@ -242,12 +232,12 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
               .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
               .pImmutableSamplers = nullptr }
         };
-        const std::vector<VkDescriptorBindingFlags> bindingFlags = {
+        constexpr std::array<VkDescriptorBindingFlags, 1> bindingFlags = {
             { VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
               | VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT }
         };
 
-        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings, &bindingFlags,
+        mContext.createDescriptorSetLayout(&descriptorSetLayout, bindings, bindingFlags,
                                            VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
                                            VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
         mDescriptorSetLayouts.push_back(descriptorSetLayout);
@@ -264,7 +254,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 2: CAMERA
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings{
             { .binding = 0,
@@ -291,9 +281,9 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
     }
 
     // SET 3: MATERIALS AND TEXTURES
-    // TODO: separate these as they are not guarantted to be updated synchronously
+    // TODO: separate these as they are not guaranteed to be updated synchronously
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // materials
@@ -329,7 +319,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef
 
     // SET 4: RT
     {
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout descriptorSetLayout{};
 
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             // acceleration structures
@@ -381,16 +371,13 @@ void App::createRTPipeline()
     std::vector<VkDescriptorSetLayout> vkDescriptorSetLayouts;
     vkDescriptorSetLayouts.reserve(mDescriptorSetLayouts.size());
     for (auto& descriptorSetLayout : mDescriptorSetLayouts)
-    {
         vkDescriptorSetLayouts.push_back(descriptorSetLayout.layout);
-    }
 
-    VkPushConstantRange pushConstantRange{
-        .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
-                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-        .offset = 0,
-        .size = static_cast<uint32_t>(kPushConstantCount) * sizeof(uint32_t)
-    };
+    VkPushConstantRange pushConstantRange{ .stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                                                         | VK_SHADER_STAGE_MISS_BIT_KHR
+                                                         | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                                           .offset = 0,
+                                           .size = sizeof(PushConstants) };
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -541,7 +528,7 @@ void App::createRTPipeline()
     VK_CHECK(mContext.vkCreateRayTracingPipelinesKHR(mContext.device, VK_NULL_HANDLE,
                                                      VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
                                                      &mRtPipeline.pipeline),
-             "Failed to create ray tracing pipeline!");
+             "Failed to create ray tracing pipeline!\n");
 
     // BINDING TABLE
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR properties{
@@ -594,10 +581,9 @@ void App::createRTPipeline()
     std::memcpy(sbtBlob.data() + hitOffset + hitStride * 0, primaryHitHandle, mSbt.handleSize);
     std::memcpy(sbtBlob.data() + hitOffset + hitStride * 1, shadowHitHandle, mSbt.handleSize);
 
-    DEV_ASSERT(mContext.createDeviceLocalBuffer(mSbt.buffer, sbtBlob.data(), sbtSize,
-                                                VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR
-                                                    | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT),
-               "Failed to create device local buffer!");
+    mContext.createDeviceLocalBuffer(mSbt.buffer, sbtBlob.data(), sbtSize,
+                                     VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR
+                                         | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
     mSbt.deviceAddress = mContext.getBufferDeviceAddress(mSbt.buffer);
 
@@ -629,8 +615,8 @@ void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
                                        VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress)
 {
     VkCommandBuffer commandBuffer;
-    mContext.createCommandBuffer(&commandBuffer, QueueType::GRAPHICS);
-    mContext.sBeginCommandBuffer(commandBuffer);
+    mContext.createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
+    Context::sBeginCommandBuffer(commandBuffer);
 
     for (auto& mesh : meshes)
     {
@@ -665,12 +651,13 @@ void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
 
     VkFence fence;
     vkCreateFence(mContext.device, &fenceInfo, nullptr, &fence);
-    mContext.submitCommandBuffer(commandBuffer, QueueType::GRAPHICS, 0, fence);
+    mContext.submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS, 0, fence);
 
     vkWaitForFences(mContext.device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkDestroyFence(mContext.device, fence, nullptr);
 
     vkResetCommandBuffer(commandBuffer, 0);
-    mContext.sBeginCommandBuffer(commandBuffer);
+    Context::sBeginCommandBuffer(commandBuffer);
 
     for (auto& blas : mBlasses)
     {
@@ -691,15 +678,15 @@ void App::createAccelerationStructures(const std::vector<MeshRecord>& meshes,
     // barrier
     vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
-    mContext.submitCommandBuffer(commandBuffer, QueueType::GRAPHICS);
+    mContext.submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS);
 
     instanceBufferHandle.destroy(mContext.allocator);
 }
 
-void App::executeDrawCall(const RendererAovs& aovs)
+void App::executeDrawCall(const RendererTargets& targets)
 {
-    DEV_ASSERT(aovs.color, "aovs not created properly");
-    Image* colorAov = aovs.color;
+    DEV_ASSERT(targets.color, "targets not created properly");
+    Image* color = targets.color;
 
     // grab a frame
     Frame& frame = mContext.frames[mCurrentFrameInFlight];
@@ -707,9 +694,9 @@ void App::executeDrawCall(const RendererAovs& aovs)
     // wait until this frame has finished executing its commands
     vkWaitForFences(mContext.device, 1, &frame.doneExecutingFence, VK_TRUE, UINT64_MAX);
 
-    VkExtent2D extent = { colorAov->width, colorAov->height };
-    populateDrawCallRT(frame.commandBuffer, colorAov->image, extent,
-                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    VkExtent2D extent = { color->width, color->height };
+    populateDrawCallRT(frame.commandBuffer, color->image, extent, VK_PIPELINE_STAGE_2_COPY_BIT,
+                       VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -718,12 +705,12 @@ void App::executeDrawCall(const RendererAovs& aovs)
                              .commandBufferCount = 1,
                              .pCommandBuffers = &frame.commandBuffer };
 
-    VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
+    VK_CHECK(vkQueueSubmit(mContext.queues[eQueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
-             "vk queue submit failed");
+             "vk queue submit failed\n");
 
     // increment frame (within ring)
-    mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % DEFAULT_FRAMES_IN_FLIGHT;
+    mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % kDEFAULT_FRAMES_IN_FLIGHT;
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
@@ -747,7 +734,8 @@ void App::executeDrawCallSwapchain()
     }
 
     populateDrawCallRT(frame.commandBuffer, mContext.swapchainImages[imageIndex],
-                       mContext.swapchainParams.extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+                       mContext.swapchainParams.extent, VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE,
+                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vkResetFences(
         mContext.device, 1,
         &frame.doneExecutingFence);  // signal that fence is ready to be associated with a new queue submission
@@ -767,9 +755,9 @@ void App::executeDrawCallSwapchain()
         = &mContext.doneRenderingSemaphores[imageIndex]  // signal when rendering finishes
     };
 
-    VK_CHECK(vkQueueSubmit(mContext.queues[QueueType::GRAPHICS].queue, 1, &submitInfo,
+    VK_CHECK(vkQueueSubmit(mContext.queues[eQueueType::GRAPHICS].queue, 1, &submitInfo,
                            frame.doneExecutingFence),
-             "vk queue submit failed");
+             "vk queue submit failed\n");
 
     mContext.waitIdle();
 
@@ -783,7 +771,7 @@ void App::executeDrawCallSwapchain()
         .pImageIndices = &imageIndex,
     };
 
-    VkResult result = vkQueuePresentKHR(mContext.queues[QueueType::GRAPHICS].queue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(mContext.queues[eQueueType::GRAPHICS].queue, &presentInfo);
     if ((result == VK_SUBOPTIMAL_KHR) || (result == VK_ERROR_OUT_OF_DATE_KHR)
         || mContext.framebufferResized)
     {
@@ -792,35 +780,33 @@ void App::executeDrawCallSwapchain()
     }
 
     // increment frame (within ring)
-    mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % DEFAULT_FRAMES_IN_FLIGHT;
+    mCurrentFrameInFlight = (mCurrentFrameInFlight + 1u) % kDEFAULT_FRAMES_IN_FLIGHT;
     mContext.frameIndex.fetch_add(1u);  // increment atomic frame index
 }
 
-void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage colorAov,
-                             const VkExtent2D& extent, VkImageLayout dstImageLayout) const
+void App::populateDrawCallRT(VkCommandBuffer commandBuffer, VkImage color, const VkExtent2D& extent,
+                             VkPipelineStageFlags2 dstImagePipelineStageMask,
+                             VkAccessFlags2 dstImageAccessMask, VkImageLayout dstImageLayout) const
 {
     vkResetCommandBuffer(commandBuffer, 0);
-    mContext.sBeginCommandBuffer(commandBuffer);
+    Context::sBeginCommandBuffer(commandBuffer);
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mRtPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
                             mRtPipeline.layout, 0, static_cast<uint32_t>(mDescriptorSets.size()),
                             mDescriptorSets.data(), 0, nullptr);
 
-    std::array<uint32_t, kPushConstantCount> pushConstants{ 0, mNumLights, mContext.frameIndex };
+    PushConstants pushConstants{ .numLights = mNumLights, .frameIndex = mContext.frameIndex };
     vkCmdPushConstants(commandBuffer, mRtPipeline.layout,
                        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
                            | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                       0, sizeof(uint32_t) * static_cast<uint32_t>(kPushConstantCount),
-                       pushConstants.data());
+                       0, sizeof(PushConstants), &pushConstants);
 
     mContext.vkCmdTraceRaysKHR(commandBuffer, &mSbt.rgen, &mSbt.miss, &mSbt.hit, &mSbt.callable,
                                extent.width, extent.height, 1);
 
-    mContext.sTransitionImageLayout(commandBuffer, colorAov,
-                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
-                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+    Context::sTransitionImageLayout(commandBuffer, color, VK_PIPELINE_STAGE_2_NONE, 0,
+                                    VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
                                     VK_IMAGE_LAYOUT_UNDEFINED,
                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -828,14 +814,13 @@ void App::populateDrawCallRT(const VkCommandBuffer& commandBuffer, VkImage color
                         .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
                         .extent = { extent.width, extent.height, 1 } };
 
-    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, colorAov,
+    vkCmdCopyImage(commandBuffer, mContext.resultImage.image, VK_IMAGE_LAYOUT_GENERAL, color,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    mContext.sTransitionImageLayout(commandBuffer, colorAov,
-                                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                                    VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0,
-                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, dstImageLayout);
+    Context::sTransitionImageLayout(commandBuffer, color, VK_PIPELINE_STAGE_2_COPY_BIT,
+                                    VK_ACCESS_2_TRANSFER_WRITE_BIT, dstImagePipelineStageMask,
+                                    dstImageAccessMask, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                    dstImageLayout);
 
     vkEndCommandBuffer(commandBuffer);
 }
@@ -851,58 +836,33 @@ void App::destroy()
     mContext.waitIdle();
 
     for (auto& descriptorSetLayout : mDescriptorSetLayouts)
-    {
         descriptorSetLayout.destroy(mContext.device);
-    }
 
-    if (mSampler != VK_NULL_HANDLE)
-    {
-        vkDestroySampler(mContext.device, mSampler, nullptr);
-    }
+    if (mSampler != VK_NULL_HANDLE) vkDestroySampler(mContext.device, mSampler, nullptr);
 
     // SET 0 : MESHES
-    if (mMeshRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mMeshRecordBuffer.destroy(mContext.allocator);
-    }
+    if (mMeshRecordBuffer.buffer != VK_NULL_HANDLE) mMeshRecordBuffer.destroy(mContext.allocator);
 
-    if (mVertexBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mVertexBuffer.destroy(mContext.allocator);
-    }
+    if (mVertexBuffer.buffer != VK_NULL_HANDLE) mVertexBuffer.destroy(mContext.allocator);
 
-    if (mIndexBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mIndexBuffer.destroy(mContext.allocator);
-    }
+    if (mIndexBuffer.buffer != VK_NULL_HANDLE) mIndexBuffer.destroy(mContext.allocator);
 
     if (mMeshTransformsBuffer.buffer != VK_NULL_HANDLE)
-    {
         mMeshTransformsBuffer.destroy(mContext.allocator);
-    }
 
     // SET 1: LIGHTS
-    if (mLightRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
-        mLightRecordBuffer.destroy(mContext.allocator);
-    }
+    if (mLightRecordBuffer.buffer != VK_NULL_HANDLE) mLightRecordBuffer.destroy(mContext.allocator);
 
     // SET 2: CAMERA
     if (mCameraRecordBuffer.buffer != VK_NULL_HANDLE)
-    {
         mCameraRecordBuffer.destroy(mContext.allocator);
-    }
 
     // SET 3: MATERIAL AND TEXTURES
     if (mMaterialRecordsBuffer.buffer != VK_NULL_HANDLE)
-    {
         mMaterialRecordsBuffer.destroy(mContext.allocator);
-    }
 
     for (auto& texture : mTextures)
-    {
         texture.destroy(mContext.device, mContext.allocator);
-    }
 
     // SET 4: RT
     mSbt.destroy(mContext.allocator);
@@ -925,15 +885,9 @@ void App::destroy()
     }
 
     // PIPELINES
-    if (mRasterPipeline.pipeline != VK_NULL_HANDLE)
-    {
-        mRasterPipeline.destroy(mContext.device);
-    }
+    if (mRasterPipeline.pipeline != VK_NULL_HANDLE) mRasterPipeline.destroy(mContext.device);
 
-    if (mRtPipeline.pipeline != VK_NULL_HANDLE)
-    {
-        mRtPipeline.destroy(mContext.device);
-    }
+    if (mRtPipeline.pipeline != VK_NULL_HANDLE) mRtPipeline.destroy(mContext.device);
 
     mContext.destroy();
 
@@ -946,9 +900,7 @@ void App::destroy()
 }
 
 void App::loadSceneFromPath(const char* path) const
-{
-    mpScene->loadSceneFromPath(path);
-}
+{ mpScene->loadSceneFromPath(path); }
 
 void App::render()
 {

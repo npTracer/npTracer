@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_map>
 #include <atomic>
+#include <span>
 
 NP_TRACER_NAMESPACE_BEGIN
 
@@ -39,17 +40,15 @@ public:
     std::vector<VkSemaphore> doneRenderingSemaphores;
 
     // queues
-    std::unordered_map<QueueType, Queue> queues;
+    std::unordered_map<eQueueType, Queue> queues;
     std::vector<uint32_t> queueFamilyIndices;  // stored indices based on if they are supported
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
     void setFramesInFlight(const uint32_t count)
-    {
-        kFramesInFlight = count;
-    }
+    { kFramesInFlight = count; }
 
     void createWindow(GLFWwindow*& window, uint32_t width, uint32_t height);
-    void createInstance(bool enableDebug);
+    void createInstance();
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
     void createAllocator();
@@ -62,19 +61,19 @@ public:
     void cleanupSwapchain();
 
     // command buffers
-    void createCommandBuffer(VkCommandBuffer* pOutCommandBuffer, QueueType queueFamily);
+    void createCommandBuffer(VkCommandBuffer* pOutCommandBuffer, eQueueType queueFamily);
     static void sBeginCommandBuffer(VkCommandBuffer commandBuffer,
                                     VkCommandBufferUsageFlags flags = 0);
-    void submitCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily,
+    void submitCommandBuffer(VkCommandBuffer commandBuffer, eQueueType queueFamily,
                              VkPipelineStageFlags waitDstFlags = 0, VkFence fence = VK_NULL_HANDLE,
                              VkSemaphore waitSemaphores = VK_NULL_HANDLE,
                              VkSemaphore signalSemaphores = VK_NULL_HANDLE);
-    void freeCommandBuffer(VkCommandBuffer commandBuffer, QueueType queueFamily);
+    void freeCommandBuffer(VkCommandBuffer commandBuffer, eQueueType queueFamily);
 
     // buffers
-    bool createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
+    void createBuffer(Buffer& handle, VkDeviceSize size, VkBufferUsageFlags usage,
                       VmaAllocationCreateFlags allocationFlags) const;
-    bool createDeviceLocalBuffer(Buffer& handle, const void* data, VkDeviceSize size,
+    void createDeviceLocalBuffer(Buffer& handle, const void* data, VkDeviceSize size,
                                  VkBufferUsageFlags usage);
     void copyBuffer(const Buffer& src, const Buffer& dst, VkDeviceSize size);
     VkDeviceAddress getBufferDeviceAddress(const Buffer& buffer) const;
@@ -98,7 +97,7 @@ public:
     static void sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
                                        VkPipelineStageFlags2 srcStageMask,
                                        VkAccessFlags2 srcAccessMask,
-                                       VkPipelineStageFlags2 dstStageMask,
+                                       VkPipelineStageFlags2 dstPipelineStageMask,
                                        VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
                                        VkImageLayout newLayout,
                                        VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
@@ -121,7 +120,7 @@ public:
     void createDescriptorSetLayout(
         DescriptorSetLayout* pOutDescriptorSetLayout,
         const std::vector<VkDescriptorSetLayoutBinding>& bindings,
-        const std::vector<VkDescriptorBindingFlags>* pBindingFlags = nullptr,
+        std::optional<std::span<const VkDescriptorBindingFlags>> pBindingFlags = std::nullopt,
         VkDescriptorSetLayoutCreateFlags layoutCreateFlags = 0,
         VkDescriptorPoolCreateFlags poolCreateFlags = 0) const;
     void allocateDescriptorSet(VkDescriptorSet* pOutDescriptorSet,
@@ -161,7 +160,7 @@ private:
     // debug
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
-    void createDebugMessenger(bool enableDebug);
+    void createDebugMessenger();
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL sDebugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
@@ -175,10 +174,7 @@ private:
     inline T sLoadDeviceFunction(VkDevice device, VkInstance instance, const char* name)
     {
         T fn = reinterpret_cast<T>(vkGetDeviceProcAddr(device, name));
-        if (!fn)
-        {
-            fn = reinterpret_cast<T>(vkGetInstanceProcAddr(instance, name));
-        }
+        if (!fn) fn = reinterpret_cast<T>(vkGetInstanceProcAddr(instance, name));
         return fn;
     }
 };

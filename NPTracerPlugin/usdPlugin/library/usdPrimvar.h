@@ -89,9 +89,7 @@ public:
     }
 
     inline const VtArray<T>& GetProcessedArray() const
-    {
-        return processed.UncheckedGet<VtArray<T>>();
-    }
+    { return processed.UncheckedGet<VtArray<T>>(); }
 
     inline void SetProcessed(VtValue& value) override
     {
@@ -144,9 +142,7 @@ using PrimvarMap = std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>;
 // static templated helper functions
 template<typename T>
 PrimvarPayload<T>* GetPayload(const PrimvarMap& map, PrimvarType type)
-{
-    return static_cast<PrimvarPayload<T>*>(map.at(type).get());
-}
+{ return static_cast<PrimvarPayload<T>*>(map.at(type).get()); }
 
 bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc);
 bool IsNormalPrimvarDesc(const HdPrimvarDescriptor& desc);

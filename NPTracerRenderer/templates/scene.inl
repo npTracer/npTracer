@@ -42,15 +42,12 @@ inline size_t Scene::getPrimCount() const
 }
 
 template<ScenePrim T>
-inline T* Scene::getPrimAtIndex(size_t idx)
+[[nodiscard]] inline T* Scene::getPrimAtIndex(size_t idx)
 {
     guard();
 
     std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
-    if (idx < 0 || idx >= primVector.size())
-    {
-        return nullptr;
-    }
+    if (idx >= primVector.size()) return nullptr;
     return primVector[idx].get();
 }
 

@@ -57,7 +57,6 @@ struct VertexOutput
 
 struct PushConstants
 {
-    uint32_t meshIndex;
     uint32_t numLights;
     uint32_t frameIndex;
 };
@@ -87,12 +86,12 @@ struct Intersection
     Payload payload; // represents intersection parameters (pos, normal, albedo, etc)
     float3 wo; // represents outgoing direction from intersection
     float3 weight; // represents weight of intersection to path (f * cos / pdf) for sampled next direction
-    uint validNext; // whether a continuation ray was successfully sampled
+    bool validNext; // whether a continuation ray was successfully sampled
 }
 
 struct BRDFSample
 {
     float3 wi;
     float3 weight; // f * NoL / pdf
-    uint valid; // whether a continuation ray wi was successfully sampled
+    bool valid; // whether a continuation ray wi was successfully sampled
 };

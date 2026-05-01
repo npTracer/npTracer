@@ -29,7 +29,7 @@ using UPTR = std::unique_ptr<T>;
 
 NP_TRACER_NAMESPACE_BEGIN
 
-using ScenePath = std::string;
+using SCENE_PATH = std::string;
 
 enum class eSceneType : uint8_t
 {
@@ -55,6 +55,12 @@ struct RendererConstants
 struct SpecializationConstants
 {
     uint32_t kFlipUVY = 1u;
+};
+
+struct PushConstants
+{
+    uint32_t numLights;
+    uint32_t frameIndex;
 };
 
 struct Vertex
@@ -106,10 +112,7 @@ struct Buffer
 
     void destroy(VmaAllocator allocator) const
     {
-        if (buffer != VK_NULL_HANDLE)
-        {
-            vmaDestroyBuffer(allocator, buffer, allocation);
-        }
+        if (buffer != VK_NULL_HANDLE) vmaDestroyBuffer(allocator, buffer, allocation);
     }
 
     static std::vector<VkBuffer> extractVkBuffers(const std::vector<Buffer>& buffers)
@@ -117,9 +120,7 @@ struct Buffer
         std::vector<VkBuffer> vkBuffers;
         vkBuffers.reserve(buffers.size());
         for (const auto& buffer : buffers)
-        {
             vkBuffers.push_back(buffer.buffer);
-        }
 
         return vkBuffers;
     }
@@ -237,24 +238,18 @@ struct DescriptorSetLayout
 
     void destroy(VkDevice device) const
     {
-        if (pool != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorPool(device, pool, nullptr);
-        }
+        if (pool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, pool, nullptr);
 
-        if (layout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
-        }
+        if (layout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, layout, nullptr);
     }
 };
 
-enum class QueueType : uint8_t
+enum class eQueueType : uint8_t
 {
     GRAPHICS,
     TRANSFER,
     COMPUTE,
-    _COUNT  // sentinel
+    COUNT_  // sentinel
 };
 
 struct Queue
@@ -264,16 +259,11 @@ struct Queue
     VkCommandPool commandPool;
 
     explicit operator bool() const
-    {
-        return index.has_value();
-    }
+    { return index.has_value(); }
 
     void destroy(VkDevice device) const
     {
-        if (commandPool != VK_NULL_HANDLE)
-        {
-            vkDestroyCommandPool(device, commandPool, nullptr);
-        }
+        if (commandPool != VK_NULL_HANDLE) vkDestroyCommandPool(device, commandPool, nullptr);
     }
 };
 
@@ -292,9 +282,7 @@ struct ShaderBindingTable
     VkStridedDeviceAddressRegionKHR callable{};
 
     void destroy(VmaAllocator allocator) const
-    {
-        buffer.destroy(allocator);
-    }
+    { buffer.destroy(allocator); }
 };
 
 struct AccelerationStructure
@@ -329,7 +317,7 @@ struct MeshRecord
 
 struct Mesh
 {
-    ScenePath scenePath;
+    SCENE_PATH scenePath;
 
     FLOAT4x4 transform = FLOAT4x4(1.f);  // i.e. objectToWorld
 
@@ -337,7 +325,7 @@ struct Mesh
     std::vector<Vertex> vertices;
 
     // NOTE: since Hydra does not guarantee creating materials before meshes, we save the material's unique `SdfPath` to fill in the `materialIndex` during 'finalization'
-    ScenePath _materialScenePath;
+    SCENE_PATH materialScenePath;
     uint32_t materialIndex = UINT32_MAX;
 
     bool bMaterialNeedsFinalization = false;
@@ -352,7 +340,7 @@ struct CameraRecord
     FLOAT4x4 invProj;
 };
 
-using Camera = CameraRecord;
+using CAMERA = CameraRecord;
 
 // lights
 struct LightRecord
@@ -364,12 +352,10 @@ struct LightRecord
 
 struct Light : LightRecord
 {
-    ScenePath scenePath;
+    SCENE_PATH scenePath;
 
-    LightRecord toRecord() const
-    {
-        return LightRecord(*this);
-    }
+    [[nodiscard]] LightRecord toRecord() const
+    { return LightRecord{ *this }; }
 };
 
 // materials
@@ -388,12 +374,10 @@ struct MaterialRecord
 
 struct Material : MaterialRecord
 {
-    ScenePath scenePath;
+    SCENE_PATH scenePath;
 
-    MaterialRecord toRecord() const
-    {
-        return MaterialRecord(*this);
-    }
+    [[nodiscard]] MaterialRecord toRecord() const
+    { return MaterialRecord{ *this }; }
 };
 
 // textures
@@ -404,7 +388,7 @@ struct TextureRecord
     uint32_t height;
 };
 
-struct Texture
+struct Texture : TextureRecord
 {
     void* pixels;  // pixels should have 4 channels
     uint32_t width;
@@ -412,7 +396,7 @@ struct Texture
     bool unorm = false;
 };
 
-enum class StylizationFunction : uint8_t
+enum class eStylizationFunction : uint8_t
 {
     PASSTHROUGH
 };
@@ -424,10 +408,10 @@ struct RenderSettings
     uint32_t samplesPerPixel = 1;
 
     // stylization-specific
-    StylizationFunction stylizationFunction = StylizationFunction::PASSTHROUGH;
+    eStylizationFunction stylizationFunction = eStylizationFunction::PASSTHROUGH;
 };
 
-struct RendererAovs
+struct RendererTargets
 {
     Image* color = nullptr;
     Image* depth = nullptr;

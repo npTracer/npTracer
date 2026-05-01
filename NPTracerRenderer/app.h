@@ -11,31 +11,24 @@ class App
 {
 public:
     Context* getContext()
-    {
-        return &mContext;
-    }
+    { return &mContext; }
 
     Scene* getScene() const
-    {
-        return mpScene.get();
-    }
+    { return mpScene.get(); }
 
     // public interface
 
     void create(const RendererConstants& rendererConstants);
     void destroy();
 
-    void loadSceneFromPath(const char* path);
+    void loadSceneFromPath(const char* path) const;
 
-    void createRenderingResources(std::optional<WRAP_REF<RendererAovs>> aovsRef = std::nullopt);
-    void executeDrawCall(RendererAovs& aovs);
+    void createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targetsRef = std::nullopt);
+    void executeDrawCall(const RendererTargets& targets);
 
     void render();
 
 private:
-    // this is a runtime constant, just update whenever needed
-    static constexpr size_t kPushConstantCount = 4;
-
     Context mContext{};
     GLFWwindow* mpWindow = nullptr;
 
@@ -52,11 +45,10 @@ private:
 
     std::vector<DescriptorSetLayout> mDescriptorSetLayouts;
     std::vector<VkDescriptorSet> mDescriptorSets;
-    VkSampler mSampler = VK_NULL_HANDLE;
+    VkSampler mSampler{};
 
     uint32_t mCurrentFrameInFlight = 0u;
     uint32_t mNumLights = 0;
-    std::vector<uint32_t> mIndexCounts;
 
     // SET 0: MESHES
     Buffer mMeshRecordBuffer;
@@ -79,16 +71,15 @@ private:
     AccelerationStructure mTlas{};
 
     // resource creation
-    void createGraphicsPipeline(uint32_t width, uint32_t height, VkFormat format);
     void createRTPipeline();
-    void createAccelerationStructures(std::vector<MeshRecord>& meshes,
-                                      std::vector<FLOAT4x4>& transforms,
+    void createAccelerationStructures(const std::vector<MeshRecord>& meshes,
+                                      const std::vector<FLOAT4x4>& transforms,
                                       VkDeviceAddress vertexAddress, VkDeviceAddress indexAddress);
 
     // render commands recording
-    void populateDrawCallRaster(Frame& frame, uint32_t imageIndex);
-    void populateDrawCallRT(VkCommandBuffer& commandBuffer, VkImage colorAov, VkExtent2D& extent,
-                            VkImageLayout dstImageLayout);
+    void populateDrawCallRT(VkCommandBuffer commandBuffer, VkImage color, const VkExtent2D& extent,
+                            VkPipelineStageFlags2 dstImagePipelineStageMask,
+                            VkAccessFlags2 dstImageAccessMask, VkImageLayout dstImageLayout) const;
 
     // private execute draw call standalone
     void executeDrawCallSwapchain();

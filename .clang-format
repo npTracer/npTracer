@@ -67,7 +67,7 @@ AlignTrailingComments:
 AllowAllArgumentsOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowBreakBeforeNoexceptSpecifier: Never
-AllowShortBlocksOnASingleLine: Empty
+AllowShortBlocksOnASingleLine: Always
 AllowShortCaseExpressionOnASingleLine: true
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortCompoundRequirementOnASingleLine: true
@@ -179,7 +179,7 @@ PPIndentWidth: -1
 QualifierAlignment: Leave
 ReferenceAlignment: Pointer
 ReflowComments: false
-RemoveBracesLLVM: false
+RemoveBracesLLVM: true
 RemoveParentheses: MultipleParentheses
 RemoveSemicolon: false
 RequiresClausePosition: OwnLine

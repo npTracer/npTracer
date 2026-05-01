@@ -5,7 +5,7 @@ NP_TRACER_NAMESPACE_BEGIN
 
 // definitions of all template functions for `scene.h`
 
-template<typename T>
+template<ScenePrim T>
 inline T* Scene::makePrim()
 {
     guard();  // lock the mutex
@@ -16,7 +16,7 @@ inline T* Scene::makePrim()
     return primVector.back().get();
 }
 
-template<typename T>
+template<ScenePrim T>
 inline bool Scene::deletePrim(T* primToDelete)
 {
     guard();
@@ -34,52 +34,38 @@ inline bool Scene::deletePrim(T* primToDelete)
     return false;
 }
 
-template<typename T>
+template<ScenePrim T>
 inline size_t Scene::getPrimCount() const
 {
     const std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
     return primVector.size();
 }
 
-template<typename T>
-inline T* Scene::getPrimAtIndex(size_t idx)
+template<ScenePrim T>
+[[nodiscard]] inline T* Scene::getPrimAtIndex(size_t idx)
 {
     guard();
 
     std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
-    if (idx < 0 || idx >= primVector.size())
-    {
-        return nullptr;
-    }
+    if (idx >= primVector.size()) return nullptr;
     return primVector[idx].get();
 }
 
-template<typename T>
+template<ScenePrim T>
 inline std::vector<std::unique_ptr<T>>& Scene::getPrimVector()
 {
-    if constexpr (std::is_same_v<T, Mesh>)
-    {
-        return _meshes;
-    }
-    else if constexpr (std::is_same_v<T, Light>)
-    {
-        return _lights;
-    }
-    else if constexpr (std::is_same_v<T, Material>)
-    {
-        return _materials;
-    }
-    else if constexpr (std::is_same_v<T, Texture>)
-    {
-        return _textures;
-    }
-    DEV_ASSERT(false, "requested count of invalid prim type");
+    if constexpr (std::is_same_v<T, Mesh>) return _meshes;
+    else if constexpr (std::is_same_v<T, Light>) return _lights;
+    else if constexpr (std::is_same_v<T, Material>) return _materials;
+    else if constexpr (std::is_same_v<T, Texture>) return _textures;
+
+    UNREACHABLE_CODE  // since template type constrained by `concept`, assert unreachable to compiler per-platform
 }
 
-template<typename T>
+template<ScenePrim T>
 const std::vector<std::unique_ptr<T>>& Scene::getPrimVector() const
 {
-    return const_cast<Scene*>(this)->getPrimVector<T>();
+    return const_cast<Scene*>(this)->getPrimVector<T>();  // const-cast is necessary for compiler
 }
 
 NP_TRACER_NAMESPACE_END

@@ -8,6 +8,10 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
+template<typename T>
+concept ScenePrim = std::is_same_v<T, Mesh> || std::is_same_v<T, Light>
+                    || std::is_same_v<T, Material> || std::is_same_v<T, Texture>;
+
 class Scene
 {
 public:
@@ -17,26 +21,22 @@ public:
     virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
 
     inline virtual eSceneType getSceneType()
-    {
-        return eSceneType::DEFAULT;
-    }
+    { return eSceneType::DEFAULT; }
 
-    template<typename T>
+    template<ScenePrim T>
     T* makePrim();
 
-    template<typename T>
+    template<ScenePrim T>
     bool deletePrim(T* primToDelete);
 
-    template<typename T>
-    size_t getPrimCount() const;
+    template<ScenePrim T>
+    [[nodiscard]] size_t getPrimCount() const;
 
-    template<typename T>
+    template<ScenePrim T>
     T* getPrimAtIndex(size_t idx);
 
-    inline Camera* getCamera()
-    {
-        return &_camera;
-    }
+    inline CAMERA* getCamera()
+    { return &_camera; }
 
     void guard();
     void finalize();
@@ -52,14 +52,14 @@ protected:
 
     std::vector<UPTR<Texture>> _textures;
 
-    Camera _camera;
+    CAMERA _camera;
 
     RenderSettings _settings;
 
-    template<typename T>
-    const std::vector<UPTR<T>>& getPrimVector() const;
+    template<ScenePrim T>
+    const std::vector<UPTR<T>>& getPrimVector() const;  // constant overload
 
-    template<typename T>
+    template<ScenePrim T>
     std::vector<UPTR<T>>& getPrimVector();
 };
 

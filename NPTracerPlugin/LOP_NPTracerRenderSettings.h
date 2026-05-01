@@ -15,9 +15,7 @@ public:
     static CH_LocalVariable LOCAL_VARIABLES[];
 
     static OP_Node* sNodeConstructor(OP_Network* parent, const char* name, OP_Operator* entry)
-    {
-        return new LOP_NPTracerRenderSettings(parent, name, entry);
-    }
+    { return new LOP_NPTracerRenderSettings(parent, name, entry); }
 
 protected:
     LOP_NPTracerRenderSettings(OP_Network* parent, const char* name, OP_Operator* entry);

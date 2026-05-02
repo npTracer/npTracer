@@ -56,3 +56,25 @@ float3 stylizeToon(float3 sample)
     float intensity = smoothstep(0.05, 0.10, luminance);
     return toonRamp * intensity;
 }
+
+float3 stylize(float style, float3 L, float3 N, float3 wo, float3 pos)
+{
+    if (style == 1)
+    {
+        return stylizeGreyScale(L);
+    }
+    else if (style == 2)
+    {
+        return stylizeContour(L, N, wo);
+    }
+    else if (style == 3)
+    {
+        return stylizeStripes(L, pos);
+    }
+    else if (style == 4)
+    {
+        return stylizeToon(L);
+    }
+    
+    return L;
+}

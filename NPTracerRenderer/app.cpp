@@ -79,7 +79,8 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
                                .indexCount = static_cast<uint32_t>(mesh->indices.size()),
                                .vertexCount = static_cast<uint32_t>(mesh->vertices.size()),
                                .transformIndex = static_cast<uint32_t>(globalTransforms.size()),
-                               .materialIndex = mesh->materialIndex };
+                               .materialIndex = mesh->materialIndex,
+                                .stylization = mesh->stylization};
 
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());

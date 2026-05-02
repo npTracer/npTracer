@@ -6,6 +6,7 @@ struct MeshRecord
     uint32_t vertexCount;
     uint32_t transformIndex;
     uint32_t materialIndex;
+    uint32_t stylization;
 };
 
 struct CameraRecord
@@ -34,8 +35,6 @@ struct MaterialRecord
     uint32_t diffuseTextureIndex;
     uint32_t normalTextureIndex;
     uint32_t metallicTextureIndex;
-    
-    uint32_t stylization;
 };
 
 struct Vertex

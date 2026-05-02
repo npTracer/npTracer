@@ -370,6 +370,8 @@ struct MaterialRecord
     uint32_t diffuseTextureIndex = UINT32_MAX;
     uint32_t normalTextureIndex = UINT32_MAX;
     uint32_t metallicTextureIndex = UINT32_MAX;
+    
+    uint32_t stylization = 0;
 };
 
 struct Material : MaterialRecord

@@ -276,8 +276,9 @@ void rgenMain()
             // apply stylization function to the outgoing radiance from this intersection
             if (payload.style == 1)
             {
+                //L = identity(L);
                 //L = stylizeGreyScale(L);
-                //L = stylizeContour(L, payload.normal, wo);
+                L = stylizeContour(L, payload.normal, wo);
                 //L = stylizeStripes(L, payload.hitPos);
                 //L = stylizeToon(L);
             }
@@ -327,6 +328,7 @@ void shadowmissMain(inout ShadowPayload payload)
 [shader("closesthit")]
 void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    payload.style = 0;
     payload.terminate = false;
 
     // instance data
@@ -367,8 +369,6 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
-
-        payload.style = 1;
     }
     
     if (material.normalTextureIndex != UINT32_MAX)
@@ -408,6 +408,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     payload.hit = true;
     payload.albedo = baseColor;
     payload.emission = material.emissive;
+    payload.style = material.stylization; // set style
     if (length(payload.emission) > 0.001)
     {
         payload.terminate = false; //true; keep this false for now but know that this is tunable

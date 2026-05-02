@@ -212,6 +212,9 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     loadAndSetTexture(scene, aiMat, aiTextureType_METALNESS, mat->metallicTextureIndex);  // metallic
 
     mesh->materialIndex = static_cast<uint32_t>(_materials.size() - 1);
+    
+    // stylization
+    mat->stylization = 1;
 }
 
 void AssimpScene::processAiLight(const aiLight* inAiLight)

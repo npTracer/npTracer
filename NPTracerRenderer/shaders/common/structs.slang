@@ -34,6 +34,8 @@ struct MaterialRecord
     uint32_t diffuseTextureIndex;
     uint32_t normalTextureIndex;
     uint32_t metallicTextureIndex;
+    
+    uint32_t stylization;
 };
 
 struct Vertex

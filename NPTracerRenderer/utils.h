@@ -51,7 +51,19 @@ NP_TRACER_NAMESPACE_BEGIN
 #define UNREACHABLE_CODE DEV_ASSERT(false, "reached unreachable code\n");
 #endif
 
-static std::vector<char> readFile(const std::string& filename)
+template<std::size_t LEN_A, std::size_t LEN_B>
+constexpr std::array<char, LEN_A + LEN_B - 1> cStrConcat(const char (&cStrA)[LEN_A],
+                                                         const char (&cStrB)[LEN_B])
+{
+    std::array<char, LEN_A + LEN_B - 1> result{};
+    for (std::size_t i = 0; i < LEN_A - 1; ++i)
+        result[i] = cStrA[i];
+    for (std::size_t i = 0; i < LEN_B; ++i)
+        result[LEN_A - 1 + i] = cStrB[i];
+    return result;
+}
+
+inline std::vector<char> readFile(const std::string& filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -66,17 +78,17 @@ static std::vector<char> readFile(const std::string& filename)
     return buffer;
 }
 
-static uint32_t alignUp(uint32_t value, uint32_t alignment)
+inline uint32_t alignUp(uint32_t value, uint32_t alignment)
 {
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
-static VkDeviceSize alignUpVk(VkDeviceSize value, VkDeviceSize alignment)
+inline VkDeviceSize alignUpVk(VkDeviceSize value, VkDeviceSize alignment)
 {
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
-static VkTransformMatrixKHR toVkTransform(const FLOAT4x4& m)
+inline VkTransformMatrixKHR toVkTransform(const FLOAT4x4& m)
 {
     VkTransformMatrixKHR out{};
 

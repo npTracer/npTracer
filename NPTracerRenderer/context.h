@@ -49,7 +49,9 @@ public:
         kFramesInFlight = count;
     }
 
-    void createWindow(GLFWwindow*& window, uint32_t width, uint32_t height);
+    GLFWwindow* createWindow(uint32_t width, uint32_t height);
+    static void sUpdateWindowFPS(GLFWwindow* window);
+
     void createInstance();
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();

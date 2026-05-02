@@ -35,7 +35,7 @@ public:
     template<ScenePrim T>
     T* getPrimAtIndex(size_t idx);
 
-    inline CAMERA* getCamera()
+    inline Camera* getCamera()
     { return &_camera; }
 
     void guard();
@@ -52,7 +52,7 @@ protected:
 
     std::vector<UPTR<Texture>> _textures;
 
-    CAMERA _camera;
+    Camera _camera;
 
     RenderSettings _settings;
 

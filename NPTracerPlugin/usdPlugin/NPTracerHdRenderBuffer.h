@@ -45,12 +45,13 @@ public:
     np::Image* RequestImageForWrite(bool waitUntilSuccess = true);
 
     // TODO: technically, we cannot assume aov type based on format along. but for now we will make this assumption
-    static np::eAovType sHdFormatToNPAovType(const HdFormat format);
+    static np::eAovType sHdFormatToNPAovType(HdFormat format);
 
-private:
+protected:
     // release any allocated resources
     void _Deallocate() override;
 
+private:
     // the actual underlying buffer
     std::unique_ptr<np::Image> _pImage;
     np::AovTokens _aovTokens;

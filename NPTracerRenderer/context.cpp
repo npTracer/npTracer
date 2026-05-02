@@ -681,18 +681,18 @@ void Context::createTextureImage(Image* pOutHandle, const void* pPixels, uint32_
     createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
 
-    pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                 VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+    sTransitionImageLayout(commandBuffer, pOutHandle->image, VK_PIPELINE_STAGE_2_NONE,
+                           VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     sCopyBufferToImage(pOutHandle, stagingBuffer, commandBuffer, width, height);
 
-    pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                 VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+    sTransitionImageLayout(commandBuffer, pOutHandle->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS);
 
@@ -830,14 +830,14 @@ void Context::sCopyImageToBuffer(const Buffer* pOutDstHandle, const Image& src,
 }
 
 void Context::sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                     VkPipelineStageFlags2 srcStageMask,
+                                     VkPipelineStageFlags2 srcPipelineStageMask,
                                      VkAccessFlags2 srcAccessMask,
                                      VkPipelineStageFlags2 dstPipelineStageMask,
                                      VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
                                      VkImageLayout newLayout, VkImageAspectFlags aspectFlags)
 {
     VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                                   .srcStageMask = srcStageMask,
+                                   .srcStageMask = srcPipelineStageMask,
                                    .srcAccessMask = srcAccessMask,
                                    .dstStageMask = dstPipelineStageMask,
                                    .dstAccessMask = dstAccessMask,

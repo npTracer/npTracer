@@ -42,8 +42,6 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     const VkDeviceSize size = GetSize();
 
-    if (format == HdFormatInvalid) return false;
-
     VkFormat vkFormat = _aovTokens.format;
     if (vkFormat == VK_FORMAT_UNDEFINED) return false;
 
@@ -58,10 +56,11 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     // transition into transfer src optimal for renderer
     // TEMP: set all access and stage for ease-of-use
-    _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0,
-                              VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT
-                                  | VK_ACCESS_2_SHADER_WRITE_BIT,
-                              VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+    np::Context::sTransitionImageLayout(commandBuffer, _pImage->image, VK_PIPELINE_STAGE_2_NONE,
+                                        VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_COPY_BIT,
+                                        VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                        _aovTokens.imageAspect);
 
     _pCtx->submitCommandBuffer(commandBuffer, np::eQueueType::GRAPHICS);
 
@@ -210,7 +209,7 @@ void NPTracerHdRenderBuffer::_Deallocate()
     NP_DBG("Deallocate complete of render buffer: id=%s\n", GetId().GetText());
 }
 
-np::eAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
+np::eAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(HdFormat format)
 {
     switch (format)
     {

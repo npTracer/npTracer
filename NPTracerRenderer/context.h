@@ -45,7 +45,9 @@ public:
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
     void setFramesInFlight(const uint32_t count)
-    { kFramesInFlight = count; }
+    {
+        kFramesInFlight = count;
+    }
 
     void createWindow(GLFWwindow*& window, uint32_t width, uint32_t height);
     void createInstance();

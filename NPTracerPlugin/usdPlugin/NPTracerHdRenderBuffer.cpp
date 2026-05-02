@@ -6,7 +6,10 @@
 #define PREPARE_UNIQUE_PTR(_ptr, _ptrType, _destroyer)                                             \
     do                                                                                             \
     {                                                                                              \
-        if (_ptr == nullptr) { _ptr = std::make_unique<_ptrType>(); }                              \
+        if (_ptr == nullptr)                                                                       \
+        {                                                                                          \
+            _ptr = std::make_unique<_ptrType>();                                                   \
+        }                                                                                          \
         else                                                                                       \
         {                                                                                          \
             _destroyer();                                                                          \
@@ -80,16 +83,24 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 }
 
 unsigned int NPTracerHdRenderBuffer::GetWidth() const
-{ return _dimensions[0]; }
+{
+    return _dimensions[0];
+}
 
 unsigned int NPTracerHdRenderBuffer::GetHeight() const
-{ return _dimensions[1]; }
+{
+    return _dimensions[1];
+}
 
 unsigned int NPTracerHdRenderBuffer::GetDepth() const
-{ return _dimensions[2]; }
+{
+    return _dimensions[2];
+}
 
 HdFormat NPTracerHdRenderBuffer::GetFormat() const
-{ return _format; }
+{
+    return _format;
+}
 
 size_t NPTracerHdRenderBuffer::GetSize() const
 {
@@ -98,7 +109,9 @@ size_t NPTracerHdRenderBuffer::GetSize() const
 }
 
 bool NPTracerHdRenderBuffer::IsMultiSampled() const
-{ return _bMultiSampled; }
+{
+    return _bMultiSampled;
+}
 
 // copy underlying image data to a staging buffer for i/o mapping
 void* NPTracerHdRenderBuffer::Map()
@@ -137,13 +150,19 @@ void NPTracerHdRenderBuffer::Unmap()
 }
 
 bool NPTracerHdRenderBuffer::IsMapped() const
-{ return _readers.load() > 0; }
+{
+    return _readers.load() > 0;
+}
 
 bool NPTracerHdRenderBuffer::IsConverged() const
-{ return _bConverged.load(); }
+{
+    return _bConverged.load();
+}
 
 void NPTracerHdRenderBuffer::SetConverged(bool converged)
-{ _bConverged.store(converged); }
+{
+    _bConverged.store(converged);
+}
 
 void NPTracerHdRenderBuffer::Resolve()
 {
@@ -151,7 +170,9 @@ void NPTracerHdRenderBuffer::Resolve()
 }
 
 bool NPTracerHdRenderBuffer::HasWriter() const
-{ return _bHasWriter.load(); }
+{
+    return _bHasWriter.load();
+}
 
 np::Image* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 {

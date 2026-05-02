@@ -900,7 +900,9 @@ void App::destroy()
 }
 
 void App::loadSceneFromPath(const char* path) const
-{ mpScene->loadSceneFromPath(path); }
+{
+    mpScene->loadSceneFromPath(path);
+}
 
 void App::render()
 {

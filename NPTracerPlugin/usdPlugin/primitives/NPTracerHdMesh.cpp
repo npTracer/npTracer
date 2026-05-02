@@ -11,10 +11,14 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 NPTracerHdMesh::NPTracerHdMesh(const SdfPath& rprimId, NPTracerHdRenderDelegate* renderDelegate)
     : HdMesh(rprimId), _pCreator(renderDelegate)
-{ _AddToScene(); }
+{
+    _AddToScene();
+}
 
 NPTracerHdMesh::~NPTracerHdMesh()
-{ _RemoveFromScene(); }
+{
+    _RemoveFromScene();
+}
 
 HdDirtyBits NPTracerHdMesh::GetInitialDirtyBitsMask() const
 {
@@ -164,7 +168,9 @@ void NPTracerHdMesh::sConstructMesh(
 }
 
 HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const
-{ return bits; }
+{
+    return bits;
+}
 
 void NPTracerHdMesh::_InitRepr(const TfToken& reprToken, HdDirtyBits*)
 {

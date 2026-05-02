@@ -19,11 +19,15 @@ PXR_NAMESPACE_OPEN_SCOPE
 #define VECTOR_FROM_C_ARRAY(T, arr) std::vector<T>(std::begin(arr), std::end(arr))
 
 NPTracerHdRenderDelegate::NPTracerHdRenderDelegate()
-{ _Initialize(); }
+{
+    _Initialize();
+}
 
 NPTracerHdRenderDelegate::NPTracerHdRenderDelegate(const HdRenderSettingsMap& settingsMap)
     : HdRenderDelegate(settingsMap)  // TODO: use the settings map ourselves
-{ _Initialize(); }
+{
+    _Initialize();
+}
 
 NPTracerHdRenderDelegate::~NPTracerHdRenderDelegate()
 {
@@ -36,25 +40,39 @@ NPTracerHdRenderDelegate::~NPTracerHdRenderDelegate()
 
 HdRenderPassSharedPtr NPTracerHdRenderDelegate::CreateRenderPass(HdRenderIndex* index,
                                                                  const HdRprimCollection& collection)
-{ return std::make_shared<NPTracerHdRenderPass>(index, collection, this); }
+{
+    return std::make_shared<NPTracerHdRenderPass>(index, collection, this);
+}
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedRprimTypes() const
-{ return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_RPRIM_TYPES; }
+{
+    return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_RPRIM_TYPES;
+}
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedSprimTypes() const
-{ return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_SPRIM_TYPES; }
+{
+    return _bOverrideSceneWithAssimp ? NO_SUPPORTED_PRIM_TYPES : SUPPORTED_SPRIM_TYPES;
+}
 
 const TfTokenVector& NPTracerHdRenderDelegate::GetSupportedBprimTypes() const
-{ return SUPPORTED_BPRIM_TYPES; }
+{
+    return SUPPORTED_BPRIM_TYPES;
+}
 
 HdRenderParam* NPTracerHdRenderDelegate::GetRenderParam() const
-{ return _pRenderParam.get(); }
+{
+    return _pRenderParam.get();
+}
 
 HdRenderSettingDescriptorList NPTracerHdRenderDelegate::GetRenderSettingDescriptors() const
-{ return _settingDescriptors; }
+{
+    return _settingDescriptors;
+}
 
 HdResourceRegistrySharedPtr NPTracerHdRenderDelegate::GetResourceRegistry() const
-{ return _pResourceRegistry; }
+{
+    return _pResourceRegistry;
+}
 
 HdInstancer* NPTracerHdRenderDelegate::CreateInstancer(HdSceneDelegate* delegate, const SdfPath& id)
 {
@@ -63,7 +81,9 @@ HdInstancer* NPTracerHdRenderDelegate::CreateInstancer(HdSceneDelegate* delegate
 }
 
 void NPTracerHdRenderDelegate::DestroyInstancer(HdInstancer* instancer)
-{ NP_DBG("Destroying instancer not currently supported.\n"); }
+{
+    NP_DBG("Destroying instancer not currently supported.\n");
+}
 
 HdRprim* NPTracerHdRenderDelegate::CreateRprim(const TfToken& typeId, const SdfPath& rprimId)
 {
@@ -85,8 +105,14 @@ HdSprim* NPTracerHdRenderDelegate::CreateSprim(const TfToken& typeId, const SdfP
 {
     NP_DBG("Create Sprim: type=%s id=%s\n", typeId.GetText(), sprimId.GetText());
 
-    if (typeId == HdPrimTypeTokens->camera) { return new HdCamera(sprimId); }
-    else if (typeId == HdPrimTypeTokens->material) { return new NPTracerHdMaterial(sprimId, this); }
+    if (typeId == HdPrimTypeTokens->camera)
+    {
+        return new HdCamera(sprimId);
+    }
+    else if (typeId == HdPrimTypeTokens->material)
+    {
+        return new NPTracerHdMaterial(sprimId, this);
+    }
     else if (typeId == HdPrimTypeTokens->sphereLight)
     {
         return new NPTracerHdSphereLight(sprimId, this);
@@ -110,7 +136,10 @@ HdSprim* NPTracerHdRenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 {
     NP_DBG("Create Fallback Sprim: type=%s\n", typeId.GetText());
 
-    if (typeId == HdPrimTypeTokens->camera) { return new HdCamera(SdfPath::EmptyPath()); }
+    if (typeId == HdPrimTypeTokens->camera)
+    {
+        return new HdCamera(SdfPath::EmptyPath());
+    }
     else if (typeId == HdPrimTypeTokens->material || typeId == HdPrimTypeTokens->sphereLight)
     {
         // do not corrupt our scene with other fallback prims as it their data is not initialized and they are also not properly deleted

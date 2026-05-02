@@ -224,7 +224,9 @@ struct Queue
     VkCommandPool commandPool;
 
     explicit operator bool() const
-    { return index.has_value(); }
+    {
+        return index.has_value();
+    }
 
     void destroy(VkDevice device) const
     {
@@ -247,7 +249,9 @@ struct ShaderBindingTable
     VkStridedDeviceAddressRegionKHR callable{};
 
     void destroy(VmaAllocator allocator) const
-    { buffer.destroy(allocator); }
+    {
+        buffer.destroy(allocator);
+    }
 };
 
 struct AccelerationStructure
@@ -309,7 +313,9 @@ struct Camera : CameraRecord
     FLOAT4x4 proj;
 
     [[nodiscard]] CameraRecord toRecord() const
-    { return CameraRecord{ *this }; }
+    {
+        return CameraRecord{ *this };
+    }
 };
 
 // lights
@@ -325,7 +331,9 @@ struct Light : LightRecord
     SCENE_PATH scenePath;
 
     [[nodiscard]] LightRecord toRecord() const
-    { return LightRecord{ *this }; }
+    {
+        return LightRecord{ *this };
+    }
 };
 
 // materials
@@ -347,7 +355,9 @@ struct Material : MaterialRecord
     SCENE_PATH scenePath;
 
     [[nodiscard]] MaterialRecord toRecord() const
-    { return MaterialRecord{ *this }; }
+    {
+        return MaterialRecord{ *this };
+    }
 };
 
 // textures

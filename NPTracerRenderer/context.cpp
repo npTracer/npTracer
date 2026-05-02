@@ -1216,7 +1216,9 @@ void Context::writeDescriptorSetAccelerationStructures(
 
 // UTILITY
 Frame& Context::getCurrentFrame(uint32_t currentFrame)
-{ return frames[currentFrame]; }
+{
+    return frames[currentFrame];
+}
 
 void Context::loadRayTracingFunctionPointers()
 {
@@ -1270,7 +1272,9 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 }
 
 void Context::waitIdle() const
-{ vkDeviceWaitIdle(device); }
+{
+    vkDeviceWaitIdle(device);
+}
 
 void Context::destroyDebugMessenger()
 {

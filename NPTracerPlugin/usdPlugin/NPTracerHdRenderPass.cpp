@@ -20,7 +20,9 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 }
 
 bool NPTracerHdRenderPass::IsConverged() const
-{ return _bConverged.load(); }
+{
+    return _bConverged.load();
+}
 
 void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPassState,
                                     const TfTokenVector& renderTags)
@@ -77,7 +79,9 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
 }
 
 void NPTracerHdRenderPass::SetConverged(bool converged)
-{ _bConverged.store(converged); }
+{
+    _bConverged.store(converged);
+}
 
 void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
                                               np::Camera* outCam)

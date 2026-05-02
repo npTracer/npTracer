@@ -6,7 +6,10 @@
 #define PREPARE_UNIQUE_PTR(_ptr, _ptrType, _destroyer)                                             \
     do                                                                                             \
     {                                                                                              \
-        if (_ptr == nullptr) { _ptr = std::make_unique<_ptrType>(); }                              \
+        if (_ptr == nullptr)                                                                       \
+        {                                                                                          \
+            _ptr = std::make_unique<_ptrType>();                                                   \
+        }                                                                                          \
         else                                                                                       \
         {                                                                                          \
             _destroyer();                                                                          \
@@ -42,8 +45,6 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     const VkDeviceSize size = GetSize();
 
-    if (format == HdFormatInvalid) return false;
-
     VkFormat vkFormat = _aovTokens.format;
     if (vkFormat == VK_FORMAT_UNDEFINED) return false;
 
@@ -58,10 +59,11 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 
     // transition into transfer src optimal for renderer
     // TEMP: set all access and stage for ease-of-use
-    _pImage->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0,
-                              VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT
-                                  | VK_ACCESS_2_SHADER_WRITE_BIT,
-                              VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+    np::Context::sTransitionImageLayout(commandBuffer, _pImage->image, VK_PIPELINE_STAGE_2_NONE,
+                                        VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_COPY_BIT,
+                                        VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                        _aovTokens.imageAspect);
 
     _pCtx->submitCommandBuffer(commandBuffer, np::eQueueType::GRAPHICS);
 
@@ -81,16 +83,24 @@ bool NPTracerHdRenderBuffer::Allocate(const GfVec3i& dimensions, HdFormat format
 }
 
 unsigned int NPTracerHdRenderBuffer::GetWidth() const
-{ return _dimensions[0]; }
+{
+    return _dimensions[0];
+}
 
 unsigned int NPTracerHdRenderBuffer::GetHeight() const
-{ return _dimensions[1]; }
+{
+    return _dimensions[1];
+}
 
 unsigned int NPTracerHdRenderBuffer::GetDepth() const
-{ return _dimensions[2]; }
+{
+    return _dimensions[2];
+}
 
 HdFormat NPTracerHdRenderBuffer::GetFormat() const
-{ return _format; }
+{
+    return _format;
+}
 
 size_t NPTracerHdRenderBuffer::GetSize() const
 {
@@ -99,7 +109,9 @@ size_t NPTracerHdRenderBuffer::GetSize() const
 }
 
 bool NPTracerHdRenderBuffer::IsMultiSampled() const
-{ return _bMultiSampled; }
+{
+    return _bMultiSampled;
+}
 
 // copy underlying image data to a staging buffer for i/o mapping
 void* NPTracerHdRenderBuffer::Map()
@@ -138,13 +150,19 @@ void NPTracerHdRenderBuffer::Unmap()
 }
 
 bool NPTracerHdRenderBuffer::IsMapped() const
-{ return _readers.load() > 0; }
+{
+    return _readers.load() > 0;
+}
 
 bool NPTracerHdRenderBuffer::IsConverged() const
-{ return _bConverged.load(); }
+{
+    return _bConverged.load();
+}
 
 void NPTracerHdRenderBuffer::SetConverged(bool converged)
-{ _bConverged.store(converged); }
+{
+    _bConverged.store(converged);
+}
 
 void NPTracerHdRenderBuffer::Resolve()
 {
@@ -152,7 +170,9 @@ void NPTracerHdRenderBuffer::Resolve()
 }
 
 bool NPTracerHdRenderBuffer::HasWriter() const
-{ return _bHasWriter.load(); }
+{
+    return _bHasWriter.load();
+}
 
 np::Image* NPTracerHdRenderBuffer::RequestImageForWrite(bool waitUntilSuccess)
 {
@@ -210,7 +230,7 @@ void NPTracerHdRenderBuffer::_Deallocate()
     NP_DBG("Deallocate complete of render buffer: id=%s\n", GetId().GetText());
 }
 
-np::eAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(const HdFormat format)
+np::eAovType NPTracerHdRenderBuffer::sHdFormatToNPAovType(HdFormat format)
 {
     switch (format)
     {

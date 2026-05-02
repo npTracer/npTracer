@@ -11,13 +11,19 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 NPTracerHdMaterial::NPTracerHdMaterial(const SdfPath& id, NPTracerHdRenderDelegate* renderDelegate)
     : HdMaterial(id), _pCreator(renderDelegate)
-{ _AddToScene(); }
+{
+    _AddToScene();
+}
 
 NPTracerHdMaterial::~NPTracerHdMaterial()
-{ _RemoveFromScene(); }
+{
+    _RemoveFromScene();
+}
 
 HdDirtyBits NPTracerHdMaterial::GetInitialDirtyBitsMask() const
-{ return HdChangeTracker::AllSceneDirtyBits; }
+{
+    return HdChangeTracker::AllSceneDirtyBits;
+}
 
 // TODO: make a base case class for all hd prim types with add and remove
 void NPTracerHdMaterial::_AddToScene()

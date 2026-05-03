@@ -56,7 +56,7 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
     FLOAT4x4 localTransform = transform * sAiToGLM(node->mTransformation);
     std::string nodeName = std::string(node->mName.C_Str());
     nodeTransforms[nodeName] = localTransform;  // store for light traversal
-    
+
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
     {
         const aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
@@ -179,7 +179,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS)
     {
         mat->diffuse = FLOAT4(color.r, color.g, color.b, 1.0f);
-        
+
         float a = color.a;
         int maxStyles = 4;
         mesh->stylization = static_cast<int>((1.0f - a) * maxStyles);

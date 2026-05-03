@@ -182,7 +182,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
         
         float a = color.a;
         int maxStyles = 4;
-        mesh->stylization = static_cast<int>((1.0f - a) * maxStyles);
+        mesh->stylization = static_cast<int>((1.0f - a) * (maxStyles + 1));
         int x = 0;
     }
 

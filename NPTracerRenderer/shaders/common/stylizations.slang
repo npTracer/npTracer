@@ -47,14 +47,35 @@ float3 stylizeStripes(float3 sample, float3 position)
     return patternShade;
 }
 
-float3 stylizeToon(float3 sample)
+float planeDistance(float3 position, float3 n, float s)
 {
-    float luminance = luminance(sample);
-    
-    float3 toonRamp = float3(0.55, 0.48, 0.67);
-    
-    float intensity = smoothstep(0.05, 0.10, luminance);
-    return toonRamp * intensity;
+    float u = dot(position, n);
+    return abs(u - s * round(u / s));
+}
+
+float3 stylizeCrossHatch(float3 sample, float3 position)
+{
+    float lum = luminance(sample);
+
+    const float spacing  = 0.06;   // distance between adjacent slice planes
+    const float width    = 0.018;  // hatch line thickness (world units)
+    const float3 lineCol = float3(0.04, 0.03, 0.02);
+    const float3 bgCol   = float3(0.95, 0.93, 0.88); 
+
+    const float t0 = 0.75;
+    const float t1 = 0.45;
+    const float t2 = 0.18;
+
+    const float3 n1 = normalize(float3( 1.0,  1.0, 0.2));
+    const float3 n2 = normalize(float3( 1.0, -1.0, 0.2));
+    const float3 n3 = normalize(float3( 0.0,  1.0, 0.0));
+
+    float halfW = width * 0.5;
+    bool on1 = (lum < t0) && (planeDistance(position, n1, spacing) < halfW);
+    bool on2 = (lum < t1) && (planeDistance(position, n2, spacing) < halfW);
+    bool on3 = (lum < t2) && (planeDistance(position, n3, spacing * 0.6) < halfW);
+
+    return (on1 || on2 || on3) ? lineCol : bgCol;
 }
 
 float3 stylize(float style, float3 L, float3 N, float3 wo, float3 pos)
@@ -73,7 +94,7 @@ float3 stylize(float style, float3 L, float3 N, float3 wo, float3 pos)
     }
     else if (style == 4)
     {
-        return stylizeToon(L);
+        return stylizeCrossHatch(L, pos);
     }
     
     return L;

@@ -4,6 +4,11 @@
 ![dragon with greyscale stylization](docs/assets/dragon_with_greyscale_stylization.png)
 ![sponza in houdini](docs/assets/sponza_in_houdini.png)
 
+## User Manual
+### Custom USD Primvars
+
+`npTracer:
+
 ## Build Instructions
 
 NPTracer has a build pipeline setup through CMake.

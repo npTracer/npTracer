@@ -12,7 +12,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 class NPTracerHdRenderDelegate;  // forward declare
 
-class NPTracerHdMesh : public HdMesh
+class NPTracerHdMesh final : public HdMesh
 {
 public:
     NPTracerHdMesh(const SdfPath& rprimId, NPTracerHdRenderDelegate* renderDelegate);
@@ -26,13 +26,14 @@ public:
 
     static void sConstructMesh(
         const VtU32Array& triIndices,
-        const std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>& primvarMap,
+        const std::unordered_map<ePrimvarType, UPTR<PrimvarPayloadBase>>& primvarMap,
         np::Mesh* outMesh);
 
-private:
+protected:
     HdDirtyBits _PropagateDirtyBits(HdDirtyBits bits) const override;
     void _InitRepr(const TfToken& reprToken, HdDirtyBits* dirtyBits) override;
 
+private:
     NPTracerHdRenderDelegate* _pCreator;
     np::Mesh* _pMesh = nullptr;
 
@@ -40,7 +41,7 @@ private:
     VtU32Array _triIndices;
     VtIntArray _primitiveParams;
 
-    std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>> _primvarMap{};
+    std::unordered_map<ePrimvarType, UPTR<PrimvarPayloadBase>> _primvarMap{};
 
     void _AddToScene();
     void _RemoveFromScene();

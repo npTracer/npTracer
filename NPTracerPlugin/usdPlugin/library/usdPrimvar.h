@@ -12,14 +12,20 @@ PXR_NAMESPACE_OPEN_SCOPE
 extern const std::array<TfToken, 3> gUVTokensArray;  // calling TfToken constructor is expensive
 
 // NOTE: use a regular enum for easier traversal and indexing
-enum PrimvarType : uint8_t
+enum ePrimvarType : uint8_t
 {
     POSITION,
     NORMAL,
     COLOR,
     UV,
-    _COUNT
+
+    STYLIZATION_ID,
+
+    PRIMVAR_TYPE_COUNT_
 };
+
+inline std::string stringToLowercase(std::string str);
+uint32_t sProcessPrimvarAsToken(const ePrimvarType& primvarType, TfToken& token);
 
 class PrimvarPayloadBase
 {
@@ -27,13 +33,18 @@ protected:
     size_t sourceSize = SIZE_MAX;
 
 public:
+    explicit inline PrimvarPayloadBase(bool isConstantValue) : bIsConstantValue(isConstantValue) {}
+
     HdPrimvarDescriptor desc{};
     bool isDirty = false;
+
+    // if the primvar describes a constant, per-mesh value
+    bool bIsConstantValue = false;
 
     virtual void FillDefault(size_t n) = 0;  // fill both source and processed with default elem
     virtual void FillConstant(size_t n) = 0;  // fill processed with first elem ofsource
 
-    virtual void SetSource(VtValue& value) = 0;
+    virtual void SetSource(const ePrimvarType& primvarType, VtValue& value) = 0;
     virtual const VtValue& GetSource() const = 0;
     virtual void SetProcessed(VtValue& value) = 0;
 
@@ -45,7 +56,7 @@ public:
 };
 
 template<typename T>
-class PrimvarPayload : public PrimvarPayloadBase
+class PrimvarPayload final : public PrimvarPayloadBase
 {
 private:
     VtValue source = VtValue(VtArray<T>());  // initialize with empty array for ease-of-use
@@ -56,7 +67,10 @@ private:
     VtArray<T> runtimeProcessed{};  // copy of stored values only used during `Process-Write` loop
 
 public:
-    explicit inline PrimvarPayload(const T& defaultElem) : defaultElement(defaultElem) {}
+    explicit inline PrimvarPayload(const T& defaultElem, bool isConstantValue = false)
+        : defaultElement(defaultElem), PrimvarPayloadBase(isConstantValue)
+    {
+    }
 
     inline void FillDefault(size_t n) override
     {
@@ -75,10 +89,19 @@ public:
         processed.UncheckedMutate<VtArray<T>>([&](VtArray<T>& proc) { proc.resize(n, elem); });
     }
 
-    inline void SetSource(VtValue& value) override
+    inline void SetSource(const ePrimvarType& primvarType, VtValue& value) override
     {
         // allow as long as holding the right type
         if (value.IsHolding<VtArray<T>>()) source.UncheckedSwap(value);
+        else if (value.IsHolding<TfToken>())
+        {
+            TfToken token = value.Get<TfToken>();
+
+            VtArray<T> arr;
+            arr.push_back(static_cast<T>(sProcessPrimvarAsToken(primvarType, token)));
+
+            source = VtValue(arr);
+        }
         else source.UncheckedRemove<VtArray<T>>();
         sourceSize = source.GetArraySize();  // sets 0 if value is empty
     }
@@ -90,7 +113,15 @@ public:
 
     inline const VtArray<T>& GetProcessedArray() const
     {
+        // should never be called if the primvar describes a constant value
+        TF_DEV_AXIOM(!bIsConstantValue);
         return processed.UncheckedGet<VtArray<T>>();
+    }
+
+    inline const T& GetConstantValue() const
+    {
+        TF_DEV_AXIOM(bIsConstantValue && source.GetArraySize() == 1);
+        return source.Get<VtArray<T>>()[0];
     }
 
     inline void SetProcessed(VtValue& value) override
@@ -139,11 +170,11 @@ using ProcessPrimvarsFn = void (*)(const HdMeshUtil& meshUtil, const VtU32Array&
                                    const VtIntArray& primitiveParams,
                                    const std::vector<PrimvarPayloadBase*>& pPayloads);
 
-using PrimvarMap = std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>;
+using PrimvarMap = std::unordered_map<ePrimvarType, UPTR<PrimvarPayloadBase>>;
 
 // static templated helper functions
 template<typename T>
-PrimvarPayload<T>* GetPayload(const PrimvarMap& map, PrimvarType type)
+PrimvarPayload<T>* GetPayload(const PrimvarMap& map, ePrimvarType type)
 {
     return static_cast<PrimvarPayload<T>*>(map.at(type).get());
 }
@@ -152,11 +183,13 @@ bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc);
 bool IsNormalPrimvarDesc(const HdPrimvarDescriptor& desc);
 bool IsColorPrimvarDesc(const HdPrimvarDescriptor& desc);
 bool IsUVPrimvarDesc(const HdPrimvarDescriptor& desc);
+bool IsStylizationIdPrimvarDesc(const HdPrimvarDescriptor& desc);
 
 bool IsPositionPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id);
 bool IsNormalPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id);
 bool IsColorPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id);
 bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id);
+bool IsStylizationIdPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id);
 
 void FillMissingPrimvarGfVec2f(size_t count, PrimvarPayloadBase* pPayload);
 void FillMissingPrimvarGfVec3f(size_t count, PrimvarPayloadBase* pPayload);
@@ -183,14 +216,16 @@ inline constexpr IsPrimvarDescFn IS_PRIMVAR_DESC_FN_TABLE[] = {
     &IsPositionPrimvarDesc,  // POSITION
     &IsNormalPrimvarDesc,  // NORMAL
     &IsColorPrimvarDesc,  // COLOR
-    &IsUVPrimvarDesc  // UV
+    &IsUVPrimvarDesc,  // UV
+    &IsStylizationIdPrimvarDesc  // STYLIZATION_ID
 };
 
 inline constexpr IsPrimvarDirtyFn IS_PRIMVAR_DIRTY_FN_TABLE[] = {
     &IsPositionPrimvarDirty,  // POSITION
     &IsNormalPrimvarDirty,  // NORMAL
     &IsColorPrimvarDirty,  // COLOR
-    &IsUVPrimvarDirty  // UV
+    &IsUVPrimvarDirty,  // UV
+    &IsStylizationIdPrimvarDirty  // STYLIZATION_ID
 };
 
 inline constexpr ProcessPrimvarsFn PROCESS_PRIMVARS_FN_TABLE[] = {

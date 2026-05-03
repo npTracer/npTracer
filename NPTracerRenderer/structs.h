@@ -274,10 +274,19 @@ struct AccelerationStructure
 
 // meshes
 
+enum eStylizationId : uint32_t
+{
+    GREYSCALE = 1u,
+    TOON,
+    STRIPES,
+    CROSSHATCH,
+    STYLIZATION_ID_COUNT_
+};
+
 // define shared members in this macro to maintain synchronization without explicit inheritance
 #define MESH_SHARED_MEMBERS                                                                        \
     uint32_t materialIndex = UINT32_MAX;                                                           \
-    uint32_t stylizationId = 0u;
+    eStylizationId stylizationId = eStylizationId::STYLIZATION_ID_COUNT_;
 
 struct MeshRecord
 {
@@ -382,19 +391,11 @@ struct Texture : TextureRecord
     bool unorm = false;
 };
 
-enum class eStylizationFunction : uint8_t
-{
-    PASSTHROUGH
-};
-
 struct RenderSettings
 {
     // general settings
     uint32_t maxDepth = 1;
     uint32_t samplesPerPixel = 1;
-
-    // stylization-specific
-    eStylizationFunction stylizationFunction = eStylizationFunction::PASSTHROUGH;
 };
 
 struct RendererTargets

@@ -22,7 +22,7 @@ void App::create(const RendererConstants& rendererConstants)
 
     // create vulkan basics
     mContext.setFramesInFlight(kDEFAULT_FRAMES_IN_FLIGHT);
-    if (USE_SWAPCHAIN) mContext.createWindow(mpWindow, kDEFAULT_WIDTH, kDEFAULT_HEIGHT);
+    if (USE_SWAPCHAIN) mpWindow = mContext.createWindow(kDEFAULT_WIDTH, kDEFAULT_HEIGHT);
     mContext.createInstance();
     if (USE_SWAPCHAIN) mContext.createSurface(mpWindow);
     mContext.createPhysicalDevice();
@@ -80,7 +80,7 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
                                .vertexCount = static_cast<uint32_t>(mesh->vertices.size()),
                                .transformIndex = static_cast<uint32_t>(globalTransforms.size()),
                                .materialIndex = mesh->materialIndex,
-                                .stylization = mesh->stylization};
+                               .stylizationId = mesh->stylizationId };
 
         globalVertices.insert(globalVertices.end(), mesh->vertices.begin(), mesh->vertices.end());
         globalIndices.reserve(globalIndices.size() + mesh->indices.size());
@@ -901,12 +901,15 @@ void App::destroy()
 }
 
 void App::loadSceneFromPath(const char* path) const
-{ mpScene->loadSceneFromPath(path); }
+{
+    mpScene->loadSceneFromPath(path);
+}
 
 void App::render()
 {
     while (!glfwWindowShouldClose(mpWindow))
     {
+        Context::sUpdateWindowFPS(mpWindow);
         glfwPollEvents();
         executeDrawCallSwapchain();
     }

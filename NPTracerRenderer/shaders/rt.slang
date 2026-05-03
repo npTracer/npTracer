@@ -406,7 +406,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
     payload.hit = true;
     payload.albedo = baseColor;
     payload.emission = material.emissive;
-    //payload.style = rec.stylization; // set style
+    payload.style = rec.stylizationId; // set style
     if (length(payload.emission) > 0.001)
     {
         payload.terminate = false; //true; keep this false for now but know that this is tunable

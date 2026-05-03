@@ -16,7 +16,9 @@ public:
     ~AssimpScene() override;
 
     inline eSceneType getSceneType() override
-    { return eSceneType::ASSIMP; }
+    {
+        return eSceneType::ASSIMP;
+    }
 
     void loadSceneFromPath(const char* path) override;
 

@@ -138,41 +138,6 @@ struct Image
     uint32_t height = -1;
     VkFormat format = VK_FORMAT_UNDEFINED;
 
-    // NOTE: `commandBuffer` must be ready for write
-    void transitionLayout(VkCommandBuffer commandBuffer, VkImageLayout newLayout,
-                          VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask,
-                          VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
-                          std::optional<VkImageAspectFlags> overrideAspect = std::nullopt)
-    {
-        const VkImageAspectFlags aspectMask = overrideAspect.value_or(
-            format == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
-
-        VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                                       .srcStageMask = srcStageMask,
-                                       .srcAccessMask = srcAccessMask,
-                                       .dstStageMask = dstStageMask,
-                                       .dstAccessMask = dstAccessMask,
-                                       .oldLayout = layout,
-                                       .newLayout = newLayout,
-                                       .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                       .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                       .image = image,
-                                       .subresourceRange = { .aspectMask = aspectMask,
-                                                             .baseMipLevel = 0,
-                                                             .levelCount = 1,
-                                                             .baseArrayLayer = 0,
-                                                             .layerCount = 1 } };
-
-        VkDependencyInfo dependencyInfo{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                                         .dependencyFlags = {},
-                                         .imageMemoryBarrierCount = 1,
-                                         .pImageMemoryBarriers = &barrier };
-
-        vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
-
-        layout = newLayout;
-    }
-
     void destroy(VkDevice device, VmaAllocator allocator)
     {
         if (view != VK_NULL_HANDLE)
@@ -259,7 +224,9 @@ struct Queue
     VkCommandPool commandPool;
 
     explicit operator bool() const
-    { return index.has_value(); }
+    {
+        return index.has_value();
+    }
 
     void destroy(VkDevice device) const
     {
@@ -282,7 +249,9 @@ struct ShaderBindingTable
     VkStridedDeviceAddressRegionKHR callable{};
 
     void destroy(VmaAllocator allocator) const
-    { buffer.destroy(allocator); }
+    {
+        buffer.destroy(allocator);
+    }
 };
 
 struct AccelerationStructure
@@ -304,6 +273,12 @@ struct AccelerationStructure
 // primitive types
 
 // meshes
+
+// define shared members in this macro to maintain synchronization without explicit inheritance
+#define MESH_SHARED_MEMBERS                                                                        \
+    uint32_t materialIndex = UINT32_MAX;                                                           \
+    uint32_t stylizationId = 0u;
+
 struct MeshRecord
 {
     uint32_t vertexOffset;
@@ -312,8 +287,7 @@ struct MeshRecord
     uint32_t vertexCount;
 
     uint32_t transformIndex;
-    uint32_t materialIndex = UINT32_MAX;
-    uint32_t stylization = 0;
+    MESH_SHARED_MEMBERS
 };
 
 struct Mesh
@@ -327,8 +301,7 @@ struct Mesh
 
     // NOTE: since Hydra does not guarantee creating materials before meshes, we save the material's unique `SdfPath` to fill in the `materialIndex` during 'finalization'
     SCENE_PATH materialScenePath;
-    uint32_t materialIndex = UINT32_MAX;
-    uint32_t stylization = 0;
+    MESH_SHARED_MEMBERS
 
     bool bMaterialNeedsFinalization = false;
 };
@@ -336,13 +309,20 @@ struct Mesh
 // camera
 struct CameraRecord
 {
-    FLOAT4x4 view;
-    FLOAT4x4 proj;
     FLOAT4x4 invView;
     FLOAT4x4 invProj;
 };
 
-using CAMERA = CameraRecord;
+struct Camera : CameraRecord
+{
+    FLOAT4x4 view;
+    FLOAT4x4 proj;
+
+    [[nodiscard]] CameraRecord toRecord() const
+    {
+        return CameraRecord{ *this };
+    }
+};
 
 // lights
 struct LightRecord
@@ -357,7 +337,9 @@ struct Light : LightRecord
     SCENE_PATH scenePath;
 
     [[nodiscard]] LightRecord toRecord() const
-    { return LightRecord{ *this }; }
+    {
+        return LightRecord{ *this };
+    }
 };
 
 // materials
@@ -379,7 +361,9 @@ struct Material : MaterialRecord
     SCENE_PATH scenePath;
 
     [[nodiscard]] MaterialRecord toRecord() const
-    { return MaterialRecord{ *this }; }
+    {
+        return MaterialRecord{ *this };
+    }
 };
 
 // textures

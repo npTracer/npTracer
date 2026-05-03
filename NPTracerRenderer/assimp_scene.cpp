@@ -56,7 +56,7 @@ void AssimpScene::processAiNode(const aiScene* scene, const aiNode* node, const 
     FLOAT4x4 localTransform = transform * sAiToGLM(node->mTransformation);
     std::string nodeName = std::string(node->mName.C_Str());
     nodeTransforms[nodeName] = localTransform;  // store for light traversal
-    
+
     for (uint32_t i = 0; i < node->mNumMeshes; i++)
     {
         const aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
@@ -77,7 +77,8 @@ void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMa
         std::string texKey = std::string(aiStr.C_Str());
 
         auto it = textureIndexByKey.find(texKey);
-        if (it != textureIndexByKey.end()) { targetIndex = it->second; }
+        if (it != textureIndexByKey.end()) targetIndex = it->second;
+
         else  // create a new texture
         {
             auto texture = makePrim<Texture>();
@@ -179,10 +180,10 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     if (aiMat->Get(AI_MATKEY_BASE_COLOR, color) == AI_SUCCESS)
     {
         mat->diffuse = FLOAT4(color.r, color.g, color.b, 1.0f);
-        
+
         float a = color.a;
         int maxStyles = 4;
-        mesh->stylization = static_cast<int>((1.0f - a) * (maxStyles + 1));
+        mesh->stylizationId = static_cast<int>((1.0f - a) * maxStyles);
         int x = 0;
     }
 
@@ -249,7 +250,6 @@ void AssimpScene::processAiLight(const aiLight* inAiLight)
 
 void AssimpScene::processAiCamera(const aiScene* inAiScene)
 {
-    CameraRecord cameraRecord{};
     if (inAiScene->HasCameras())
     {
         aiCamera* aiCam = inAiScene->mCameras[0];
@@ -269,30 +269,26 @@ void AssimpScene::processAiCamera(const aiScene* inAiScene)
         glm::vec3 center = eye + look;
 
         // NOTE: GLM uses RH by default, but we can be explicit here
-        cameraRecord.view = glm::lookAtRH(eye, center, upVec);
+        _camera.view = glm::lookAtRH(eye, center, upVec);
 
         float aspect = aiCam->mAspect != 0.0f ? aiCam->mAspect : (2560.0f / 1440.0f);
 
         // calculate fovY for `glm::perspective`
         float fovY = 2.0f * atan(tan(aiCam->mHorizontalFOV * 0.5f) / aspect);
-        cameraRecord.proj = glm::perspectiveRH(fovY, aspect, aiCam->mClipPlaneNear,
-                                               aiCam->mClipPlaneFar);
+        _camera.proj = glm::perspectiveRH(fovY, aspect, aiCam->mClipPlaneNear, aiCam->mClipPlaneFar);
     }
     else
     {
-        cameraRecord.view = glm::lookAtRH(glm::vec3(0.0f, 0.0f, 5.0f),  // eye
-                                          glm::vec3(0.0f, 0.0f, 0.0f),  // center
-                                          glm::vec3(0.0f, 1.0f, 0.0f)  // up
+        _camera.view = glm::lookAtRH(glm::vec3(0.0f, 0.0f, 5.0f),  // eye
+                                     glm::vec3(0.0f, 0.0f, 0.0f),  // center
+                                     glm::vec3(0.0f, 1.0f, 0.0f)  // up
         );
 
-        cameraRecord.proj = glm::perspectiveRH(glm::radians(75.0f), 2560.0f / 1440.0f, 0.1f,
-                                               1000.0f);
+        _camera.proj = glm::perspectiveRH(glm::radians(75.0f), 2560.0f / 1440.0f, 0.1f, 1000.0f);
     }
 
-    cameraRecord.invView = glm::inverse(cameraRecord.view);
-    cameraRecord.invProj = glm::inverse(cameraRecord.proj);
-
-    _camera = cameraRecord;
+    _camera.invView = glm::inverse(_camera.view);
+    _camera.invProj = glm::inverse(_camera.proj);
 }
 
 NP_TRACER_NAMESPACE_END

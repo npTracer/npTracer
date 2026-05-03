@@ -12,13 +12,19 @@ extern const std::array<TfToken, 3> gUVTokensArray = {
 };
 
 bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc)
-{ return desc.name == HdTokens->points || desc.role == HdPrimvarRoleTokens->point; }
+{
+    return desc.name == HdTokens->points || desc.role == HdPrimvarRoleTokens->point;
+}
 
 bool IsNormalPrimvarDesc(const HdPrimvarDescriptor& desc)
-{ return desc.name == HdTokens->normals || desc.role == HdPrimvarRoleTokens->normal; }
+{
+    return desc.name == HdTokens->normals || desc.role == HdPrimvarRoleTokens->normal;
+}
 
 bool IsColorPrimvarDesc(const HdPrimvarDescriptor& desc)
-{ return desc.name == HdTokens->displayColor || desc.role == HdPrimvarRoleTokens->color; }
+{
+    return desc.name == HdTokens->displayColor || desc.role == HdPrimvarRoleTokens->color;
+}
 
 bool IsUVPrimvarDesc(const HdPrimvarDescriptor& desc)
 {
@@ -27,13 +33,19 @@ bool IsUVPrimvarDesc(const HdPrimvarDescriptor& desc)
 }
 
 bool IsPositionPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
-{ return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points); }
+{
+    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points);
+}
 
 bool IsNormalPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
-{ return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points); }
+{
+    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->points);
+}
 
 bool IsColorPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
-{ return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals); }
+{
+    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->normals);
+}
 
 bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
 {

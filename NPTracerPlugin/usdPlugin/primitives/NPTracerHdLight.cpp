@@ -14,10 +14,14 @@ NPTracerHdLight::NPTracerHdLight(const SdfPath& sprimId, NPTracerHdRenderDelegat
 }
 
 NPTracerHdLight::~NPTracerHdLight()
-{ _RemoveFromScene(); }
+{
+    _RemoveFromScene();
+}
 
 HdDirtyBits NPTracerHdLight::GetInitialDirtyBitsMask() const
-{ return HdLight::DirtyParams; }
+{
+    return HdLight::DirtyParams;
+}
 
 // TODO: make a base case class for all hd prim types with add and remove
 void NPTracerHdLight::_AddToScene()
@@ -49,7 +53,9 @@ void NPTracerHdLight::_RemoveFromScene()
 NPTracerHdSphereLight::NPTracerHdSphereLight(const SdfPath& sprimId,
                                              NPTracerHdRenderDelegate* renderDelegate)
     : NPTracerHdLight(sprimId, renderDelegate)
-{ _AddToScene(); }
+{
+    _AddToScene();
+}
 
 void NPTracerHdSphereLight::Sync(HdSceneDelegate* delegate, HdRenderParam* renderParam,
                                  HdDirtyBits* dirtyBits)

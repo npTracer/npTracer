@@ -9,17 +9,17 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-class NPTracerHdRenderPass : public HdRenderPass
+class NPTracerHdRenderPass final : public HdRenderPass
 {
 public:
     NPTracerHdRenderPass(HdRenderIndex* index, const HdRprimCollection& collection,
                          NPTracerHdRenderDelegate* delegate);
 
+    bool IsConverged() const override;
+
 protected:
     void _Execute(const HdRenderPassStateSharedPtr& renderPassState,
                   const TfTokenVector& renderTags) override;
-
-    bool IsConverged() const override;
 
     // set the convergence state
     void SetConverged(bool converged);
@@ -32,7 +32,7 @@ private:
     // camera should not be synced if we are overriding
     static constexpr bool _bSyncCameraPerPass = !ASSIMP_OVERRIDE;
     static void sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
-                                   np::CameraRecord* outCam);
+                                   np::Camera* outCam);
 
     // TEMP: only create rendering resources once
     std::atomic<bool> _resourcesCreatedFlag{ false };

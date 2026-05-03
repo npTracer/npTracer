@@ -6,13 +6,11 @@ struct MeshRecord
     uint32_t vertexCount;
     uint32_t transformIndex;
     uint32_t materialIndex;
-    uint32_t stylization;
+    uint32_t stylizationId;
 };
 
 struct CameraRecord
 {
-    float4x4 view;
-    float4x4 proj;
     float4x4 invView;
     float4x4 invProj;
 };

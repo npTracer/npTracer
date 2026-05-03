@@ -3,7 +3,9 @@
 
 #include <glm/glm.hpp>
 #include <stb_image.h>
+#include <GLFW/glfw3.h>
 
+#include <format>
 #include <algorithm>
 #include <optional>
 #include <ranges>
@@ -12,14 +14,42 @@
 
 NP_TRACER_NAMESPACE_BEGIN
 
-void Context::createWindow(GLFWwindow*& window, uint32_t width, uint32_t height)
+static constexpr char kENGINE_NAME[] = "Engine";
+
+GLFWwindow* Context::createWindow(uint32_t width, uint32_t height)
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(width, height, "Engine", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height),
+                                          kENGINE_NAME, nullptr, nullptr);
 
     glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, sFramebufferResizeCallback);
+    glfwSetFramebufferSizeCallback(window, Context::sFramebufferResizeCallback);
+
+    return window;
+}
+
+void Context::sUpdateWindowFPS(GLFWwindow* window)
+{
+    static double prevTime = glfwGetTime();
+    static uint32_t frameCounter = 0u;
+
+    double currTime = glfwGetTime();
+    frameCounter++;
+
+    // check if a second has passed since the last update
+    if (currTime - prevTime >= 1.f)
+    {
+        double fps = static_cast<double>(frameCounter) / (currTime - prevTime);
+
+        // update the window title
+        static constexpr std::array title = cStrConcat(kENGINE_NAME, " ({:.3f} FPS)");
+        glfwSetWindowTitle(window, std::format(title.data(), fps).c_str());
+
+        // reset for the next second
+        frameCounter = 0u;
+        prevTime = currTime;
+    }
 }
 
 // VULKAN
@@ -37,7 +67,7 @@ void Context::createInstance()
 
     VkApplicationInfo appInfo{ .pApplicationName = "Engine",
                                .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-                               .pEngineName = "Bum",
+                               .pEngineName = nullptr,
                                .engineVersion = VK_MAKE_VERSION(1, 0, 0),
                                .apiVersion = VK_API_VERSION_1_4 };
 
@@ -70,8 +100,8 @@ void Context::createInstance()
                                .enabledValidationFeatureCount = static_cast<uint32_t>(
                                    enabledValidationFeatures.size()),
                                .pEnabledValidationFeatures = enabledValidationFeatures.data(),
-                               .disabledValidationFeatureCount = 0,
-                               .pDisabledValidationFeatures = nullptr };
+                               .disabledValidationFeatureCount = disabledValidationFeatures.size(),
+                               .pDisabledValidationFeatures = disabledValidationFeatures.data() };
         debugCreateInfo.pNext = &validationFeatures;
 
         createInfo.pNext = &debugCreateInfo;
@@ -461,8 +491,8 @@ void Context::recreateSwapchain(GLFWwindow* window)
 
 void Context::cleanupSwapchain()
 {
-    for (uint32_t i = 0; i < static_cast<uint32_t>(swapchainImageViews.size()); ++i)
-        vkDestroyImageView(device, swapchainImageViews[i], nullptr);
+    for (auto& swapchainImageView : swapchainImageViews)
+        vkDestroyImageView(device, swapchainImageView, nullptr);
     swapchainImageViews.clear();
 
     if (depthImage.image != VK_NULL_HANDLE) depthImage.destroy(device, allocator);
@@ -681,18 +711,18 @@ void Context::createTextureImage(Image* pOutHandle, const void* pPixels, uint32_
     createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
 
-    pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
-                                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                 VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+    sTransitionImageLayout(commandBuffer, pOutHandle->image, VK_PIPELINE_STAGE_2_NONE,
+                           VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     sCopyBufferToImage(pOutHandle, stagingBuffer, commandBuffer, width, height);
 
-    pOutHandle->transitionLayout(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                                 VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                                 VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+    sTransitionImageLayout(commandBuffer, pOutHandle->image, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                           VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     submitCommandBuffer(commandBuffer, eQueueType::GRAPHICS);
 
@@ -751,16 +781,15 @@ void Context::createResultImages(uint32_t width, uint32_t height)
     createCommandBuffer(&commandBuffer, eQueueType::GRAPHICS);
     sBeginCommandBuffer(commandBuffer);
 
-    for (uint32_t i = 0; i < static_cast<uint32_t>(handles.size()); ++i)
+    for (auto& handle : handles)
     {
         // result image
-        createImage(handles[i], VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
+        createImage(handle, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, width, height,
                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                         | VK_IMAGE_USAGE_STORAGE_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);
 
-        sTransitionImageLayout(commandBuffer, handles[i]->image,
-                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0,
+        sTransitionImageLayout(commandBuffer, handle->image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0,
                                VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
                                VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
                                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -830,14 +859,14 @@ void Context::sCopyImageToBuffer(const Buffer* pOutDstHandle, const Image& src,
 }
 
 void Context::sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                     VkPipelineStageFlags2 srcStageMask,
+                                     VkPipelineStageFlags2 srcPipelineStageMask,
                                      VkAccessFlags2 srcAccessMask,
                                      VkPipelineStageFlags2 dstPipelineStageMask,
                                      VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,
                                      VkImageLayout newLayout, VkImageAspectFlags aspectFlags)
 {
     VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                                   .srcStageMask = srcStageMask,
+                                   .srcStageMask = srcPipelineStageMask,
                                    .srcAccessMask = srcAccessMask,
                                    .dstStageMask = dstPipelineStageMask,
                                    .dstAccessMask = dstAccessMask,
@@ -1216,7 +1245,9 @@ void Context::writeDescriptorSetAccelerationStructures(
 
 // UTILITY
 Frame& Context::getCurrentFrame(uint32_t currentFrame)
-{ return frames[currentFrame]; }
+{
+    return frames[currentFrame];
+}
 
 void Context::loadRayTracingFunctionPointers()
 {
@@ -1270,7 +1301,9 @@ VkShaderModule Context::createShaderModule(const std::vector<char>& code) const
 }
 
 void Context::waitIdle() const
-{ vkDeviceWaitIdle(device); }
+{
+    vkDeviceWaitIdle(device);
+}
 
 void Context::destroyDebugMessenger()
 {

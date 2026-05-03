@@ -24,7 +24,7 @@ int main(int argc, char** argv)
             app.createRenderingResources();
             app.render();
         }
-        catch (const std::exception e)
+        catch (const std::exception& e)
         {
             std::cerr << e.what() << std::endl;
             return 1;

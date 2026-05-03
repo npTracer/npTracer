@@ -27,17 +27,16 @@ std::optional<uint32_t> sProcessTokenAsPrimvar(const ePrimvarType& primvarType, 
     if (primvarType == ePrimvarType::STYLIZATION_ID)
     {
         np::eStylizationId result = np::eStylizationId::STYLIZATION_ID_COUNT_;
-        const char* tokenNormalized = stringToLowercase(token.GetString()).c_str();
+        std::string tokenNormalized = stringToLowercase(token.GetString());
         if (tokenNormalized == "greyscale") result = np::eStylizationId::GREYSCALE;
         else if (tokenNormalized == "toon") result = np::eStylizationId::TOON;
         else if (tokenNormalized == "stripes") result = np::eStylizationId::STRIPES;
         else if (tokenNormalized == "crosshatch") result = np::eStylizationId::CROSSHATCH;
         else
         {
-            constexpr char kMsg[]
-                = "The given primvar value `{}` for custom primvar `{}` is not within the set of "
-                  "valid values.\n";
-            TF_WARN(kMsg, tokenNormalized, kSTYLIZATION_ID_PRIMVAR_NAME);
+            TF_WARN("The given primvar value `%s` for custom primvar `%s` is not within the set of "
+                    "valid values.\n",
+                    tokenNormalized, kSTYLIZATION_ID_PRIMVAR_NAME);
             return std::nullopt;
         }
         return std::make_optional<uint32_t>(result);

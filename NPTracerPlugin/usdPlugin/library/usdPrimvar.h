@@ -101,13 +101,11 @@ public:
             TfToken token = value.Get<TfToken>();
 
             std::optional<uint32_t> option = sProcessTokenAsPrimvar(primvarType, token);
-            if (option.has_value())
-            {
-                VtArray<T> arr;
-                arr.push_back(static_cast<T>(option.value()));
-                source = VtValue(arr);
-                return;
-            }
+            T val = option.has_value() ? static_cast<T>(option.value()) : defaultElement;
+
+            VtArray<T> arr{ val };
+            source = VtValue(arr);
+            return;
         }
         else
         {

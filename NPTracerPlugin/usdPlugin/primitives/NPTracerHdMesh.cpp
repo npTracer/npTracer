@@ -123,7 +123,7 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
             payload->SetSource(type, pv);
             payload->desc = desc;
 
-            if (!payload->bIsConstantValue) continue;  // do not process if constant
+            if (payload->bIsConstantValue) continue;  // do not process if constant
 
             primvarInterpolationMap[desc.interpolation].push_back(payload.get());
         }

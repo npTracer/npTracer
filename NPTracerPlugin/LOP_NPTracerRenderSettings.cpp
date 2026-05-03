@@ -15,4 +15,6 @@ LOP_NPTracerRenderSettings::LOP_NPTracerRenderSettings(OP_Network* parent, const
 }
 
 OP_ERROR LOP_NPTracerRenderSettings::cookMyLop(OP_Context& context)
-{ return error(context); }
+{
+    return error(context);
+}

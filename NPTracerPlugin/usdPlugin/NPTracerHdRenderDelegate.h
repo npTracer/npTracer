@@ -80,10 +80,14 @@ public:
     HdAovDescriptor GetDefaultAovDescriptor(const TfToken& aovName) const override;
 
     np::App* GetApp() const
-    { return _pApp.get(); }
+    {
+        return _pApp.get();
+    }
 
     np::Scene* GetScene() const
-    { return _pApp != nullptr ? _pApp->getScene() : nullptr; }
+    {
+        return _pApp != nullptr ? _pApp->getScene() : nullptr;
+    }
 
 private:
     void _Initialize();

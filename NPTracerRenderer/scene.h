@@ -21,7 +21,9 @@ public:
     virtual void loadSceneFromPath(const char* path);  // for compat purposes currently
 
     inline virtual eSceneType getSceneType()
-    { return eSceneType::DEFAULT; }
+    {
+        return eSceneType::DEFAULT;
+    }
 
     template<ScenePrim T>
     T* makePrim();
@@ -35,8 +37,10 @@ public:
     template<ScenePrim T>
     T* getPrimAtIndex(size_t idx);
 
-    inline CAMERA* getCamera()
-    { return &_camera; }
+    inline Camera* getCamera()
+    {
+        return &_camera;
+    }
 
     void guard();
     void finalize();
@@ -52,7 +56,7 @@ protected:
 
     std::vector<UPTR<Texture>> _textures;
 
-    CAMERA _camera;
+    Camera _camera;
 
     RenderSettings _settings;
 

@@ -11,10 +11,14 @@ class App
 {
 public:
     Context* getContext()
-    { return &mContext; }
+    {
+        return &mContext;
+    }
 
     Scene* getScene() const
-    { return mpScene.get(); }
+    {
+        return mpScene.get();
+    }
 
     // public interface
 

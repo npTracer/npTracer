@@ -19,6 +19,11 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 {
 }
 
+bool NPTracerHdRenderPass::IsConverged() const
+{
+    return _bConverged.load();
+}
+
 void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPassState,
                                     const TfTokenVector& renderTags)
 {
@@ -53,7 +58,7 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     // fill in camera data after all buffers have been requested
     if (_bSyncCameraPerPass)
     {
-        np::CameraRecord* cam = app->getScene()->getCamera();
+        np::Camera* cam = app->getScene()->getCamera();
         sSyncCameraToState(renderPassState, cam);
     }
 
@@ -73,14 +78,13 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
     NP_DBG("Render pass executed.\n");
 }
 
-bool NPTracerHdRenderPass::IsConverged() const
-{ return _bConverged.load(); }
-
 void NPTracerHdRenderPass::SetConverged(bool converged)
-{ _bConverged.store(converged); }
+{
+    _bConverged.store(converged);
+}
 
 void NPTracerHdRenderPass::sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
-                                              np::CameraRecord* outCam)
+                                              np::Camera* outCam)
 {
     outCam->view = GfToGLMMat4f(renderPassState->GetWorldToViewMatrix());
     outCam->proj = GfToGLMMat4f(renderPassState->GetProjectionMatrix());

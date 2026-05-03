@@ -45,9 +45,13 @@ public:
     VkCommandBuffer transferCommandBuffer = VK_NULL_HANDLE;
 
     void setFramesInFlight(const uint32_t count)
-    { kFramesInFlight = count; }
+    {
+        kFramesInFlight = count;
+    }
 
-    void createWindow(GLFWwindow*& window, uint32_t width, uint32_t height);
+    GLFWwindow* createWindow(uint32_t width, uint32_t height);
+    static void sUpdateWindowFPS(GLFWwindow* window);
+
     void createInstance();
     void createPhysicalDevice();
     void createLogicalDeviceAndQueues();
@@ -95,7 +99,7 @@ public:
                                    VkCommandBuffer commandBuffer, uint32_t width, uint32_t height,
                                    VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     static void sTransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
-                                       VkPipelineStageFlags2 srcStageMask,
+                                       VkPipelineStageFlags2 srcPipelineStageMask,
                                        VkAccessFlags2 srcAccessMask,
                                        VkPipelineStageFlags2 dstPipelineStageMask,
                                        VkAccessFlags2 dstAccessMask, VkImageLayout oldLayout,

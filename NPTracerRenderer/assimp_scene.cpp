@@ -102,15 +102,13 @@ void AssimpScene::loadAndSetTexture(const aiScene* scene, const aiMaterial* aiMa
                     texture->width = static_cast<uint32_t>(width);
                     texture->height = static_cast<uint32_t>(height);
                 }
-                else
-                {
+                else {
                     texture->pixels = embedded->pcData;
                     texture->width = embedded->mWidth;
                     texture->height = embedded->mHeight;
                 }
             }
-            else
-            {
+            else {
                 int width = 0, height = 0, channels = 0;
                 stbi_uc* pixels = stbi_load(aiStr.C_Str(), &width, &height, &channels,
                                             STBI_rgb_alpha);  // TODO: store scene directory
@@ -183,7 +181,7 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
 
         float a = color.a;
         int maxStyles = 4;
-        mesh->stylization = static_cast<int>((1.0f - a) * maxStyles);
+        mesh->stylizationId = static_cast<int>((1.0f - a) * maxStyles);
         int x = 0;
     }
 
@@ -277,8 +275,7 @@ void AssimpScene::processAiCamera(const aiScene* inAiScene)
         float fovY = 2.0f * atan(tan(aiCam->mHorizontalFOV * 0.5f) / aspect);
         _camera.proj = glm::perspectiveRH(fovY, aspect, aiCam->mClipPlaneNear, aiCam->mClipPlaneFar);
     }
-    else
-    {
+    else {
         _camera.view = glm::lookAtRH(glm::vec3(0.0f, 0.0f, 5.0f),  // eye
                                      glm::vec3(0.0f, 0.0f, 0.0f),  // center
                                      glm::vec3(0.0f, 1.0f, 0.0f)  // up

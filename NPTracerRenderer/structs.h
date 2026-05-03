@@ -273,6 +273,12 @@ struct AccelerationStructure
 // primitive types
 
 // meshes
+
+// define shared members in this macro to maintain synchronization without explicit inheritance
+#define MESH_SHARED_MEMBERS                                                                        \
+    uint32_t materialIndex = UINT32_MAX;                                                           \
+    uint32_t stylizationId = 0u;
+
 struct MeshRecord
 {
     uint32_t vertexOffset;
@@ -281,8 +287,7 @@ struct MeshRecord
     uint32_t vertexCount;
 
     uint32_t transformIndex;
-    uint32_t materialIndex = UINT32_MAX;
-    uint32_t stylization = 0;
+    MESH_SHARED_MEMBERS
 };
 
 struct Mesh
@@ -296,8 +301,7 @@ struct Mesh
 
     // NOTE: since Hydra does not guarantee creating materials before meshes, we save the material's unique `SdfPath` to fill in the `materialIndex` during 'finalization'
     SCENE_PATH materialScenePath;
-    uint32_t materialIndex = UINT32_MAX;
-    uint32_t stylization = 0;
+    MESH_SHARED_MEMBERS
 
     bool bMaterialNeedsFinalization = false;
 };

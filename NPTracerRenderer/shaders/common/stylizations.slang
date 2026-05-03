@@ -57,21 +57,22 @@ float3 stylizeToon(float3 sample)
     return toonRamp * intensity;
 }
 
+// TODO: make a JSON style map data file and corresponding Python automation script
 float3 stylize(float style, float3 L, float3 N, float3 wo, float3 pos)
 {
-    if (style == 1)
+    if (style == 1u)
     {
         return stylizeGreyScale(L);
     }
-    else if (style == 2)
+    else if (style == 2u)
     {
         return stylizeContour(L, N, wo);
     }
-    else if (style == 3)
+    else if (style == 3u)
     {
         return stylizeStripes(L, pos);
     }
-    else if (style == 4)
+    else if (style == 4u)
     {
         return stylizeToon(L);
     }

@@ -139,7 +139,7 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         kProcessFn(meshUtil, _triIndices, _primitiveParams, pPayloads);
 
         for (PrimvarPayloadBase* payload : pPayloads)
-            payload->isDirty = false;
+            payload->isDirty = false;  // reset payload status
     }
 }
 

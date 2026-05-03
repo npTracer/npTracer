@@ -25,7 +25,7 @@ enum ePrimvarType : uint8_t
 };
 
 inline std::string stringToLowercase(std::string str);
-uint32_t sProcessPrimvarAsToken(const ePrimvarType& primvarType, TfToken& token);
+std::optional<uint32_t> sProcessTokenAsPrimvar(const ePrimvarType& primvarType, TfToken& token);
 
 class PrimvarPayloadBase
 {
@@ -92,17 +92,28 @@ public:
     inline void SetSource(const ePrimvarType& primvarType, VtValue& value) override
     {
         // allow as long as holding the right type
-        if (value.IsHolding<VtArray<T>>()) source.UncheckedSwap(value);
+        if (value.IsHolding<VtArray<T>>())
+        {
+            source.UncheckedSwap(value);
+        }
         else if (value.IsHolding<TfToken>())
         {
             TfToken token = value.Get<TfToken>();
 
-            VtArray<T> arr;
-            arr.push_back(static_cast<T>(sProcessPrimvarAsToken(primvarType, token)));
-
-            source = VtValue(arr);
+            std::optional<uint32_t> option = sProcessTokenAsPrimvar(primvarType, token);
+            if (option.has_value())
+            {
+                VtArray<T> arr;
+                arr.push_back(static_cast<T>(option.value()));
+                source = VtValue(arr);
+                return;
+            }
         }
-        else source.UncheckedRemove<VtArray<T>>();
+        else
+        {
+            UNREACHABLE_CODE;
+        }
+
         sourceSize = source.GetArraySize();  // sets 0 if value is empty
     }
 

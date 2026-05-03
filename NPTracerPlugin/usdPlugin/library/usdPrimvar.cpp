@@ -2,6 +2,8 @@
 
 #include <pxr/imaging/hd/vtBufferSource.h>
 
+#include <format>
+
 PXR_NAMESPACE_OPEN_SCOPE
 
 constexpr char kSTYLIZATION_ID_PRIMVAR_NAME[] = "npTracer:stylizationId";
@@ -20,23 +22,27 @@ std::string stringToLowercase(std::string str)
     return str;
 }
 
-uint32_t sProcessPrimvarAsToken(const ePrimvarType& primvarType, TfToken& token)
+std::optional<uint32_t> sProcessTokenAsPrimvar(const ePrimvarType& primvarType, TfToken& token)
 {
     if (primvarType == ePrimvarType::STYLIZATION_ID)
     {
         np::eStylizationId result = np::eStylizationId::STYLIZATION_ID_COUNT_;
-        if (stringToLowercase(token.GetString()).c_str() == "greyscale")
-            result = np::eStylizationId::GREYSCALE;
-        else if (stringToLowercase(token.GetString()).c_str() == "toon")
-            result = np::eStylizationId::TOON;
-        else if (stringToLowercase(token.GetString()).c_str() == "stripes")
-            result = np::eStylizationId::STRIPES;
-        else if (stringToLowercase(token.GetString()).c_str() == "crosshatch")
-            result = np::eStylizationId::CROSSHATCH;
-
-        return result;
+        const char* tokenNormalized = stringToLowercase(token.GetString()).c_str();
+        if (tokenNormalized == "greyscale") result = np::eStylizationId::GREYSCALE;
+        else if (tokenNormalized == "toon") result = np::eStylizationId::TOON;
+        else if (tokenNormalized == "stripes") result = np::eStylizationId::STRIPES;
+        else if (tokenNormalized == "crosshatch") result = np::eStylizationId::CROSSHATCH;
+        else
+        {
+            constexpr char kMsg[]
+                = "The given primvar value `{}` for custom primvar `{}` is not within the set of "
+                  "valid values.\n";
+            TF_WARN(kMsg, tokenNormalized, kSTYLIZATION_ID_PRIMVAR_NAME);
+            return std::nullopt;
+        }
+        return std::make_optional<uint32_t>(result);
     }
-    UNREACHABLE_CODE
+    return std::nullopt;  // not a target token
 }
 
 bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc)

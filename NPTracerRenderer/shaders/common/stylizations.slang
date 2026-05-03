@@ -3,6 +3,11 @@ float luminance(float3 color)
     return dot(color, float3(0.2126, 0.7152, 0.0722));
 }
 
+float3 identity(float3 color)
+{
+    return float3(1.0, 1.0, 1.0);
+}
+
 float3 stylizeGreyScale(float3 sample)
 {
     float lum = luminance(sample);
@@ -50,4 +55,27 @@ float3 stylizeToon(float3 sample)
     
     float intensity = smoothstep(0.05, 0.10, luminance);
     return toonRamp * intensity;
+}
+
+// TODO: make a JSON style map data file and corresponding Python automation script
+float3 stylize(float style, float3 L, float3 N, float3 wo, float3 pos)
+{
+    if (style == 1u)
+    {
+        return stylizeGreyScale(L);
+    }
+    else if (style == 2u)
+    {
+        return stylizeContour(L, N, wo);
+    }
+    else if (style == 3u)
+    {
+        return stylizeStripes(L, pos);
+    }
+    else if (style == 4u)
+    {
+        return stylizeToon(L);
+    }
+    
+    return L;
 }

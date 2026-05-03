@@ -74,7 +74,7 @@ float3 generateCameraRayDir(float2 uv)
 }
 
 // determines radiance going in outgoing direction wo from light sources
-float3 computeDirectLighting(Payload payload, float3 wo)
+float3 computeDirectLighting(inout Payload payload, float3 wo)
 {
     // use the same intersection values from intersection (normal, pos, color, etc)
     float3 N = normalize(payload.normal);
@@ -126,7 +126,11 @@ float3 computeDirectLighting(Payload payload, float3 wo)
             shadowPayload
         );
         
-        if (shadowPayload.hit) continue;
+        if (shadowPayload.hit)
+        {
+            //payload.style = 4;
+            continue;
+        }
 
         // if nothing was obscured we can determine the contribution of the light to the output
         float distSq = max(dot(L, L), 1e-4); // square distance from position to light
@@ -362,6 +366,7 @@ void hitMain(inout Payload payload, in BuiltInTriangleIntersectionAttributes att
         Sampler2D texture = textures[material.diffuseTextureIndex];
         float4 texel = texture.SampleLevel(uv, 0.0);
         baseColor *= texel.rgb;
+        payload.style = 4;
     }
     
     if (material.normalTextureIndex != UINT32_MAX)

@@ -10,7 +10,7 @@
 
 There are a set of custom primvars that will be detected by **npTracer**. They can be easily set through every DCC that supports OpenUSD and specifically in many ways in Houdini, such as through VEX in a normal attribute wrangle node.
 
-#### `npTracer:stylizationId` (interpolation: `constant`, type: `token`)
+#### `npTracer:stylizationId` (interpolation: `constant`, type: `token` or `string`)
 
 This custom primvar is set per-mesh. The set of possible values are:
 

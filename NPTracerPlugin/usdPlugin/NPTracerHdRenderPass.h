@@ -28,15 +28,15 @@ private:
     NPTracerHdRenderDelegate* _pCreator;
 
     std::atomic<bool> _bConverged{ false };
-    std::atomic<uint32_t> _numRenderPassesExecuted{ 0u };
+    std::atomic<uint32_t> _numRenderPassesExecuted{ 0u };  // only create rendering resources once
+    std::atomic<bool> _bResourcesCreatedFlag{ false };
+
+    std::mutex _executionMutex;
 
     // camera should not be synced if we are overriding
     static constexpr bool _bSyncCameraPerPass = !ASSIMP_OVERRIDE;
     static void sSyncCameraToState(const HdRenderPassStateSharedPtr& renderPassState,
                                    np::Camera* outCam);
-
-    // TEMP: only create rendering resources once
-    std::atomic<bool> _bResourcesCreatedFlag{ false };
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

@@ -4,6 +4,23 @@
 ![dragon with greyscale stylization](docs/assets/dragon_with_greyscale_stylization.png)
 ![sponza in houdini](docs/assets/sponza_in_houdini.png)
 
+## User Manual
+
+### Custom USD Primvars
+
+There are a set of custom primvars that will be detected by **npTracer**. They can be easily set through every DCC that supports OpenUSD and specifically in many ways in Houdini, such as through VEX in a normal attribute wrangle node.
+
+#### `npTracer:stylizationId` (interpolation: `constant`, type: `token`)
+
+This custom primvar is set per-mesh. The set of possible values are:
+
+- `greyscale`
+- `toon`
+- `stripes`
+- `crosshatch`
+
+As you might expect, this primvar will set the stylization method of the mesh.
+
 ## Build Instructions
 
 NPTracer has a build pipeline setup through CMake.

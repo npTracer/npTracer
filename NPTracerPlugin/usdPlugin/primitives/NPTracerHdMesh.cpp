@@ -120,8 +120,11 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
 
             // use the name to query the value
             VtValue pv = delegate->Get(id, desc.name);
-            payload->SetSource(pv);
+            payload->SetSource(type, pv);
             payload->desc = desc;
+
+            if (payload->bIsConstantValue) continue;  // do not process if constant
+
             primvarInterpolationMap[desc.interpolation].push_back(payload.get());
         }
     }
@@ -134,12 +137,15 @@ void NPTracerHdMesh::SyncPrimvars(HdSceneDelegate* delegate, const HdDirtyBits* 
         const ProcessPrimvarsFn& kProcessFn
             = PROCESS_PRIMVARS_FN_TABLE[static_cast<uint32_t>(interpolation)];
         kProcessFn(meshUtil, _triIndices, _primitiveParams, pPayloads);
+
+        for (PrimvarPayloadBase* payload : pPayloads)
+            payload->isDirty = false;  // reset payload status
     }
 }
 
 void NPTracerHdMesh::sConstructMesh(
     const VtUIntArray& triIndices,
-    const std::unordered_map<PrimvarType, UPTR<PrimvarPayloadBase>>& primvarMap, np::Mesh* outMesh)
+    const std::unordered_map<ePrimvarType, UPTR<PrimvarPayloadBase>>& primvarMap, np::Mesh* outMesh)
 {
     // expected count for all attrs
     const uint32_t count = static_cast<uint32_t>(triIndices.size());
@@ -151,7 +157,10 @@ void NPTracerHdMesh::sConstructMesh(
     const VtVec3fArray& positions = GetPayload<GfVec3f>(primvarMap, POSITION)->GetProcessedArray();
     const VtVec3fArray& normals = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetProcessedArray();
     const VtVec3fArray& colors = GetPayload<GfVec3f>(primvarMap, COLOR)->GetProcessedArray();
-    const VtVec2fArray& UVs = GetPayload<GfVec2f>(primvarMap, UV)->GetProcessedArray();
+    const VtVec2fArray& uvs = GetPayload<GfVec2f>(primvarMap, UV)->GetProcessedArray();
+    const PrimvarPayload<np::eStylizationId>* stylizationIdPayload
+        = GetPayload<np::eStylizationId>(primvarMap, STYLIZATION_ID);
+    np::eStylizationId stylizationIdValue = stylizationIdPayload->GetConstantValue();
 
     // fill in all vertex data
     for (uint32_t i = 0u; i < count; ++i)
@@ -162,9 +171,11 @@ void NPTracerHdMesh::sConstructMesh(
             .pos = FLOAT4(GfToGLMVec3f(positions[i]), 1.f),
             .normal = FLOAT4(GfToGLMVec3f(normals[i]), 1.f),
             .color = FLOAT4(GfToGLMVec3f(colors[i]), 1.f),
-            .uv = GfToGLMVec2f(UVs[i]),
+            .uv = GfToGLMVec2f(uvs[i]),
         };
     }
+
+    outMesh->stylizationId = stylizationIdValue;
 }
 
 HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const
@@ -191,12 +202,15 @@ void NPTracerHdMesh::_AddToScene()
 
     // reset and reserve space for the map
     _primvarMap.clear();
-    _primvarMap.reserve(PrimvarType::_COUNT);
+    _primvarMap.reserve(ePrimvarType::PRIMVAR_TYPE_COUNT_);
     // set default value for each
-    _primvarMap[PrimvarType::POSITION] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(0.f));
-    _primvarMap[PrimvarType::NORMAL] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(0.f));
-    _primvarMap[PrimvarType::COLOR] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(1.f));
-    _primvarMap[PrimvarType::UV] = std::make_unique<PrimvarPayload<GfVec2f>>(GfVec2f(0.f));
+    _primvarMap[ePrimvarType::POSITION] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(0.f));
+    _primvarMap[ePrimvarType::NORMAL] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(0.f));
+    _primvarMap[ePrimvarType::COLOR] = std::make_unique<PrimvarPayload<GfVec3f>>(GfVec3f(1.f));
+    _primvarMap[ePrimvarType::UV] = std::make_unique<PrimvarPayload<GfVec2f>>(GfVec2f(0.f));
+
+    _primvarMap[ePrimvarType::STYLIZATION_ID] = std::make_unique<
+        PrimvarPayload<np::eStylizationId>>(np::eStylizationId::STYLIZATION_ID_COUNT_, true);
 }
 
 void NPTracerHdMesh::_RemoveFromScene()

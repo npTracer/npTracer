@@ -21,7 +21,8 @@ NPTracerHdRenderPass::NPTracerHdRenderPass(HdRenderIndex* index,
 
 bool NPTracerHdRenderPass::IsConverged() const
 {
-    return _bConverged.load();
+    bool result = (_numRenderPassesExecuted.load() < 2) ? false : _bConverged.load();
+    return result;
 }
 
 void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPassState,
@@ -62,10 +63,10 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
         sSyncCameraToState(renderPassState, cam);
     }
 
-    if (!_resourcesCreatedFlag.load())
+    if (!_bResourcesCreatedFlag.load())
     {
         app->createRenderingResources(payload);
-        _resourcesCreatedFlag.store(true);
+        _bResourcesCreatedFlag.store(true);
     }
 
     app->executeDrawCall(payload);
@@ -74,6 +75,8 @@ void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPass
         buffer->EndWrite();  // mark all requested buffers
 
     this->SetConverged(true);
+
+    _numRenderPassesExecuted.fetch_add(1u);
 
     NP_DBG("Render pass executed.\n");
 }

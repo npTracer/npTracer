@@ -2,7 +2,11 @@
 
 #include <pxr/imaging/hd/vtBufferSource.h>
 
+#include <format>
+
 PXR_NAMESPACE_OPEN_SCOPE
+
+constexpr char kSTYLIZATION_ID_PRIMVAR_NAME[] = "npTracer:stylizationId";
 
 // define extern variable
 extern const std::array<TfToken, 3> gUVTokensArray = {
@@ -10,6 +14,35 @@ extern const std::array<TfToken, 3> gUVTokensArray = {
     TfToken("map1", TfToken::_ImmortalTag::Immortal),  // maya convention
     TfToken("map2", TfToken::_ImmortalTag::Immortal)  // maya convention as well
 };
+
+std::string stringToLowercase(std::string str)
+{
+    std::ranges::transform(str.begin(), str.end(), str.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return str;
+}
+
+std::optional<uint32_t> sProcessTokenAsPrimvar(const ePrimvarType& primvarType, TfToken& token)
+{
+    if (primvarType == ePrimvarType::STYLIZATION_ID)
+    {
+        np::eStylizationId result = np::eStylizationId::STYLIZATION_ID_COUNT_;
+        std::string tokenNormalized = stringToLowercase(token.GetString());
+        if (tokenNormalized == "greyscale") result = np::eStylizationId::GREYSCALE;
+        else if (tokenNormalized == "toon") result = np::eStylizationId::TOON;
+        else if (tokenNormalized == "stripes") result = np::eStylizationId::STRIPES;
+        else if (tokenNormalized == "crosshatch") result = np::eStylizationId::CROSSHATCH;
+        else
+        {
+            TF_WARN("The given primvar value `%s` for custom primvar `%s` is not within the set of "
+                    "valid values.\n",
+                    tokenNormalized, kSTYLIZATION_ID_PRIMVAR_NAME);
+            return std::nullopt;
+        }
+        return std::make_optional<uint32_t>(result);
+    }
+    return std::nullopt;  // not a target token
+}
 
 bool IsPositionPrimvarDesc(const HdPrimvarDescriptor& desc)
 {
@@ -30,6 +63,11 @@ bool IsUVPrimvarDesc(const HdPrimvarDescriptor& desc)
 {
     return desc.name == TfToken("st") || std::string(desc.name).starts_with("map")
            || desc.role == HdPrimvarRoleTokens->textureCoordinate;
+}
+
+bool IsStylizationIdPrimvarDesc(const HdPrimvarDescriptor& desc)
+{
+    return desc.name == TfToken(kSTYLIZATION_ID_PRIMVAR_NAME);
 }
 
 bool IsPositionPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
@@ -54,6 +92,13 @@ bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
                                { return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, uvToken); });
 }
 
+bool IsStylizationIdPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
+{
+    // use a static variable as creating a `TfToken` is expensive
+    static TfToken stylizationIdToken = TfToken(kSTYLIZATION_ID_PRIMVAR_NAME);
+    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, stylizationIdToken);
+}
+
 void ProcessPrimvarsConstant(const HdMeshUtil& meshUtil, const VtU32Array& indices,
                              const VtIntArray& primitiveParams,
                              const std::vector<PrimvarPayloadBase*>& pPayloads)
@@ -62,7 +107,9 @@ void ProcessPrimvarsConstant(const HdMeshUtil& meshUtil, const VtU32Array& indic
 
     for (PrimvarPayloadBase* payload : pPayloads)
     {
-        if (!payload->isDirty || payload->desc.interpolation != HdInterpolationConstant) continue;
+        if (!payload->isDirty || payload->desc.interpolation != HdInterpolationConstant
+            || payload->bIsConstantValue)
+            continue;
         payload->FillConstant(count);
     }
 }

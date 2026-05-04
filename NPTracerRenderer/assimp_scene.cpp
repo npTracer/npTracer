@@ -181,10 +181,9 @@ void AssimpScene::processAiMesh(const aiScene* scene, const aiMesh* inAiMesh,
     {
         mat->diffuse = FLOAT4(color.r, color.g, color.b, 1.0f);
 
-        float a = color.a;
-        int maxStyles = 4;
-        mesh->stylizationId = static_cast<int>((1.0f - a) * maxStyles);
-        int x = 0;
+        uint32_t maxStyles = 4u;
+        mesh->stylizationId = static_cast<eStylizationId>((1.0f - color.a)
+                                                          * static_cast<float>(maxStyles));
     }
 
     if (aiMat->Get(AI_MATKEY_COLOR_AMBIENT, color) == AI_SUCCESS)

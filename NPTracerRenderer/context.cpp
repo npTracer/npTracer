@@ -130,7 +130,7 @@ void Context::createPhysicalDevice()
         vkGetPhysicalDeviceFeatures(dev, &deviceFeatures);
 
         if (deviceProperties.deviceType
-            == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)  // TODO better selection criteria
+            == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)  // TODO: better selection criteria
         {
             physicalDevice = dev;
             break;
@@ -193,8 +193,8 @@ void Context::createLogicalDeviceAndQueues()
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
-    // TODO add more device extensions
-    std::vector<const char*> requiredDeviceExtensions = {
+    // TODO: add more device extensions
+    std::array requiredDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,

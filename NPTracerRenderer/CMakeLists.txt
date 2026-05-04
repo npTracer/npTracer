@@ -17,6 +17,7 @@ set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/shaders")
 
 find_package(Vulkan REQUIRED)
 
+add_subdirectory(systems)
 add_subdirectory(templates)
 
 set(CURR_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
@@ -26,6 +27,7 @@ set(LIB_SOURCES
     "${NPTracerRenderer_ROOT_DIR}/app.cpp"
     "${NPTracerRenderer_ROOT_DIR}/scene.cpp"
     "${NPTracerRenderer_ROOT_DIR}/assimp_scene.cpp"
+    ${NPTracerRenderer_SYSTEMS_SOURCES}
 )
 
 set(LIB_HEADERS
@@ -38,6 +40,7 @@ set(LIB_HEADERS
     "${NPTracerRenderer_ROOT_DIR}/scene.h"
     "${NPTracerRenderer_ROOT_DIR}/assimp_scene.h"
     ${NPTracerRenderer_INLINE_TEMPLATES}
+    ${NPTracerRenderer_SYSTEMS_HEADERS}
 )
 
 set(CURR_SHADER_SPECS
@@ -58,6 +61,7 @@ add_library(${PROJECT_NAME} ${LIB_SOURCES} ${LIB_HEADERS})
 target_include_directories(${PROJECT_NAME}
     PUBLIC
     "$<BUILD_INTERFACE:${NPTracer_ROOT_DIR}>"
+    "$<BUILD_INTERFACE:${NPTracerRenderer_ROOT_DIR}>"
     "$<BUILD_INTERFACE:${NPTracer_EXTERNAL_DIR}/vma/include>"
     "$<BUILD_INTERFACE:${NPTracer_EXTERNAL_DIR}/stb>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"

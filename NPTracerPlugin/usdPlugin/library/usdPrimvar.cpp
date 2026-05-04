@@ -94,7 +94,9 @@ bool IsUVPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
 
 bool IsStylizationIdPrimvarDirty(const HdDirtyBits* dirtyBits, const SdfPath& id)
 {
-    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, TfToken(kSTYLIZATION_ID_PRIMVAR_NAME));
+    // use a static variable as creating a `TfToken` is expensive
+    static TfToken stylizationIdToken = TfToken(kSTYLIZATION_ID_PRIMVAR_NAME);
+    return HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, stylizationIdToken);
 }
 
 void ProcessPrimvarsConstant(const HdMeshUtil& meshUtil, const VtU32Array& indices,

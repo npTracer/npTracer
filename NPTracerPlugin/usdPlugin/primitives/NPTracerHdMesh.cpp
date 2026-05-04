@@ -158,9 +158,9 @@ void NPTracerHdMesh::sConstructMesh(
     const VtVec3fArray& normals = GetPayload<GfVec3f>(primvarMap, NORMAL)->GetProcessedArray();
     const VtVec3fArray& colors = GetPayload<GfVec3f>(primvarMap, COLOR)->GetProcessedArray();
     const VtVec2fArray& uvs = GetPayload<GfVec2f>(primvarMap, UV)->GetProcessedArray();
-    const PrimvarPayload<np::eStylizationId>* stylizationFnPayload
+    const PrimvarPayload<np::eStylizationId>* stylizationIdPayload
         = GetPayload<np::eStylizationId>(primvarMap, STYLIZATION_ID);
-    np::eStylizationId stylizationFnValue = stylizationFnPayload->GetConstantValue();
+    np::eStylizationId stylizationIdValue = stylizationIdPayload->GetConstantValue();
 
     // fill in all vertex data
     for (uint32_t i = 0u; i < count; ++i)
@@ -175,7 +175,7 @@ void NPTracerHdMesh::sConstructMesh(
         };
     }
 
-    outMesh->stylizationId = stylizationFnValue;
+    outMesh->stylizationId = stylizationIdValue;
 }
 
 HdDirtyBits NPTracerHdMesh::_PropagateDirtyBits(HdDirtyBits bits) const

@@ -114,16 +114,6 @@ struct Buffer
     {
         if (buffer != VK_NULL_HANDLE) vmaDestroyBuffer(allocator, buffer, allocation);
     }
-
-    static std::vector<VkBuffer> extractVkBuffers(const std::vector<Buffer>& buffers)
-    {
-        std::vector<VkBuffer> vkBuffers;
-        vkBuffers.reserve(buffers.size());
-        for (const auto& buffer : buffers)
-            vkBuffers.push_back(buffer.buffer);
-
-        return vkBuffers;
-    }
 };
 
 struct Image
@@ -391,18 +381,19 @@ struct Texture : TextureRecord
     bool unorm = false;
 };
 
-struct RenderSettings
-{
-    // general settings
-    uint32_t maxDepth = 1;
-    uint32_t samplesPerPixel = 1;
-};
+template<typename T>
+concept ScenePrim = std::is_same_v<T, Mesh> || std::is_same_v<T, Light>
+                    || std::is_same_v<T, Material> || std::is_same_v<T, Texture>;
+
+template<typename T>
+concept SceneDeviceLocalPrim = std::is_same_v<T, MeshRecord> || std::is_same_v<T, LightRecord>
+                               || std::is_same_v<T, MaterialRecord>
+                               || std::is_same_v<T, TextureRecord>;
 
 struct RendererTargets
 {
     Image* color = nullptr;
     Image* depth = nullptr;
-    // normals?
 };
 
 NP_TRACER_NAMESPACE_END

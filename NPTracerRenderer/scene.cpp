@@ -1,6 +1,5 @@
 #include "scene.h"
 
-#include <iostream>
 #include <algorithm>
 #include <stb_image.h>
 #include <glm/gtx/string_cast.hpp>
@@ -12,23 +11,34 @@ constexpr char MISSING_TEXTURE_PATH[] = TEXTURES_ROOT "/missing_texture.png";
 
 Scene::Scene()
 {
+    _meshes.reserve(kMAX_MESHES);
+    _meshRecords.reserve(kMAX_MESHES);
+
+    _lights.reserve(kMAX_LIGHTS);
+    _lightRecords.reserve(kMAX_LIGHTS);
+
+    _materials.reserve(kMAX_MATERIALS);
+    _materialRecords.reserve(kMAX_MATERIALS);
+
+    _textures.reserve(kMAX_TEXTURES);
+    _textureRecords.reserve(kMAX_TEXTURES);
+
     if constexpr (!gDEBUG) return;  // do not add default missing texture to scene
 
-    int width, height, channels;
-    stbi_uc* pixels = stbi_load(MISSING_TEXTURE_PATH, &width, &height, &channels, STBI_rgb_alpha);
-    DEV_ASSERT(pixels, "Failed to load default missing texture asset from '%s'.\n",
-               MISSING_TEXTURE_PATH);
+    {
+        int width, height, channels;
+        stbi_uc* pixels = stbi_load(MISSING_TEXTURE_PATH, &width, &height, &channels,
+                                    STBI_rgb_alpha);
+        DEV_ASSERT(pixels, "Failed to load default missing texture asset from '%s'.\n",
+                   MISSING_TEXTURE_PATH);
 
-    DBG_PRINT(
-        "Loaded default missing texture asset from '%s'. Found width=%u, height=%u, channels=%u.\n",
-        MISSING_TEXTURE_PATH, width, height, channels);
-
-    Texture* missingTex = makePrim<Texture>();
-    *missingTex = {
-        .pixels = reinterpret_cast<void*>(pixels),
-        .width = static_cast<uint32_t>(width),
-        .height = static_cast<uint32_t>(height),
-    };
+        Texture* missingTex = makePrim<Texture>();
+        *missingTex = {
+            .pixels = reinterpret_cast<void*>(pixels),
+            .width = static_cast<uint32_t>(width),
+            .height = static_cast<uint32_t>(height),
+        };
+    }
 }
 
 void Scene::loadSceneFromPath(const char* path)
@@ -73,76 +83,24 @@ void Scene::finalize()
     }
 
     // traverse meshes and check if they need to be 'linked' with their material
-    for (const auto& mesh : _meshes)
+    for (Mesh& mesh : _meshes)
     {
-        if (!mesh->bMaterialNeedsFinalization) continue;  // skip if doesn't need finalization
+        if (!mesh.bMaterialNeedsFinalization) continue;  // skip if doesn't need finalization
 
-        auto foundMat = std::ranges::find_if(_materials, [&mesh](const auto& mat)
-                                             { return mat->scenePath == mesh->materialScenePath; });
+        auto foundMat = std::ranges::find_if(_materials, [&mesh](const Material& mat)
+                                             { return mat.scenePath == mesh.materialScenePath; });
         if (foundMat == std::end(_materials)) continue;
-        mesh->materialIndex = std::distance(_materials.begin(), foundMat);
-        mesh->bMaterialNeedsFinalization = false;
+        mesh.materialIndex = std::distance(_materials.begin(), foundMat);
     }
 }
 
 void Scene::reportState() const
 {
-    if constexpr (!gDEBUG) return;  // toggle to disable
-
     // prim counts
-    DBG_PRINT("Num Meshes: %llu\n", _meshes.size());
-    DBG_PRINT("Num Lights: %llu\n", _lights.size());
-    DBG_PRINT("Num Materials: %llu\n", _materials.size());
-    DBG_PRINT("Num Textures: %llu\n", _textures.size());
-
-    if constexpr (true) return;  // toggle `false` for verbose debugging
-
-    // meshes
-    for (const auto& mesh : _meshes)
-    {
-        DBG_PRINT("MESH '%s'\n", mesh->scenePath.c_str());
-        std::cerr << "Transform: " << mesh->transform << std::endl;
-        DBG_PRINT("Num Indices: %llu\n", mesh->indices.size());
-        DBG_PRINT("Num Vertices: %llu\n", mesh->vertices.size());
-        DBG_PRINT("Material Index: %u\n", mesh->materialIndex);
-
-        if constexpr (false)  // toggle on for extremely verbose debugging
-        {
-            for (size_t i = 0; i < mesh->indices.size(); i++)
-            {
-                uint32_t index = mesh->indices[i];
-                const Vertex& vertex = mesh->vertices[index];
-                DBG_PRINT("[%llu] MESH INDEX '%u'\n", i, index);
-                std::cerr << vertex.pos << " [POSITION]" << std::endl;
-                std::cerr << vertex.normal << " [NORMAL]" << std::endl;
-                std::cerr << vertex.color << " [COLOR]" << std::endl;
-                std::cerr << vertex.uv << " [UV]" << std::endl;
-            }
-        }
-    }
-
-    // lights
-    for (const auto& light : _lights)
-    {
-        DBG_PRINT("LIGHT '%s'\n", light->scenePath.c_str());
-        std::cerr << "Transform: " << light->transform << std::endl;
-        std::cerr << "Color: " << light->color << std::endl;
-        DBG_PRINT("Intensity: %f\n", light->intensity);
-    }
-
-    // materials
-    for (const auto& mat : _materials)
-    {
-        DBG_PRINT("MATERIAL '%s'\n", mat->scenePath.c_str());
-        std::cerr << "Diffuse Color: " << mat->diffuse << std::endl;
-        DBG_PRINT("Diffuse Texture Index: %u\n", mat->diffuseTextureIndex);
-    }
-
-    // camera
-    {
-        std::cerr << "Camera View: " << _camera.view << std::endl;
-        std::cerr << "Camera Projection: " << _camera.proj << std::endl;
-    }
+    DBG_PRINT("Num Meshes: %llu\n", getPrimVector<Mesh>().size());
+    DBG_PRINT("Num Lights: %llu\n", getPrimVector<Light>().size());
+    DBG_PRINT("Num Materials: %llu\n", getPrimVector<Material>().size());
+    DBG_PRINT("Num Textures: %llu\n", getPrimVector<Texture>().size());
 }
 
 NP_TRACER_NAMESPACE_END

@@ -3,14 +3,14 @@
 #include "structs.h"
 
 #include <vector>
-#include <memory>
 #include <mutex>
 
 NP_TRACER_NAMESPACE_BEGIN
 
-template<typename T>
-concept ScenePrim = std::is_same_v<T, Mesh> || std::is_same_v<T, Light>
-                    || std::is_same_v<T, Material> || std::is_same_v<T, Texture>;
+constexpr uint32_t kMAX_LIGHTS = 1024;
+constexpr uint32_t kMAX_MATERIALS = 4096;
+constexpr uint32_t kMAX_TEXTURES = 4096;
+constexpr uint32_t kMAX_MESHES = 8192;
 
 class Scene
 {
@@ -47,24 +47,31 @@ public:
     void reportState() const;
 
 protected:
-    std::mutex _readWriteMutex;  // for now temp? keeps i/o single-threaded
+    std::mutex _readWriteMutex;  // keeps i/o single-threaded
 
-    std::vector<UPTR<Mesh>> _meshes;
+    std::vector<Mesh> _meshes;
+    std::vector<Light> _lights;
+    std::vector<Material> _materials;
+    std::vector<Texture> _textures;
 
-    std::vector<UPTR<Light>> _lights;
-    std::vector<UPTR<Material>> _materials;
-
-    std::vector<UPTR<Texture>> _textures;
+    std::vector<MeshRecord> _meshRecords;
+    std::vector<LightRecord> _lightRecords;
+    std::vector<MaterialRecord> _materialRecords;
+    std::vector<TextureRecord> _textureRecords;
 
     Camera _camera;
 
-    RenderSettings _settings;
+    template<ScenePrim T>
+    const std::vector<T>& getPrimVector() const;  // constant overload
 
     template<ScenePrim T>
-    const std::vector<UPTR<T>>& getPrimVector() const;  // constant overload
+    std::vector<T>& getPrimVector();
 
-    template<ScenePrim T>
-    std::vector<UPTR<T>>& getPrimVector();
+    template<SceneDeviceLocalPrim T>
+    const std::vector<T>& getDeviceLocalPrimVector() const;  // constant overload
+
+    template<SceneDeviceLocalPrim T>
+    std::vector<T>& getDeviceLocalPrimVector();
 };
 
 NP_TRACER_NAMESPACE_END

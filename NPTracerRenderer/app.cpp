@@ -366,6 +366,37 @@ void App::createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targ
     createRTPipeline();
 }
 
+void App::initRenderBuffers()
+{
+    Buffer& lightStagingBuffer = mStagingBufferMap[std::type_index(typeid(LightRecord))];
+    mContext.createBuffer(lightStagingBuffer, sizeof(LightRecord) * kMAX_LIGHTS,
+                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                              | VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    mContext.createDeviceLocalBuffer(mLightRecordBuffer, lightStagingBuffer.allocInfo.pMappedData,
+                                     sizeof(LightRecord) * kMAX_LIGHTS,
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+}
+
+void App::updateLights()
+{
+    uint32_t count = mpScene->getPrimCount<Light>();
+    Buffer& stagingBuffer = mStagingBufferMap[std::type_index(typeid(LightRecord))];
+
+    uint8_t* dst = static_cast<uint8_t*>(stagingBuffer.allocInfo.pMappedData);
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        LightRecord rec = mpScene->getPrimAtIndex<Light>(i)->toRecord();
+        memcpy(dst + i * sizeof(LightRecord), &rec, sizeof(LightRecord));
+    }
+
+    mContext.copyBuffer(stagingBuffer, mLightRecordBuffer, sizeof(LightRecord) * count);
+
+    mNumLights = count;
+}
+
 void App::createRTPipeline()
 {
     // pipeline layout

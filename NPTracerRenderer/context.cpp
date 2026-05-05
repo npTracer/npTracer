@@ -622,7 +622,7 @@ void Context::createDeviceLocalBuffer(Buffer& handle, const void* data, VkDevice
 
     memcpy(stagingBuffer.allocInfo.pMappedData, data, size);
 
-    createBuffer(handle, size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
+    createBuffer(handle, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, 0);
 
     copyBuffer(stagingBuffer, handle, size);
 

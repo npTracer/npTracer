@@ -10,10 +10,10 @@ inline T* Scene::makePrim()
 {
     guard();  // lock the mutex
 
-    std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
+    std::vector<T>& primVector = getPrimVector<T>();
 
-    primVector.push_back(std::make_unique<T>());
-    return primVector.back().get();
+    primVector.push_back(T{});
+    return &primVector.back();
 }
 
 template<ScenePrim T>
@@ -21,10 +21,10 @@ inline bool Scene::deletePrim(T* primToDelete)
 {
     guard();
 
-    std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
+    std::vector<T>& primVector = getPrimVector<T>();
 
-    auto it = std::find_if(primVector.begin(), primVector.end(), [&](const std::unique_ptr<T>& prim)
-                           { return prim.get() == primToDelete; });
+    auto it = std::find_if(primVector.begin(), primVector.end(),
+                           [&](T& prim) { return &prim == primToDelete; });
 
     if (it != primVector.end())
     {
@@ -37,7 +37,7 @@ inline bool Scene::deletePrim(T* primToDelete)
 template<ScenePrim T>
 inline size_t Scene::getPrimCount() const
 {
-    const std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
+    const std::vector<T>& primVector = getPrimVector<T>();
     return primVector.size();
 }
 
@@ -46,13 +46,13 @@ template<ScenePrim T>
 {
     guard();
 
-    std::vector<std::unique_ptr<T>>& primVector = getPrimVector<T>();
+    std::vector<T>& primVector = getPrimVector<T>();
     if (idx >= primVector.size()) return nullptr;
-    return primVector[idx].get();
+    return &primVector[idx];
 }
 
 template<ScenePrim T>
-inline std::vector<std::unique_ptr<T>>& Scene::getPrimVector()
+inline std::vector<T>& Scene::getPrimVector()
 {
     if constexpr (std::is_same_v<T, Mesh>) return _meshes;
     else if constexpr (std::is_same_v<T, Light>) return _lights;
@@ -63,9 +63,27 @@ inline std::vector<std::unique_ptr<T>>& Scene::getPrimVector()
 }
 
 template<ScenePrim T>
-const std::vector<std::unique_ptr<T>>& Scene::getPrimVector() const
+const std::vector<T>& Scene::getPrimVector() const
 {
     return const_cast<Scene*>(this)->getPrimVector<T>();  // const-cast is necessary for compiler
+}
+
+template<SceneDeviceLocalPrim T>
+inline std::vector<T>& Scene::getDeviceLocalPrimVector()  // constant overload
+{
+    if constexpr (std::is_same_v<T, Mesh>) return _meshes;
+    else if constexpr (std::is_same_v<T, Light>) return _lights;
+    else if constexpr (std::is_same_v<T, Material>) return _materials;
+    else if constexpr (std::is_same_v<T, Texture>) return _textures;
+
+    UNREACHABLE_CODE  // since template type constrained by `concept`, assert unreachable to compiler per-platform
+}
+
+template<SceneDeviceLocalPrim T>
+const std::vector<T>& Scene::getDeviceLocalPrimVector() const
+{
+    return const_cast<Scene*>(this)
+        ->getDeviceLocalPrimVector<T>();  // const-cast is necessary for compiler
 }
 
 NP_TRACER_NAMESPACE_END

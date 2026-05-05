@@ -4,6 +4,7 @@
 #include "scene.h"
 
 #include <memory>
+#include <typeindex>
 
 NP_TRACER_NAMESPACE_BEGIN
 
@@ -28,6 +29,7 @@ public:
     void loadSceneFromPath(const char* path) const;
 
     void createRenderingResources(std::optional<WRAP_REF<RendererTargets>> targetsRef = std::nullopt);
+
     void executeDrawCall(const RendererTargets& targets);
 
     void render();
@@ -54,6 +56,8 @@ private:
     uint32_t mCurrentFrameInFlight = 0u;
     uint32_t mNumLights = 0;
 
+    std::unordered_map<std::type_index, Buffer> mStagingBufferMap;
+
     // SET 0: MESHES
     Buffer mMeshRecordBuffer;
     Buffer mVertexBuffer;
@@ -73,6 +77,9 @@ private:
     // SET 4: RT
     std::vector<AccelerationStructure> mBlasses;
     AccelerationStructure mTlas{};
+
+    void initRenderBuffers();
+    void updateLights();
 
     // resource creation
     void createRTPipeline();

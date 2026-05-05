@@ -273,10 +273,29 @@ enum eStylizationId : uint32_t
     STYLIZATION_ID_COUNT_
 };
 
+struct StylizationParams
+{
+    FLOAT4 colorA;
+    FLOAT4 colorB;
+
+    FLOAT4 packedParamsFloat;
+    glm::uvec4 packedParamsUInt;
+
+    static StylizationParams makeToonStylizationParams(FLOAT4 lightColor, FLOAT4 shadowColor,
+                                                       uint32_t numBands)
+    {
+        return { .colorA = lightColor,
+                 .colorB = shadowColor,
+                 .packedParamsFloat = FLOAT4(-1.0),
+                 .packedParamsUInt = glm::uvec4(numBands, UINT32_MAX, UINT32_MAX, UINT32_MAX) };
+    }
+};
+
 // define shared members in this macro to maintain synchronization without explicit inheritance
 #define MESH_SHARED_MEMBERS                                                                        \
     uint32_t materialIndex = UINT32_MAX;                                                           \
-    eStylizationId stylizationId = eStylizationId::STYLIZATION_ID_COUNT_;
+    eStylizationId stylizationId = eStylizationId::STYLIZATION_ID_COUNT_;                          \
+    StylizationParams stylizationParams;
 
 struct MeshRecord
 {

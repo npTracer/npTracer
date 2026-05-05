@@ -14,20 +14,18 @@ float3 stylizeGreyScale(float3 sample)
     return float3(lum, lum, lum);
 }
 
-float3 stylizeContour(float3 sample, float3 normal, float3 wo)
+float3 stylizeToon(float3 sample, float3 normal, float3 wo, float3 lightColor, float3 shadowColor, uint32_t numBands)
 {
-    float NoV = dot(normal, wo);
+    float nDotV = dot(normal, wo);
     
-    if (abs(NoV) < 0.33)
-    {
-        return float3(0.01, 0.05, 0.2);
-    }
-    else if (abs(NoV) < 0.66)
-    {
-        return float3(0.05, 0.2, 0.6);
-    }
-    
-    return float3(0.15, 0.5, 1.0);
+    numBands = max(numBands, 1u);
+
+    float currBand = floor(nDotV * numBands);
+    currBand = min(currBand, numBands - 1);
+
+    float t = currBand / max(float(numBands - 1), 1.f);
+
+    return lerp(lightColor, shadowColor, t);
 }
 
 float3 stylizeStripes(float3 sample, float3 position)
@@ -87,7 +85,7 @@ float3 stylize(float style, float3 L, float3 N, float3 wo, float3 pos)
     }
     else if (style == 2u)
     {
-        return stylizeContour(L, N, wo);
+        return stylizeToon(L, N, wo, float3(1.f, 0.f, 0.f), float3(0.f, 1.f, 0.f), 3u);
     }
     else if (style == 3u)
     {

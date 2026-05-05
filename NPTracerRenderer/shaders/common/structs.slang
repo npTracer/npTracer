@@ -1,3 +1,11 @@
+struct StylizationParams
+{
+    float4 colorA;
+    float4 colorB;
+    float4 packedParamsFloat;
+    uint4 packedParamsInt;
+};
+
 struct MeshRecord
 {
     uint32_t vertexOffset;
@@ -7,6 +15,7 @@ struct MeshRecord
     uint32_t transformIndex;
     uint32_t materialIndex;
     uint32_t stylizationId;
+    StylizationParams stylizationParams;
 };
 
 struct CameraRecord

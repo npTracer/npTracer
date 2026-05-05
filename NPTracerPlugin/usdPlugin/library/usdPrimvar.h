@@ -24,8 +24,10 @@ enum ePrimvarType : uint8_t
     PRIMVAR_TYPE_COUNT_
 };
 
-inline std::string stringToLowercase(std::string str);
-std::optional<uint32_t> sProcessTokenAsPrimvar(const ePrimvarType& primvarType, TfToken& token);
+std::string StringToLowercase(std::string str);
+std::optional<uint32_t> ProcessTokenAsPrimvar(const ePrimvarType& primvarType,
+                                              const std::string& tokenString);
+bool IsTfTokenCorrupted(const TfToken& token);
 
 class PrimvarPayloadBase
 {
@@ -96,16 +98,21 @@ public:
         {
             source.UncheckedSwap(value);
         }
-        else if (value.IsHolding<TfToken>())
+        else if (value.IsHolding<TfToken>() || value.IsHolding<std::string>())
         {
-            TfToken token = value.Get<TfToken>();
+            std::string tokenString{};
+            if (value.IsHolding<TfToken>())
+            {
+                const TfToken& token = value.UncheckedGet<TfToken>();
+                if (!IsTfTokenCorrupted(token)) tokenString = token.GetString();
+            }
+            else tokenString = value.UncheckedGet<std::string>();
 
-            std::optional<uint32_t> option = sProcessTokenAsPrimvar(primvarType, token);
+            std::optional<uint32_t> option = ProcessTokenAsPrimvar(primvarType, tokenString);
             T val = option.has_value() ? static_cast<T>(option.value()) : defaultElement;
 
             VtArray<T> arr{ val };
             source = VtValue(arr);
-            return;
         }
         else
         {

@@ -13,6 +13,7 @@ include(slang_utils)
 set(STANDALONE_EXECUTABLE_TARGET "${PROJECT_NAME}_standalone")
 set(COMPILE_SHADERS_TARGET CompileShaders) # create a variable for name of shader target
 set(SHADER_SOURCE_DIR "${NPTracerRenderer_ROOT_DIR}/shaders")
+set(SHADER_COMMON_SOURCE_DIR "${SHADER_SOURCE_DIR}/common")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/shaders")
 
 find_package(Vulkan REQUIRED)
@@ -68,6 +69,13 @@ target_include_directories(${PROJECT_NAME}
 
 find_program(SLANGC_EXECUTABLE slangc REQUIRED)
 
+set(COMMON_SLANG_FILES
+    "${SHADER_COMMON_SOURCE_DIR}/interactions.slang"
+    "${SHADER_COMMON_SOURCE_DIR}/structs.slang"
+    "${SHADER_COMMON_SOURCE_DIR}/stylizations.slang"
+    "${SHADER_COMMON_SOURCE_DIR}/utils.slang"
+)
+
 set(ALL_SPV_OUTPUTS "")
 foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
     ParseShaderSpec("${shader_spec}")
@@ -77,11 +85,11 @@ foreach(shader_spec IN LISTS CURR_SHADER_SPECS)
         "${CURR_SHADER_FILE}"
         "${CURR_SHADER_STAGES}"
         "${SHADER_OUTPUT_DIR}"
+        "${COMMON_SLANG_FILES}"
         "${PROJECT_NAME}"
     )
     list(APPEND ALL_SPV_OUTPUTS ${CURR_SPV_OUTPUTS})
 endforeach()
-file(GLOB COMMON_SLANG_FILES "${SHADER_SOURCE_DIR}/common/*.slang")
 target_sources(${PROJECT_NAME} PRIVATE ${COMMON_SLANG_FILES})
 
 # also add spv outputs as sources to force re-compile when they change

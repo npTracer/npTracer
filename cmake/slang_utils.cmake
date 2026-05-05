@@ -1,6 +1,6 @@
 include_guard(GLOBAL)
 
-function(AddSlangShaderTarget shader_file shader_stages output_dir other_targets)
+function(AddSlangShaderTarget shader_file shader_stages output_dir common_shader_files other_targets)
     set(ENTRYPOINT_SUFFIX "Main") # TODO: expose this if necessary
     get_filename_component(SHADER_NAME "${shader_file}" NAME_WE)
 
@@ -10,7 +10,7 @@ function(AddSlangShaderTarget shader_file shader_stages output_dir other_targets
         set(ENTRYPOINT_NAME "${stage}${ENTRYPOINT_SUFFIX}")
         add_custom_command(
             OUTPUT "${SPV_OUTPUT}"
-            DEPENDS "${shader_file}"
+            DEPENDS "${shader_file}" ${common_shader_files}
             COMMAND ${CMAKE_COMMAND} -E make_directory "${output_dir}"
             COMMAND "${SLANGC_EXECUTABLE}" "${shader_file}"
                     -target spirv

@@ -15,19 +15,35 @@ extern const std::array<TfToken, 3> gUVTokensArray = {
     TfToken("map2", TfToken::_ImmortalTag::Immortal)  // maya convention as well
 };
 
-std::string stringToLowercase(std::string str)
+// sometimes render delegates in Houdini author a corrupted `TfToken` object?
+bool IsTfTokenCorrupted(const TfToken& token)
+{
+    if (token.IsEmpty()) return true;
+    // guard against corrupted object
+    if (reinterpret_cast<uintptr_t>(&token) == 0) return true;
+
+    // try access in a controlled way
+    const char* txt = token.GetText();
+    // reject invalid pointers, i.e. below page boundary
+    if (reinterpret_cast<uintptr_t>(txt) < 4096) return true;
+
+    return false;
+}
+
+std::string StringToLowercase(std::string str)
 {
     std::ranges::transform(str.begin(), str.end(), str.begin(),
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return str;
 }
 
-std::optional<uint32_t> sProcessTokenAsPrimvar(const ePrimvarType& primvarType, TfToken& token)
+std::optional<uint32_t> ProcessTokenAsPrimvar(const ePrimvarType& primvarType,
+                                              const std::string& tokenString)
 {
     if (primvarType == ePrimvarType::STYLIZATION_ID)
     {
-        np::eStylizationId result = np::eStylizationId::STYLIZATION_ID_COUNT_;
-        std::string tokenNormalized = stringToLowercase(token.GetString());
+        np::eStylizationId result;
+        std::string tokenNormalized = StringToLowercase(tokenString);
         if (tokenNormalized == "greyscale") result = np::eStylizationId::GREYSCALE;
         else if (tokenNormalized == "toon") result = np::eStylizationId::TOON;
         else if (tokenNormalized == "stripes") result = np::eStylizationId::STRIPES;

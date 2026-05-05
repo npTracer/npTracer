@@ -28,6 +28,8 @@ bool NPTracerHdRenderPass::IsConverged() const
 void NPTracerHdRenderPass::_Execute(const HdRenderPassStateSharedPtr& renderPassState,
                                     const TfTokenVector& renderTags)
 {
+    std::lock_guard<std::mutex> lock(_executionMutex);
+
     this->SetConverged(false);
 
     np::App* app = _pCreator->GetApp();

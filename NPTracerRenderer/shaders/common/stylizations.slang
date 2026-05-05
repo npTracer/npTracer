@@ -57,8 +57,8 @@ float3 stylizeCrossHatch(float3 sample, float3 position)
 {
     float lum = luminance(sample);
 
-    const float spacing  = 0.06;   // distance between adjacent slice planes
-    const float width    = 0.018;  // hatch line thickness (world units)
+    const float spacing  = 0.02;   // distance between adjacent slice planes
+    const float width    = 0.007;  // hatch line thickness
     const float3 lineCol = float3(0.04, 0.03, 0.02);
     const float3 bgCol   = float3(0.95, 0.93, 0.88); 
 
